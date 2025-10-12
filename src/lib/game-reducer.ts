@@ -225,9 +225,15 @@ const opponentAI = (state: GameState): GameState => {
             log.push({ turn: tempState.turn, message: `Joueur subit ${attacker.attack || 0} dégâts. PV restants: ${player.hp}.` });
           } else if(targetPlayerCard) {
             log.push({ turn: tempState.turn, message: `Adversaire: ${attacker.name} attaque ${targetPlayerCard.name}.` });
+            const defenderHealthBefore = targetPlayerCard.health || 0;
             resolveDamage(attacker, targetPlayerCard, log, tempState.turn);
+            
+            // Riposte only if defender survives
             if((targetPlayerCard.health || 0) > 0) {
+               log.push({ turn, message: `${targetPlayerCard.name} riposte !` });
                resolveDamage(targetPlayerCard, attacker, log, tempState.turn);
+            } else {
+               log.push({ turn, message: `${targetPlayerCard.name} est détruit avant de pouvoir riposter.` });
             }
           }
           
@@ -290,12 +296,15 @@ const resolvePlayerCombat = (state: GameState): GameState => {
         log.push({ turn, message: `Joueur: ${attacker.name} attaque ${defender.name}.` });
         
         // Attacker deals damage to defender
+        const defenderHealthBefore = defender.health || 0;
         resolveDamage(attacker, defender, log, turn);
         
-        // Defender strikes back if it survives
+        // Defender strikes back only if it survives
         if ((defender.health || 0) > 0) {
             log.push({ turn, message: `${defender.name} riposte !` });
             resolveDamage(defender, attacker, log, turn);
+        } else {
+            log.push({ turn, message: `${defender.name} est détruit avant de pouvoir riposter.` });
         }
     }
 
@@ -551,7 +560,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // Draw card for the new turn player
       const { player: nextPlayerAfterDraw, log: logAfterDraw } = drawCards(newState[nextPlayerKey], 1, newState.log, nextTurnNumber);
       newState[nextPlayerKey] = nextPlayerAfterDraw;
-      newState.log = [...logAfterDraw, { turn: nextTurnNumber, message: `Début du tour de ${nextPlayerKey === 'player' ? 'Joueur' : "l'Adversaire"}.` }];
+      newState.log = [...logAfterDraw, { turn: nextTurnNumber, message: `Début du tour de ${nextPlayerKey === 'player' ? 'Joueur' : 'l\'Adversaire'}.` }];
 
       // Next player gets mana
       let nextPlayerState = newState[nextPlayerKey];
