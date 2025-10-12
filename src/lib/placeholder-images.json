@@ -1,3 +1,64 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "goblin",
+      "description": "A fierce goblin warrior.",
+      "imageUrl": "https://picsum.photos/seed/goblin/300/400",
+      "imageHint": "goblin warrior"
+    },
+    {
+      "id": "knight",
+      "description": "A valiant knight in shining armor.",
+      "imageUrl": "https://picsum.photos/seed/knight/300/400",
+      "imageHint": "knight armor"
+    },
+    {
+      "id": "elf",
+      "description": "An agile elf archer from the woods.",
+      "imageUrl": "https://picsum.photos/seed/elf/300/400",
+      "imageHint": "elf archer"
+    },
+    {
+      "id": "dragon",
+      "description": "A mighty dragon breathing fire.",
+      "imageUrl": "https://picsum.photos/seed/dragon/300/400",
+      "imageHint": "fire dragon"
+    },
+    {
+      "id": "wizard",
+      "description": "A wise wizard casting a spell.",
+      "imageUrl": "https://picsum.photos/seed/wizard/300/400",
+      "imageHint": "wizard spell"
+    },
+    {
+      "id": "forest",
+      "description": "A lush, green forest.",
+      "imageUrl": "https://picsum.photos/seed/forest/300/400",
+      "imageHint": "enchanted forest"
+    },
+    {
+      "id": "mountain",
+      "description": "A tall, rocky mountain.",
+      "imageUrl": "https://picsum.photos/seed/mountain/300/400",
+      "imageHint": "snowy mountain"
+    },
+    {
+      "id": "swamp",
+      "description": "A dark and murky swamp.",
+      "imageUrl": "https://picsum.photos/seed/swamp/300/400",
+      "imageHint": "dark swamp"
+    },
+    {
+      "id": "potion",
+      "description": "A bubbling potion of power.",
+      "imageUrl": "https://picsum.photos/seed/potion/300/400",
+      "imageHint": "magic potion"
+    },
+    {
+      "id": "artifact",
+      "description": "An ancient, powerful artifact.",
+      "imageUrl": "https://picsum.photos/seed/artifact/300/400",
+      "imageHint": "ancient artifact"
+    }
+  ]
 }
