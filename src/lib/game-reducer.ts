@@ -112,16 +112,22 @@ const resolveDamage = (attacker: Card, defender: Card, log: any[], turn: number)
     const isCritical = Math.random() * 100 < (attacker.criticalHitChance || 0);
     let damageDealt = attacker.attack || 0;
     
+    log.push({ turn, message: `${attacker.name} attaque avec ${damageDealt} de dégâts.` });
+
     if (isCritical) {
-        log.push({ turn, message: `💥 Coup critique de ${attacker.name}!` });
+        log.push({ turn, message: `💥 Coup critique ! L'armure de ${defender.name} est ignorée.` });
         defender.health = (defender.health || 0) - damageDealt;
+        log.push({ turn, message: `${defender.name} subit ${damageDealt} dégâts directs. PV restants: ${defender.health}` });
     } else {
-        const remainingArmor = (defender.armor || 0) - damageDealt;
-        if (remainingArmor < 0) {
+        const armor = defender.armor || 0;
+        const damageAfterArmor = damageDealt - armor;
+        if (damageAfterArmor > 0) {
             defender.armor = 0;
-            defender.health = (defender.health || 0) + remainingArmor;
+            defender.health = (defender.health || 0) - damageAfterArmor;
+            log.push({ turn, message: `${defender.name} absorbe ${armor} dégâts et subit ${damageAfterArmor} dégâts. PV restants: ${defender.health}` });
         } else {
-            defender.armor = remainingArmor;
+            defender.armor = armor - damageDealt;
+            log.push({ turn, message: `${defender.name} absorbe ${damageDealt} dégâts. Armure restante: ${defender.armor}` });
         }
     }
     return { attacker, defender };
@@ -189,21 +195,24 @@ const opponentAI = (state: GameState): GameState => {
   
   attackers.forEach(attacker => {
       let target: Card | 'player' | null = null;
+      let targetPlayerCard: Card | undefined = undefined;
       
       // Must attack taunt creatures first
       if(playerTauntCreatures.length > 0) {
           // Attack the taunt creature with the lowest health
-          target = playerTauntCreatures.sort((a,b) => (a.health || 0) - (b.health || 0))[0];
+          targetPlayerCard = playerTauntCreatures.sort((a,b) => (a.health || 0) - (b.health || 0))[0];
+          target = targetPlayerCard;
       } else if (player.battlefield.filter((c: Card) => !c.tapped).length > 0) {
            // Simple version: if there are creatures, attack the one it can kill
            let potentialBlockers = player.battlefield.filter((c: Card) => !c.tapped);
            let killableTarget = potentialBlockers.find(p => (p.health || 0) <= (attacker.attack || 0));
            if(killableTarget) {
-               target = killableTarget;
+               targetPlayerCard = killableTarget;
            } else {
                // Or attack the one with highest attack
-               target = potentialBlockers.sort((a,b) => (b.attack || 0) - (a.attack || 0))[0];
+               targetPlayerCard = potentialBlockers.sort((a,b) => (b.attack || 0) - (a.attack || 0))[0];
            }
+           target = targetPlayerCard;
       } else {
         // No creatures to block, attack player
         target = 'player';
@@ -211,24 +220,30 @@ const opponentAI = (state: GameState): GameState => {
 
       if (target) {
           if (target === 'player') {
-            log.push({ turn: tempState.turn, message: `${attacker.name} attaque le joueur directement.` });
+            log.push({ turn: tempState.turn, message: `Adversaire: ${attacker.name} attaque le joueur directement.` });
             player.hp -= attacker.attack || 0;
-          } else {
-            log.push({ turn: tempState.turn, message: `${attacker.name} attaque ${target.name}.` });
-            resolveDamage(attacker, target, log, tempState.turn);
-            resolveDamage(target, attacker, log, tempState.turn);
+            log.push({ turn: tempState.turn, message: `Joueur subit ${attacker.attack || 0} dégâts. PV restants: ${player.hp}.` });
+          } else if(targetPlayerCard) {
+            log.push({ turn: tempState.turn, message: `Adversaire: ${attacker.name} attaque ${targetPlayerCard.name}.` });
+            resolveDamage(attacker, targetPlayerCard, log, tempState.turn);
+            if((targetPlayerCard.health || 0) > 0) {
+               resolveDamage(targetPlayerCard, attacker, log, tempState.turn);
+            }
           }
           
-          attacker.tapped = true;
-          attacker.canAttack = false;
+          const attackerInBattlefield = opponent.battlefield.find(c => c.id === attacker.id);
+          if (attackerInBattlefield) {
+            attackerInBattlefield.tapped = true;
+            attackerInBattlefield.canAttack = false;
+          }
       }
   });
 
    // Post-combat cleanup
-    const updateField = (p: Player): Player => {
+    const updateField = (p: Player, owner: string): Player => {
         const remainingCreatures = p.battlefield.filter(c => {
             if ((c.health || 0) <= 0) {
-                log.push({ turn: tempState.turn, message: `${c.name} est détruit.` });
+                log.push({ turn: tempState.turn, message: `${c.name} (${owner}) est détruit.` });
                 p.graveyard.push({...c, health: c.initialHealth});
                 return false;
             }
@@ -237,12 +252,13 @@ const opponentAI = (state: GameState): GameState => {
         return {...p, battlefield: remainingCreatures};
     };
 
-    tempState.player = updateField(player);
-    tempState.opponent = updateField(opponent);
+    tempState.player = updateField(player, "Joueur");
+    tempState.opponent = updateField(opponent, "Adversaire");
 
     if (tempState.player.hp <= 0) {
         tempState.winner = 'opponent';
         tempState.phase = 'game-over';
+        log.push({ turn: tempState.turn, message: "Le joueur a été vaincu."})
     }
 
   return tempState;
@@ -264,6 +280,7 @@ const resolvePlayerCombat = (state: GameState): GameState => {
     if (selectedDefenderId === 'opponent') {
         log.push({ turn, message: `Joueur: ${attacker.name} attaque l'adversaire directement !` });
         opponent.hp -= attacker.attack || 0;
+        log.push({ turn, message: `Adversaire subit ${attacker.attack || 0} dégâts. PV restants: ${opponent.hp}.` });
     } 
     // Case 2: Attacking a creature
     else {
@@ -272,18 +289,22 @@ const resolvePlayerCombat = (state: GameState): GameState => {
         
         log.push({ turn, message: `Joueur: ${attacker.name} attaque ${defender.name}.` });
         
-        // Resolve damage
+        // Attacker deals damage to defender
         resolveDamage(attacker, defender, log, turn);
-        // Defender strikes back
-        resolveDamage(defender, attacker, log, turn);
+        
+        // Defender strikes back if it survives
+        if ((defender.health || 0) > 0) {
+            log.push({ turn, message: `${defender.name} riposte !` });
+            resolveDamage(defender, attacker, log, turn);
+        }
     }
 
 
     // Post-combat cleanup for both battlefields
-    const updateField = (p: Player): Player => {
+    const updateField = (p: Player, owner: string): Player => {
         const remainingCreatures = p.battlefield.filter(c => {
             if ((c.health || 0) <= 0) {
-                log.push({ turn, message: `${c.name} est détruit.` });
+                log.push({ turn, message: `${c.name} (${owner}) est détruit.` });
                 p.graveyard.push({...c, health: c.initialHealth});
                 return false;
             }
@@ -292,10 +313,18 @@ const resolvePlayerCombat = (state: GameState): GameState => {
         return {...p, battlefield: remainingCreatures};
     };
     
-    newState.player = updateField(player);
-    newState.opponent = updateField(opponent);
+    newState.player = updateField(player, "Joueur");
+    newState.opponent = updateField(opponent, "Adversaire");
 
-    const winner = newState.opponent.hp <= 0 ? 'player' : (newState.player.hp <= 0 ? 'opponent' : undefined);
+    let winner;
+    if (newState.opponent.hp <= 0) {
+        winner = 'player';
+        log.push({ turn, message: "L'adversaire a été vaincu."})
+    } else if (newState.player.hp <= 0) {
+        winner = 'opponent';
+        log.push({ turn, message: "Le joueur a été vaincu."})
+    }
+
 
     return {
       ...newState,

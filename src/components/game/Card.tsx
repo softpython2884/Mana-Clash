@@ -66,7 +66,7 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
           'w-[150px] h-[210px] md:w-[180px] md:h-[252px] flex flex-col overflow-hidden select-none bg-card-foreground/5 dark:bg-card-foreground/10 backdrop-blur-sm',
           isPlayable && 'cursor-pointer ring-4 ring-primary ring-offset-2 ring-offset-background shadow-lg shadow-primary/50',
           canAttack && !tapped && 'cursor-pointer ring-4 ring-orange-500 ring-offset-2 ring-offset-background shadow-lg shadow-orange-500/50 animate-pulse',
-          isAttacking && 'ring-4 ring-destructive ring-offset-2 ring-offset-background shadow-lg shadow-destructive/50', // Red border for selected attacker
+          isAttacking && 'ring-4 ring-black ring-offset-2 ring-offset-background shadow-lg shadow-black/50', // Black border for selected attacker
           isTargetable && 'cursor-pointer ring-4 ring-yellow-400', // Highlight for potential targets
           onClick && "cursor-pointer",
           type === 'Biome' && `border-4 ${borderClass}`,
@@ -90,7 +90,7 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
             </CardDescription>
             {taunt && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-1 text-blue-400 font-bold text-xs bg-black/50 px-2 py-1 rounded-full"><ShieldQuestion size={12}/> PROVOCATION</div>}
             {isTargeted && (
-              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center animate-pulse">
                 <X className="w-16 h-16 text-red-500" />
               </div>
             )}
