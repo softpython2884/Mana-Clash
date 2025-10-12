@@ -5,7 +5,21 @@ export type CardType = 'Creature' | 'Land' | 'Spell' | 'Artifact' | 'Biome' | 'E
 export type GamePhase = 'main' | 'combat' | 'targeting' | 'end' | 'game-over';
 export type BiomeType = 'Forest' | 'Mountain' | 'Swamp' | 'Desert' | 'Ice' | 'Volcano' | 'Sanctuary';
 
-export type SkillType = 'taunt' | 'heal' | 'lifesteal' | 'draw' | 'buff_attack' | 'buff_armor' | 'global_buff_armor';
+export type SkillType = 
+  | 'taunt' 
+  | 'heal' 
+  | 'lifesteal' 
+  | 'draw' 
+  | 'buff_attack' 
+  | 'buff_armor' 
+  | 'global_buff_armor'
+  | 'magic_shield'
+  | 'counter_spell'
+  | 'double_attack'
+  | 'poison'
+  | 'stealth'
+  | 'summon';
+
 export type SkillTarget = 'self' | 'friendly_creature' | 'any_creature' | 'player' | 'opponent_creature';
 export type Rarity = 'Common' | 'Rare' | 'Epic' | 'Legendary';
 export type ElementType = 'Fire' | 'Water' | 'Earth' | 'Air' | 'Shadow' | 'Light' | 'Neutral';
