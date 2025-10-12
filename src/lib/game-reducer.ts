@@ -13,9 +13,8 @@ export type GameAction =
   | { type: 'PLAY_CARD'; cardId: string }
   | { type: 'CHANGE_BIOME'; cardId: string; player: 'player' | 'opponent' }
   | { type: 'SELECT_ATTACKER'; cardId: string }
-  | { type: 'SELECT_DEFENDER'; cardId: string }
+  | { type: 'SELECT_DEFENDER'; cardId: string | 'opponent' }
   | { type: 'DECLARE_ATTACK' }
-  | { type: 'RESOLVE_COMBAT'; blocks: { attackerId: string, blockerId: string }[] }
   | { type: 'PASS_TURN' }
   | { type: 'EXECUTE_OPPONENT_TURN' }
   | { type: 'LOG_MESSAGE'; message: string }
@@ -183,17 +182,17 @@ const opponentAI = (state: GameState): GameState => {
   // 4. Declare Attack
   let attackers = opponent.battlefield.filter(c => c.type === 'Creature' && c.canAttack && !c.tapped);
   const playerTauntCreatures = player.battlefield.filter((c: Card) => c.taunt && !c.tapped);
-  let potentialBlockers = player.battlefield.filter((c: Card) => !c.tapped);
   
   attackers.forEach(attacker => {
-      let target = null;
+      let target: Card | 'player' | null = null;
+      
       // Must attack taunt creatures first
       if(playerTauntCreatures.length > 0) {
           // Attack the taunt creature with the lowest health
           target = playerTauntCreatures.sort((a,b) => (a.health || 0) - (b.health || 0))[0];
-      } else if (potentialBlockers.length > 0) {
-           // AI logic to decide whether to attack a creature or the player
+      } else if (player.battlefield.filter((c: Card) => !c.tapped).length > 0) {
            // Simple version: if there are creatures, attack the one it can kill
+           let potentialBlockers = player.battlefield.filter((c: Card) => !c.tapped);
            let killableTarget = potentialBlockers.find(p => (p.health || 0) <= (attacker.attack || 0));
            if(killableTarget) {
                target = killableTarget;
@@ -201,17 +200,21 @@ const opponentAI = (state: GameState): GameState => {
                // Or attack the one with highest attack
                target = potentialBlockers.sort((a,b) => (b.attack || 0) - (a.attack || 0))[0];
            }
+      } else {
+        // No creatures to block, attack player
+        target = 'player';
       }
 
       if (target) {
-          log.push({ turn: tempState.turn, message: `${attacker.name} attaque ${target.name}.` });
-          resolveDamage(attacker, target, log, tempState.turn);
-          resolveDamage(target, attacker, log, tempState.turn);
-          attacker.tapped = true;
-          attacker.canAttack = false;
-      } else {
-          log.push({ turn: tempState.turn, message: `${attacker.name} attaque le joueur directement.` });
-          player.hp -= attacker.attack || 0;
+          if (target === 'player') {
+            log.push({ turn: tempState.turn, message: `${attacker.name} attaque le joueur directement.` });
+            player.hp -= attacker.attack || 0;
+          } else {
+            log.push({ turn: tempState.turn, message: `${attacker.name} attaque ${target.name}.` });
+            resolveDamage(attacker, target, log, tempState.turn);
+            resolveDamage(target, attacker, log, tempState.turn);
+          }
+          
           attacker.tapped = true;
           attacker.canAttack = false;
       }
@@ -247,29 +250,32 @@ const resolvePlayerCombat = (state: GameState): GameState => {
     let { player, opponent, log, turn, selectedAttackerId, selectedDefenderId } = newState;
 
     const attacker = player.battlefield.find((c: Card) => c.id === selectedAttackerId);
-    const defender = opponent.battlefield.find((c: Card) => c.id === selectedDefenderId);
+    if (!attacker) return state;
 
-    if (!attacker || !defender) {
-        return {
-            ...newState,
-            phase: 'combat',
-            selectedAttackerId: null,
-            selectedDefenderId: null
-        };
-    }
-    
-    log.push({ turn, message: `Joueur: ${attacker.name} attaque ${defender.name}.` });
-    
-    // Resolve damage
-    resolveDamage(attacker, defender, log, turn);
-    // Defender strikes back
-    resolveDamage(defender, attacker, log, turn);
-
-    // Tap attacker
+    // Tap attacker immediately
     attacker.tapped = true;
     attacker.canAttack = false;
 
-    // Post-combat cleanup
+    // Case 1: Attacking the opponent directly
+    if (selectedDefenderId === 'opponent') {
+        log.push({ turn, message: `Joueur: ${attacker.name} attaque l'adversaire directement !` });
+        opponent.hp -= attacker.attack || 0;
+    } 
+    // Case 2: Attacking a creature
+    else {
+        const defender = opponent.battlefield.find((c: Card) => c.id === selectedDefenderId);
+        if (!defender) return state; // Should not happen with proper targeting
+        
+        log.push({ turn, message: `Joueur: ${attacker.name} attaque ${defender.name}.` });
+        
+        // Resolve damage
+        resolveDamage(attacker, defender, log, turn);
+        // Defender strikes back
+        resolveDamage(defender, attacker, log, turn);
+    }
+
+
+    // Post-combat cleanup for both battlefields
     const updateField = (p: Player): Player => {
         const remainingCreatures = p.battlefield.filter(c => {
             if ((c.health || 0) <= 0) {
@@ -282,16 +288,13 @@ const resolvePlayerCombat = (state: GameState): GameState => {
         return {...p, battlefield: remainingCreatures};
     };
     
-    player = updateField(player);
-    opponent = updateField(opponent);
+    newState.player = updateField(player);
+    newState.opponent = updateField(opponent);
 
-    const winner = opponent.hp <= 0 ? 'player' : (player.hp <= 0 ? 'opponent' : undefined);
+    const winner = newState.opponent.hp <= 0 ? 'player' : (newState.player.hp <= 0 ? 'opponent' : undefined);
 
     return {
       ...newState,
-      player,
-      opponent,
-      log,
       winner,
       phase: winner ? 'game-over' : 'combat', // Return to combat phase to allow more attacks
       selectedAttackerId: null,
@@ -429,6 +432,16 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'SELECT_DEFENDER': {
       if (state.phase !== 'targeting' || state.activePlayer !== 'player') return state;
       const opponentHasTaunt = state.opponent.battlefield.some(c => c.taunt && !c.tapped);
+
+      // If targeting opponent directly
+      if (action.cardId === 'opponent') {
+        if (opponentHasTaunt) {
+           return { ...state, log: [...state.log, { turn: state.turn, message: "Vous devez attaquer une créature avec Provocation."}] };
+        }
+        return { ...state, selectedDefenderId: 'opponent' };
+      }
+      
+      // If targeting a creature
       const targetCard = state.opponent.battlefield.find(c => c.id === action.cardId);
       if(!targetCard) return state;
 
@@ -474,7 +487,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // Draw card for the new turn player
       const { player: nextPlayerAfterDraw, log: logAfterDraw } = drawCards(newState[nextPlayerKey], 1, newState.log, nextTurnNumber);
       newState[nextPlayerKey] = nextPlayerAfterDraw;
-      newState.log = [...logAfterDraw, { turn: nextTurnNumber, message: `Début du tour de ${nextPlayerKey === 'player' ? 'Joueur' : 'l\'Adversaire'}.` }];
+      newState.log = [...logAfterDraw, { turn: nextTurnNumber, message: `Début du tour de ${nextPlayerKey === 'player' ? 'Joueur' : "l'Adversaire"}.` }];
 
       // Next player gets mana
       let nextPlayerState = newState[nextPlayerKey];

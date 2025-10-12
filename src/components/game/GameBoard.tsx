@@ -51,7 +51,7 @@ export default function GameBoard() {
     dispatch({ type: 'SELECT_ATTACKER', cardId });
   };
 
-  const handleSelectDefender = (cardId: string) => {
+  const handleSelectDefender = (cardId: string | 'opponent') => {
     if (phase === 'targeting') {
       dispatch({ type: 'SELECT_DEFENDER', cardId });
     }
@@ -101,7 +101,8 @@ export default function GameBoard() {
   )), [player.battlefield, phase, selectedAttackerId]);
 
   const opponentHasTaunt = opponent.battlefield.some(c => c.taunt && !c.tapped);
-  
+  const canTargetOpponentDirectly = phase === 'targeting' && selectedAttackerId && !opponentHasTaunt;
+
   const MemoizedOpponentBattlefield = useMemo(() => opponent.battlefield.map((card) => {
     const isTargetable = phase === 'targeting' && selectedAttackerId && (!opponentHasTaunt || card.taunt);
     return (
@@ -148,7 +149,15 @@ export default function GameBoard() {
 
       {/* Opponent Area */}
       <div className="flex justify-between items-start">
-        <PlayerStats hp={opponent.hp} mana={opponent.mana} maxMana={opponent.maxMana} isOpponent />
+        <PlayerStats 
+            hp={opponent.hp} 
+            mana={opponent.mana} 
+            maxMana={opponent.maxMana} 
+            isOpponent 
+            isTargetable={canTargetOpponentDirectly}
+            isTargeted={selectedDefenderId === 'opponent'}
+            onClick={() => handleSelectDefender('opponent')}
+        />
         <div className="flex gap-2">
             <UICard className="w-24 h-32 flex flex-col items-center justify-center bg-secondary">
                 <p className="font-bold">Pioche</p>

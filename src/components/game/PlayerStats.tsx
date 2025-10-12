@@ -1,6 +1,6 @@
 'use client';
 
-import { Heart } from 'lucide-react';
+import { Heart, X } from 'lucide-react';
 import { ManaIcon } from '../icons/ManaIcon';
 import { cn } from '@/lib/utils';
 
@@ -9,11 +9,22 @@ interface PlayerStatsProps {
   mana: number;
   maxMana: number;
   isOpponent?: boolean;
+  isTargetable?: boolean;
+  isTargeted?: boolean;
+  onClick?: () => void;
 }
 
-export default function PlayerStats({ hp, mana, maxMana, isOpponent = false }: PlayerStatsProps) {
+export default function PlayerStats({ hp, mana, maxMana, isOpponent = false, isTargetable = false, isTargeted = false, onClick }: PlayerStatsProps) {
   return (
-    <div className={cn("flex gap-4 items-center p-2 rounded-lg bg-card/50 backdrop-blur-sm", isOpponent ? 'flex-row-reverse' : '')}>
+    <div
+      onClick={onClick}
+      className={cn(
+        "relative flex gap-4 items-center p-2 rounded-lg bg-card/50 backdrop-blur-sm transition-all",
+        isOpponent ? 'flex-row-reverse' : '',
+        isTargetable && 'cursor-pointer ring-2 ring-yellow-400',
+        isTargeted && 'ring-2 ring-red-500'
+      )}
+    >
       <div className="flex items-center gap-2 text-lg font-bold text-[hsl(var(--hp))]">
         <Heart className="w-6 h-6 fill-current" />
         <span>{hp}</span>
@@ -22,6 +33,11 @@ export default function PlayerStats({ hp, mana, maxMana, isOpponent = false }: P
         <ManaIcon className="w-6 h-6" />
         <span>{mana} / {maxMana}</span>
       </div>
+       {isTargeted && (
+        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+            <X className="w-16 h-16 text-red-500" />
+        </div>
+      )}
     </div>
   );
 }
