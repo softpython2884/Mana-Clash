@@ -23,6 +23,7 @@ export interface Card {
   criticalHitChance?: number;
   biome?: BiomeType;
   preferredBiome?: BiomeType;
+  taunt?: boolean;
 }
 
 export interface Player {

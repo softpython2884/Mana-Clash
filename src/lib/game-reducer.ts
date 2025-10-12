@@ -34,20 +34,31 @@ export const getInitialState = (): GameState => {
   if (!defaultBiomeCard) {
       throw new Error("Default biome card not found");
   }
-  return {
+  const initialState = {
     gameId: 0,
     turn: 1,
-    activePlayer: 'player',
-    phase: 'main',
+    activePlayer: 'player' as 'player' | 'opponent',
+    phase: 'main' as GamePhase,
     player: createInitialPlayer(),
     opponent: createInitialPlayer(),
     log: [],
     isThinking: false,
     activeBiome: { ...defaultBiomeCard, tapped: false, isAttacking: false, canAttack: false, summoningSickness: false, initialHealth: defaultBiomeCard.health },
+    winner: undefined,
   };
+
+  const playerDeck = createDeck();
+  const opponentDeck = createDeck();
+
+  initialState.player = { ...initialState.player, deck: playerDeck };
+  initialState.opponent = { ...initialState.opponent, deck: opponentDeck };
+  
+  return initialState;
 };
 
-const shuffleAndDeal = (): Partial<GameState> => {
+const shuffleAndDeal = (state: GameState): GameState => {
+    let newState = JSON.parse(JSON.stringify(state));
+    
     const playerDeck = createDeck();
     const opponentDeck = createDeck();
 
@@ -57,6 +68,7 @@ const shuffleAndDeal = (): Partial<GameState> => {
     const defaultBiomeCard = allCards.find(c => c.id === 'forest_biome');
     
     return {
+        ...newState,
         gameId: Date.now(),
         turn: 1,
         activePlayer: 'player',
@@ -69,10 +81,32 @@ const shuffleAndDeal = (): Partial<GameState> => {
     }
 }
 
+// --- COMBAT DAMAGE RESOLUTION ---
+const resolveDamage = (attacker: Card, defender: Card, log: any[], turn: number) => {
+    const isCritical = Math.random() * 100 < (attacker.criticalHitChance || 0);
+    let damageDealt = attacker.attack || 0;
+    
+    if (isCritical) {
+        log.push({ turn, message: `💥 Coup critique de ${attacker.name}!` });
+        defender.health = (defender.health || 0) - damageDealt;
+    } else {
+        const remainingArmor = (defender.armor || 0) - damageDealt;
+        if (remainingArmor < 0) {
+            defender.armor = 0;
+            defender.health = (defender.health || 0) + remainingArmor;
+        } else {
+            defender.armor = remainingArmor;
+        }
+    }
+    return { attacker, defender };
+};
+
+
 // --- AI LOGIC ---
 const opponentAI = (state: GameState): GameState => {
   let tempState = JSON.parse(JSON.stringify(state)); // Deep copy to simulate changes
   let opponent = tempState.opponent;
+  let player = tempState.player;
   let log = tempState.log;
 
   // 1. Play Biome Card
@@ -96,8 +130,6 @@ const opponentAI = (state: GameState): GameState => {
           log.push({ turn: tempState.turn, message: `Adversaire joue ${landInHand.name}.` });
           opponent.battlefield.push({ ...landInHand, summoningSickness: true });
           opponent.hand = opponent.hand.filter(c => c.id !== landInHand.id);
-          opponent.maxMana += 1;
-          opponent.mana = opponent.maxMana; // Mana is refilled when land is played in this simple AI
       }
   }
 
@@ -120,21 +152,24 @@ const opponentAI = (state: GameState): GameState => {
   }
   
   // 4. Declare Attack
-  let attackers = opponent.battlefield.filter(c => c.type === 'Creature' && !c.summoningSickness && !c.tapped);
+  let attackers = opponent.battlefield.filter(c => c.type === 'Creature' && c.canAttack && !c.tapped);
   if (attackers.length > 0) {
       log.push({ turn: tempState.turn, message: `Adversaire attaque avec ${attackers.map(a => a.name).join(', ')}.` });
-      // The rest of the combat logic is handled by the DECLARE_ATTACK reducer logic, but we need to simulate it for the AI's opponent (the player)
-      tempState = resolveCombat(tempState, attackers, 'opponent');
+      attackers.forEach(a => a.isAttacking = true); // Mark as attackers
+      
+      // Simulate combat against player
+      tempState = resolveCombat(tempState, 'opponent');
   }
 
   tempState.opponent = opponent;
+  tempState.player = player;
   tempState.log = log;
 
   return tempState;
 };
 
 // A generalized combat resolution function
-const resolveCombat = (state: GameState, attackers: Card[], attackingPlayer: 'player' | 'opponent'): GameState => {
+const resolveCombat = (state: GameState, attackingPlayer: 'player' | 'opponent'): GameState => {
     let defenderPlayerKey = attackingPlayer === 'player' ? 'opponent' : 'player';
     let attackerPlayerKey = attackingPlayer;
 
@@ -143,88 +178,89 @@ const resolveCombat = (state: GameState, attackers: Card[], attackingPlayer: 'pl
     let defenderState = newState[defenderPlayerKey];
     let newLog = newState.log;
 
-    const availableBlockers = defenderState.battlefield.filter((c: Card) => c.type === 'Creature' && !c.tapped);
-    let unblockedAttackers = [...attackers];
-
-    // --- Defender AI Blocking Logic (if defender is AI, otherwise it's manual) ---
-    if (defenderPlayerKey === 'opponent') { // Simple AI blocking
-        attackers.sort((a, b) => (b.attack || 0) - (a.attack || 0)); // Prioritize blocking strongest attackers
-
-        for (const attacker of attackers) {
-            // Find a blocker that can survive or trade favorably
-            let bestBlocker = availableBlockers.find(b => (b.health || 0) > (attacker.attack || 0) || ((b.attack || 0) >= (attacker.health || 0)));
-            if (!bestBlocker && availableBlockers.length > 0) {
-                // If no favorable trade, use the beefiest blocker available
-                bestBlocker = availableBlockers.sort((a,b) => (b.health || 0) - (a.health || 0))[0];
+    const attackers = attackerState.battlefield.filter((c: Card) => c.isAttacking);
+    const blockers: Card[] = [];
+    
+    const defendingTauntCreatures = defenderState.battlefield.filter((c: Card) => c.taunt && c.type === 'Creature' && !c.tapped);
+    let potentialBlockers = defenderState.battlefield.filter((c: Card) => c.type === 'Creature' && !c.tapped);
+    
+    // --- AI Blocking Logic ---
+    if (defenderPlayerKey === 'opponent') {
+        attackers.forEach(attacker => {
+            let possibleBlockersForThisAttacker = potentialBlockers;
+            // If there are taunt creatures on player side, AI must block one of them if possible
+            const playerTauntCreatures = player.battlefield.filter(c => c.taunt && c.type === 'Creature' && !c.tapped);
+            if (playerTauntCreatures.length > 0) {
+              // This is a simplification; a real AI would need to decide which taunt to block
             }
 
-            if (bestBlocker) {
-                newLog.push({ turn: newState.turn, message: `${bestBlocker.name} bloque ${attacker.name}.` });
-                
-                const attackerDmg = attacker.attack || 0;
-                const blockerDmg = bestBlocker.attack || 0;
-
-                // Damage resolution
-                bestBlocker.health -= attackerDmg;
-                attacker.health -= blockerDmg;
-
-                const blockerIndexInAvailable = availableBlockers.findIndex(b => b.id === bestBlocker!.id);
-                if (blockerIndexInAvailable > -1) {
-                    availableBlockers.splice(blockerIndexInAvailable, 1);
-                }
-                unblockedAttackers = unblockedAttackers.filter(a => a.id !== attacker.id);
+            // Simple AI: find a blocker that can survive or trade
+            let blocker = possibleBlockersForThisAttacker.find(b => (b.health || 0) > (attacker.attack || 0));
+            if (!blocker) {
+                 // Or find a blocker that can trade
+                 blocker = possibleBlockersForThisAttacker.find(b => (b.attack || 0) >= (attacker.health || 0));
             }
-        }
+             if (!blocker && possibleBlockersForThisAttacker.length > 0) {
+                // Otherwise, just use any available blocker
+                blocker = possibleBlockersForThisAttacker[0];
+            }
+            
+            if (blocker) {
+                newLog.push({ turn: newState.turn, message: `${blocker.name} bloque ${attacker.name}.` });
+                resolveDamage(attacker, blocker, newLog, newState.turn);
+                resolveDamage(blocker, attacker, newLog, newState.turn);
+                // Remove blocker from available pool for this turn
+                potentialBlockers = potentialBlockers.filter(b => b.id !== blocker.id);
+            }
+        });
     }
-     // If player is defender, blocking needs a new UI flow. For now, we assume AI blocking or no blocking.
 
     // --- Damage Phase ---
-    // Blocked creatures damage each other (already simulated above)
-    // Unblocked creatures damage the player
-    if (unblockedAttackers.length > 0) {
-        const totalDamage = unblockedAttackers.reduce((sum, c) => sum + (c.attack || 0), 0);
-        defenderState.hp -= totalDamage;
-        newLog.push({ turn: newState.turn, message: `${defenderPlayerKey} subit ${totalDamage} dégâts.` });
-    }
+    attackers.forEach(attacker => {
+        // If attacker has a blocker assigned, damage is already resolved.
+        // If not, it damages the player, but only if there are no taunt creatures.
+        const wasBlocked = newLog.some(l => l.message.includes(`bloque ${attacker.name}`));
+
+        if (!wasBlocked) {
+            if (defendingTauntCreatures.length > 0) {
+                 newLog.push({ turn: newState.turn, message: `${attacker.name} doit attaquer une créature avec Provocation !` });
+            } else {
+                const totalDamage = attacker.attack || 0;
+                defenderState.hp -= totalDamage;
+                newLog.push({ turn: newState.turn, message: `${defenderPlayerKey} subit ${totalDamage} dégâts de ${attacker.name}.` });
+            }
+        }
+    });
 
     // --- Post-combat state update ---
-    // Update health and handle deaths for both sides
-    const updateField = (battlefield: Card[], graveyard: Card[]): Card[] => {
-        return battlefield.filter(c => {
+    const updateField = (playerState: Player): Player => {
+        const remainingCreatures = playerState.battlefield.filter(c => {
             if ((c.health || 0) <= 0) {
                 newLog.push({ turn: newState.turn, message: `${c.name} est détruit.` });
-                graveyard.push({...c, health: c.initialHealth}); // Add to graveyard, reset health
+                playerState.graveyard.push({...c, health: c.initialHealth});
                 return false;
             }
             return true;
         });
+        return {...playerState, battlefield: remainingCreatures};
     };
     
-    // We need to map health changes back to the original battlefield arrays in newState
-    newState[attackerPlayerKey].battlefield = newState[attackerPlayerKey].battlefield.map((c: Card) => {
-        const combatant = attackers.find(a => a.id === c.id);
-        return combatant || c;
-    });
-     newState[defenderPlayerKey].battlefield = newState[defenderPlayerKey].battlefield.map((c: Card) => {
-        // This part is tricky as blockers aren't passed in. For now, we rely on the direct mutation in the AI logic.
-        // A better implementation would pass combat pairs.
-        return c;
-    });
-
-    newState[attackerPlayerKey].battlefield = updateField(newState[attackerPlayerKey].battlefield, attackerState.graveyard);
-    newState[defenderPlayerKey].battlefield = updateField(newState[defenderPlayerKey].battlefield, defenderState.graveyard);
-
-    // Tap attackers
-    newState[attackerPlayerKey].battlefield = newState[attackerPlayerKey].battlefield.map((c:Card) => 
-        attackers.some(a => a.id === c.id) ? { ...c, tapped: true, isAttacking: false } : c
+    attackerState = updateField(attackerState);
+    defenderState = updateField(defenderState);
+    
+    // Tap attackers and remove attacking status
+    attackerState.battlefield = attackerState.battlefield.map((c:Card) => 
+        c.isAttacking ? { ...c, tapped: true, isAttacking: false } : c
     );
 
     const winner = defenderState.hp <= 0 ? attackerPlayerKey : undefined;
 
     return {
       ...newState,
+      [attackerPlayerKey]: attackerState,
+      [defenderPlayerKey]: defenderState,
       log: newLog,
-      phase: winner ? 'game-over' : 'main',
+      phase: winner ? 'game-over' : 'main', // Go back to main phase after combat
       winner,
     };
 }
@@ -232,18 +268,29 @@ const resolveCombat = (state: GameState, attackers: Card[], attackingPlayer: 'pl
 
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
-    case 'INITIALIZE_GAME':
-        const initialState = getInitialState();
-        return {
-            ...initialState,
-            ...shuffleAndDeal(),
-        };
+    case 'INITIALIZE_GAME': {
+        let newState = getInitialState();
+        newState = shuffleAndDeal(newState);
+        // Draw initial hands
+        newState.player = drawCards(newState.player, 5);
+        newState.opponent = drawCards(newState.opponent, 5);
+        // Start game
+        newState.player.maxMana = 1;
+        newState.player.mana = 1;
+        return newState;
+    }
 
-    case 'RESTART_GAME':
-      return {
-          ...getInitialState(),
-          ...shuffleAndDeal(),
-      };
+    case 'RESTART_GAME': {
+      let newState = getInitialState();
+      newState = shuffleAndDeal(newState);
+      // Draw initial hands
+      newState.player = drawCards(newState.player, 5);
+      newState.opponent = drawCards(newState.opponent, 5);
+       // Start game
+      newState.player.maxMana = 1;
+      newState.player.mana = 1;
+      return newState;
+    }
 
     case 'LOG_MESSAGE':
       if (!action.message) return state;
@@ -349,69 +396,59 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         if (attackers.length === 0) {
              return { ...state, phase: 'main', log: [...state.log, { turn: state.turn, message: "Aucun attaquant déclaré." }] };
         }
-        return resolveCombat(state, attackers, 'player');
+        return resolveCombat(state, 'player');
     }
 
     case 'PASS_TURN': {
       if (state.phase === 'game-over') return state;
-      const isPlayerTurn = state.activePlayer === 'player';
-      
-      if (isPlayerTurn && state.phase === 'combat' && state.player.battlefield.some(c => c.isAttacking)) {
-          return state; // Prevent passing turn while declaring attackers
-      }
+      let newState = JSON.parse(JSON.stringify(state));
 
-      let newState = { ...state };
-      
-      const current = isPlayerTurn ? 'player' : 'opponent';
-      newState[current].battlefield = newState[current].battlefield.map(c => ({
+      // Untap current player's creatures and reset states
+      const currentPlayerKey = newState.activePlayer;
+      newState[currentPlayerKey].battlefield = newState[currentPlayerKey].battlefield.map((c: Card) => ({
         ...c,
         tapped: false,
         summoningSickness: false,
         canAttack: c.type === 'Creature',
+        isAttacking: false, // Ensure this is reset
       }));
-      newState[current].biomeChanges = 2;
+       newState[currentPlayerKey].biomeChanges = 2;
 
 
-      const nextPlayer = isPlayerTurn ? 'opponent' : 'player';
-      const nextTurnNumber = isPlayerTurn ? state.turn : state.turn + 1;
+      // Switch to next player
+      const nextPlayerKey = currentPlayerKey === 'player' ? 'opponent' : 'player';
+      const nextTurnNumber = nextPlayerKey === 'player' ? newState.turn + 1 : newState.turn;
       
-      newState[nextPlayer].maxMana = Math.min(10, newState[nextPlayer].maxMana + 1);
-      newState[nextPlayer].mana = newState[nextPlayer].maxMana;
+      newState.turn = nextTurnNumber;
+      newState.activePlayer = nextPlayerKey;
+      newState.phase = 'main';
+      newState.log = [...newState.log, { turn: nextTurnNumber, message: `Début du tour de ${nextPlayerKey === 'player' ? 'Joueur' : 'l\'Adversaire'}.` }];
 
-      const drawnCard = newState[nextPlayer].deck[0];
-      if(drawnCard) {
-          newState[nextPlayer].deck = newState[nextPlayer].deck.slice(1);
-          newState[nextPlayer].hand = [...newState[nextPlayer].hand, drawnCard];
-      }
+      // Next player draws a card and gets mana
+      let nextPlayerState = newState[nextPlayerKey];
+      nextPlayerState = drawCards(nextPlayerState, 1);
+      nextPlayerState.maxMana = Math.min(10, nextPlayerState.maxMana + 1);
+      nextPlayerState.mana = nextPlayerState.maxMana;
+      
+      newState[nextPlayerKey] = nextPlayerState;
+      
+      // Set AI thinking state
+      newState.isThinking = nextPlayerKey === 'opponent';
 
-      return {
-        ...newState,
-        turn: nextTurnNumber,
-        activePlayer: nextPlayer,
-        phase: 'main',
-        log: [...state.log, { turn: nextTurnNumber, message: `Début du tour de ${nextPlayer === 'player' ? 'Joueur' : 'l\'Adversaire'}.` }],
-        isThinking: nextPlayer === 'opponent',
-      };
+      return newState;
     }
     
     case 'EXECUTE_OPPONENT_TURN': {
       if (state.activePlayer !== 'opponent') return state;
       const finalStateFromAI = opponentAI(state);
       
-      // After AI has "thought", pass the turn back to the player
       const passTurnAction: GameAction = { type: 'PASS_TURN' };
       
-      // Combine the state from the AI with the PASS_TURN logic.
-      // This is a bit complex because PASS_TURN itself has logic.
-      // The simplest way is to apply AI state, then apply pass_turn reducer.
-      
-      // First, get the state after the AI's actions.
       let stateAfterAI = {
         ...finalStateFromAI,
         isThinking: false
       };
 
-      // Then, run the PASS_TURN reducer on this new state.
       return gameReducer(stateAfterAI, passTurnAction);
     }
 

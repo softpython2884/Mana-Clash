@@ -31,11 +31,11 @@ const createCard = (
 export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summoningSickness'>[] = [
   // Creatures
   createCard('goblin', 'Gobelin Féroce', 'Creature', 1, "Une petite créature vicieuse.", { attack: 2, health: 1, armor: 0, criticalHitChance: 10, preferredBiome: 'Mountain' }),
-  createCard('knight', 'Chevalier Vaillant', 'Creature', 3, "Un défenseur loyal qui protège son maître.", { attack: 2, health: 2, armor: 2, criticalHitChance: 5, preferredBiome: 'Sanctuary' }),
+  createCard('knight', 'Chevalier Vaillant', 'Creature', 3, "Provocation. Un défenseur loyal qui protège son maître.", { attack: 2, health: 2, armor: 3, criticalHitChance: 5, preferredBiome: 'Sanctuary', taunt: true }),
   createCard('elf', 'Elfe Archer', 'Creature', 2, "Tire des flèches précises.", { attack: 2, health: 2, armor: 1, criticalHitChance: 15, preferredBiome: 'Forest' }),
   createCard('wizard', 'Sorcier Érudit', 'Creature', 4, "Maîtrise les arcanes.", { attack: 4, health: 3, armor: 0, criticalHitChance: 10, preferredBiome: 'Ice' }),
   createCard('dragon', 'Jeune Dragon', 'Creature', 5, "Un souffle de feu dévastateur.", { attack: 5, health: 4, armor: 3, criticalHitChance: 20, preferredBiome: 'Volcano' }),
-  createCard('golem', 'Golem de Pierre', 'Creature', 6, "Une masse de roche animée, lente mais résistante.", { attack: 4, health: 7, armor: 4, criticalHitChance: 0, preferredBiome: 'Mountain' }),
+  createCard('golem', 'Golem de Pierre', 'Creature', 6, "Une masse de roche animée, lente mais résistante.", { attack: 4, health: 7, armor: 4, criticalHitChance: 0, preferredBiome: 'Mountain', taunt: true }),
 
 
   // Lands

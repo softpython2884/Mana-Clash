@@ -22,7 +22,7 @@ export default function GameBoard() {
     if (state.gameId === 0) {
         dispatch({ type: 'INITIALIZE_GAME' });
     }
-  }, []);
+  }, [state.gameId]);
 
   const { gameId, turn, activePlayer, phase, player, opponent, winner, log, isThinking, activeBiome } = state;
   
@@ -65,7 +65,7 @@ export default function GameBoard() {
 
   const handlePassTurn = () => {
     if (activePlayer !== 'player') return;
-     if (phase === 'combat' && player.battlefield.some(c => c.isAttacking)) return; // Don't pass during attack declaration
+    if (phase === 'combat') return; // Can't pass during combat phase, must attack or cancel
     dispatch({ type: 'PASS_TURN' });
   }
 
@@ -98,7 +98,16 @@ export default function GameBoard() {
   )), [opponent.battlefield]);
 
   if (!isClient) {
-    return null; // or a loading spinner
+    // Basic loading skeleton
+    return (
+      <div className="w-full h-full flex flex-col p-4 gap-4 max-w-7xl mx-auto animate-pulse">
+        <div className="h-32 bg-gray-800 rounded"></div>
+        <div className="min-h-[18rem] bg-gray-800 rounded"></div>
+        <div className="h-16 bg-gray-800 rounded"></div>
+        <div className="min-h-[18rem] bg-gray-800 rounded"></div>
+        <div className="h-32 bg-gray-800 rounded"></div>
+      </div>
+    );
   }
 
   const canAttack = player.battlefield.some(c => c.canAttack && !c.tapped);
@@ -167,7 +176,7 @@ export default function GameBoard() {
                 <h3 className="font-headline text-sm">Log de jeu</h3>
               </div>
               <ScrollArea className="h-24">
-                  {log.slice().reverse().map((l, i) => <p key={i} className="text-xs text-muted-foreground">{`[${l.turn}] ${l.message}`}</p>)}
+                  {log.slice().reverse().map((l, i) => <p key={i} className="text-xs text-muted-foreground">{`[T${l.turn}] ${l.message}`}</p>)}
               </ScrollArea>
             </CardContent>
           </UICard>
