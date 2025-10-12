@@ -97,6 +97,18 @@
       "imageHint": "ancient artifact"
     },
     {
+      "id": "defense_totem",
+      "description": "A defensive totem.",
+      "imageUrl": "https://picsum.photos/seed/defense_totem/300/400",
+      "imageHint": "defense totem"
+    },
+    {
+      "id": "strength_enchantment",
+      "description": "A strength enchantment.",
+      "imageUrl": "https://picsum.photos/seed/strength_enchantment/300/400",
+      "imageHint": "strength enchantment"
+    },
+    {
       "id": "forest_biome",
       "description": "A forest biome card.",
       "imageUrl": "https://picsum.photos/seed/forest_biome/300/400",

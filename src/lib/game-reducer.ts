@@ -182,27 +182,27 @@ const opponentAI = (state: GameState): GameState => {
       }
   }
 
-  // 3. Play Creature Cards
-  let playedCreature = true;
-  while(playedCreature) {
+  // 3. Play Creature/Artifact Cards
+  let playedCard = true;
+  while(playedCard) {
       const currentCreatureCount = opponent.battlefield.filter((c: Card) => c.type === 'Creature').length;
       if (currentCreatureCount >= MAX_BATTLEFIELD_SIZE) {
-          playedCreature = false;
+          playedCard = false;
           continue;
       }
 
-      const playableCreatures = opponent.hand
-          .filter((c: Card) => c.type === 'Creature' && c.manaCost <= opponent.mana)
+      const playableCards = opponent.hand
+          .filter((c: Card) => (c.type === 'Creature' || c.type === 'Artifact') && c.manaCost <= opponent.mana)
           .sort((a: Card, b: Card) => b.manaCost - a.manaCost); // Play most expensive first
 
-      if (playableCreatures.length > 0) {
-          const creatureToPlay = playableCreatures[0];
-          log.push({ turn: tempState.turn, message: `Adversaire invoque ${creatureToPlay.name}.` });
-          opponent.battlefield.push({ ...creatureToPlay, summoningSickness: true, canAttack: false, buffs: [] });
-          opponent.hand = opponent.hand.filter((c: Card) => c.id !== creatureToPlay.id);
-          opponent.mana -= creatureToPlay.manaCost;
+      if (playableCards.length > 0) {
+          const cardToPlay = playableCards[0];
+          log.push({ turn: tempState.turn, message: `Adversaire joue ${cardToPlay.name}.` });
+          opponent.battlefield.push({ ...cardToPlay, summoningSickness: true, canAttack: false, buffs: [] });
+          opponent.hand = opponent.hand.filter((c: Card) => c.id !== cardToPlay.id);
+          opponent.mana -= cardToPlay.manaCost;
       } else {
-          playedCreature = false;
+          playedCard = false;
       }
   }
   
@@ -303,6 +303,11 @@ const resolvePlayerCombat = (state: GameState): GameState => {
 
     if (selectedDefenderId === 'opponent') {
         const opponentHasCreatures = opponent.battlefield.filter((c: Card) => c.type === 'Creature').length > 0;
+        const opponentHasTaunt = opponent.battlefield.some(c => c.taunt && !c.tapped);
+        if(opponentHasTaunt){
+            log.push({ turn, message: `Vous devez attaquer une créature avec Provocation.` });
+            return { ...newState, selectedAttackerId: null, selectedDefenderId: null, phase: 'combat' };
+        }
         if(opponentHasCreatures) {
             log.push({ turn, message: `Vous ne pouvez pas attaquer le joueur directement s'il a des créatures.` });
             return { ...newState, selectedAttackerId: null, selectedDefenderId: null, phase: 'combat' };
@@ -513,8 +518,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (card.manaCost > player.mana) {
         return { ...state, log: [...state.log, { turn: state.turn, message: "Pas assez de mana." }] };
       }
-      if (card.type === 'Creature' && player.battlefield.filter(c => c.type === 'Creature').length >= MAX_BATTLEFIELD_SIZE) {
-        return { ...state, log: [...state.log, { turn: state.turn, message: "Vous avez trop de créatures sur le terrain." }] };
+      const battlefieldCardCount = player.battlefield.filter(c => c.type === 'Creature' || c.type === 'Artifact').length;
+      if ((card.type === 'Creature' || card.type === 'Artifact') && battlefieldCardCount >= MAX_BATTLEFIELD_SIZE) {
+        return { ...state, log: [...state.log, { turn: state.turn, message: "Vous avez trop de cartes sur le terrain." }] };
       }
       if (card.type === 'Biome') {
           return gameReducer(state, { type: 'CHANGE_BIOME', cardId: card.id, player: 'player' });
@@ -530,9 +536,17 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (card.type === 'Land') {
         player.battlefield.push(newCardState);
         player.maxMana = player.maxMana + 1;
-      } else if (card.type === 'Creature') {
+      } else if (card.type === 'Creature' || card.type === 'Artifact') {
         player.battlefield.push(newCardState);
-      } else if (card.type === 'Spell') {
+        if (card.type === 'Artifact' && card.skill?.type === 'global_buff_armor') {
+            player.battlefield.forEach(c => {
+                if (c.type === 'Creature') {
+                    c.buffs.push({ type: 'armor', value: card.skill.value || 0, duration: card.skill.duration || 0 });
+                }
+            });
+            newLog.push({ turn: state.turn, message: `${card.name} donne +${card.skill.value} armure à toutes les créatures.` });
+        }
+      } else if (card.type === 'Spell' || card.type === 'Enchantment') {
         if(card.id.startsWith('potion')) {
             player.hp = Math.min(20, player.hp + 5);
             newLog.push({ turn: state.turn, message: `Joueur se soigne de 5 PV.` });
@@ -606,10 +620,32 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const currentPlayerKey = newState.activePlayer;
       const nextPlayerKey = currentPlayerKey === 'player' ? 'opponent' : 'player';
       
-      // Decrement buff durations for the player whose turn is starting
+      // Handle Artifacts and Buffs for the player whose turn is starting
+      let artifactsToRemove: string[] = [];
       newState[nextPlayerKey].battlefield.forEach((c: Card) => {
-          c.buffs = c.buffs.map(b => ({ ...b, duration: b.duration - 1 })).filter(b => b.duration > 0);
+          if (c.type === 'Artifact') {
+              c.duration = (c.duration || 0) - 1;
+              if (c.duration <= 0) {
+                  artifactsToRemove.push(c.id);
+                  newState.log.push({ turn: newState.turn, message: `L'effet de ${c.name} se termine.` });
+                  // Remove global buffs applied by this artifact
+                  if (c.skill?.type === 'global_buff_armor') {
+                      newState[nextPlayerKey].battlefield.forEach((creature: Card) => {
+                          if (creature.type === 'Creature') {
+                              creature.buffs = creature.buffs.filter(b => b.duration !== c.skill?.duration); // a bit of a hack
+                          }
+                      });
+                  }
+              }
+          } else {
+            c.buffs = c.buffs.map(b => ({ ...b, duration: b.duration - 1 })).filter(b => b.duration > 0);
+          }
       });
+      
+      if(artifactsToRemove.length > 0){
+        newState[nextPlayerKey].battlefield = newState[nextPlayerKey].battlefield.filter((c: Card) => !artifactsToRemove.includes(c.id));
+      }
+
 
       newState[currentPlayerKey].battlefield = newState[currentPlayerKey].battlefield.map((c: Card) => ({
         ...c,
@@ -634,7 +670,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       
       const { player: nextPlayerAfterDraw, log: logAfterDraw } = drawCards(newState[nextPlayerKey], 1, newState.log, nextTurnNumber);
       newState[nextPlayerKey] = nextPlayerAfterDraw;
-      newState.log = [...logAfterDraw, { turn: nextTurnNumber, message: `Début du tour de ${nextPlayerKey === 'player' ? 'Joueur' : 'l\'Adversaire'}.` }];
+      newState.log = [...logAfterDraw, { turn: nextTurnNumber, message: `Début du tour de ${nextPlayerKey === 'player' ? 'Joueur' : "l'Adversaire"}.` }];
 
       let nextPlayerState = newState[nextPlayerKey];
       nextPlayerState.maxMana = Math.min(10, nextPlayerState.maxMana + 1);

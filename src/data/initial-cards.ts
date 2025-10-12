@@ -46,10 +46,16 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
   createCard('mountain_land', 'Montagne', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),
   createCard('swamp_land', 'Marais', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),
 
-  // Spells & Artifacts
+  // Spells
   createCard('potion', 'Potion de soin', 'Spell', 2, "Vous regagnez 5 points de vie."),
   createCard('berserk_rage', "Rage du Berserker", 'Spell', 1, "Donne +3 en attaque à une créature pour 1 tour.", { skill: { type: 'buff_attack', value: 3, duration: 1, target: 'friendly_creature', used: false }}),
   createCard('stoneskin', "Peau de pierre", 'Spell', 2, "Donne +4 en armure à une créature pour 2 tours.", { skill: { type: 'buff_armor', value: 4, duration: 2, target: 'friendly_creature', used: false }}),
+
+  // Enchantments
+  createCard('strength_enchantment', 'Enchantement de Force', 'Enchantment', 3, "Donne +1 en attaque à une créature de façon permanente.", { skill: { type: 'buff_attack', value: 1, duration: 99, target: 'friendly_creature', used: false }}),
+
+  // Artifacts
+  createCard('defense_totem', 'Totem de Défense', 'Artifact', 4, "Donne +1 d'armure à toutes vos créatures alliées. Dure 3 tours.", { skill: { type: 'global_buff_armor', value: 1, duration: 3, used: false }, duration: 3 }),
 
   // Biomes
   createCard('forest_biome', 'Biome Forêt', 'Biome', 0, "Change le biome actuel en Forêt.", { biome: 'Forest' }),
@@ -76,6 +82,7 @@ export const createDeck = (): Card[] => {
             taunt: cardTemplate.taunt,
             skill: cardTemplate.skill ? { ...cardTemplate.skill, used: false } : undefined,
             buffs: [],
+            duration: cardTemplate.duration,
         });
       }
     }
@@ -86,15 +93,16 @@ export const createDeck = (): Card[] => {
   addCards('knight', 2);
   addCards('elf', 2);
   addCards('wizard', 1);
-  addCards('dragon', 1);
   addCards('golem', 1);
-  addCards('cleric', 2);
+  addCards('cleric', 1);
   addCards('vampire', 1);
   addCards('sage', 1);
   
   addCards('potion', 1);
   addCards('berserk_rage', 1);
   addCards('stoneskin', 1);
+  addCards('strength_enchantment', 1);
+  addCards('defense_totem', 1);
   
   addCards('forest_land', 2);
   addCards('mountain_land', 2);

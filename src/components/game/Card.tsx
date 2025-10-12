@@ -2,7 +2,7 @@
 import type { Card as CardType, BiomeType } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Swords, Shield, Heart, Zap, Mountain, Trees, Snowflake, Flame, Sun, ShieldQuestion, X, BrainCircuit, Sparkles, PlusCircle } from 'lucide-react';
+import { Swords, Shield, Heart, Zap, Mountain, Trees, Snowflake, Flame, Sun, ShieldQuestion, X, BrainCircuit, Sparkles, PlusCircle, Timer } from 'lucide-react';
 import { Badge } from '../ui/badge';
 
 interface GameCardProps {
@@ -40,7 +40,7 @@ const biomeColor: Record<BiomeType, string> = {
 
 
 export default function GameCard({ card, isPlayable = false, onClick, onSkillClick, inHand = false, isActiveBiome = false, isAttacking = false, isTargeted = false, isTargetable = false, showSkill = false }: GameCardProps) {
-  const { name, manaCost, description, attack, health, armor, type, tapped, canAttack, criticalHitChance, preferredBiome, biome, taunt, buffs } = card;
+  const { name, manaCost, description, attack, health, armor, type, tapped, canAttack, criticalHitChance, preferredBiome, biome, taunt, buffs, duration } = card;
 
   const Icon = preferredBiome ? biomeIcon[preferredBiome] : null;
   const borderClass = biome ? biomeColor[biome] : '';
@@ -136,6 +136,12 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
                         <span className='absolute inset-0 text-white text-[10px] font-bold text-center w-full leading-tight'>{health || 0} / {card.initialHealth || 0}</span>
                     </div>
                 </div>
+            </div>
+          )}
+          {type === 'Artifact' && duration !== undefined && (
+             <div className="flex items-center gap-2 text-lg font-bold text-white">
+                <Timer size={24} />
+                <span>{duration} tours</span>
             </div>
           )}
           {preferredBiome && Icon && (
