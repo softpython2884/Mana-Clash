@@ -24,7 +24,7 @@ export default function GameBoard() {
     }
   }, [state.gameId]);
 
-  const { gameId, turn, activePlayer, phase, player, opponent, winner, log, isThinking, activeBiome, selectedAttackerId, selectedDefenderId } = state;
+  const { gameId, turn, activePlayer, phase, player, opponent, winner, log, isThinking, activeBiome, selectedAttackerId, selectedDefenderId, selectedCardId } = state;
   
   // Opponent AI logic
   useEffect(() => {
@@ -47,9 +47,20 @@ export default function GameBoard() {
     dispatch({ type: 'PLAY_CARD', cardId });
   };
   
-  const handleSelectAttacker = (cardId: string) => {
-    dispatch({ type: 'SELECT_ATTACKER', cardId });
-  };
+  const handleSelectCardOnBattlefield = (cardId: string) => {
+    const card = player.battlefield.find(c => c.id === cardId);
+    if (!card) return;
+
+    if (phase === 'combat' && card.canAttack) {
+      dispatch({ type: 'SELECT_ATTACKER', cardId });
+    } else {
+      dispatch({ type: 'SELECT_CARD', cardId });
+    }
+  }
+
+  const handleActivateSkill = (cardId: string) => {
+    dispatch({ type: 'ACTIVATE_SKILL', cardId });
+  }
 
   const handleSelectDefender = (cardId: string | 'opponent') => {
     if (phase === 'targeting') {
@@ -96,9 +107,11 @@ export default function GameBoard() {
           key={card.id}
           card={card}
           isAttacking={card.id === selectedAttackerId}
-          onClick={() => phase === 'combat' && card.canAttack && handleSelectAttacker(card.id)}
+          onClick={() => handleSelectCardOnBattlefield(card.id)}
+          onSkillClick={() => handleActivateSkill(card.id)}
+          showSkill={card.id === selectedCardId && !!card.skill && !card.skill.used}
       />
-  )), [player.battlefield, phase, selectedAttackerId]);
+  )), [player.battlefield, phase, selectedAttackerId, selectedCardId]);
 
   const opponentHasTaunt = opponent.battlefield.some(c => c.taunt && !c.tapped);
   const canTargetOpponentDirectly = phase === 'targeting' && selectedAttackerId && !opponentHasTaunt;

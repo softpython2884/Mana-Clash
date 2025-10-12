@@ -5,6 +5,10 @@ export type CardType = 'Creature' | 'Land' | 'Spell' | 'Artifact' | 'Biome';
 export type GamePhase = 'main' | 'combat' | 'targeting' | 'end' | 'game-over';
 export type BiomeType = 'Forest' | 'Mountain' | 'Swamp' | 'Desert' | 'Ice' | 'Volcano' | 'Sanctuary';
 
+export interface CardSkill {
+  type: 'taunt';
+  used: boolean;
+}
 
 export interface Card {
   id: string;
@@ -25,6 +29,7 @@ export interface Card {
   biome?: BiomeType;
   preferredBiome?: BiomeType;
   taunt?: boolean;
+  skill?: CardSkill;
 }
 
 export interface Player {
@@ -49,6 +54,7 @@ export interface GameState {
   log: { turn: number; message: string }[];
   isThinking: boolean;
   activeBiome: Card | null;
+  selectedCardId: string | null;
   selectedAttackerId: string | null;
   selectedDefenderId: string | null;
 }

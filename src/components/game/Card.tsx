@@ -8,11 +8,13 @@ interface GameCardProps {
   card: CardType;
   isPlayable?: boolean;
   onClick?: () => void;
+  onSkillClick?: () => void;
   inHand?: boolean;
   isActiveBiome?: boolean;
   isAttacking?: boolean; // Card is selected to be an attacker
   isTargeted?: boolean;  // Card is selected as a defender target
   isTargetable?: boolean; // Card can be targeted by an attacker
+  showSkill?: boolean; // Show the skill icon
 }
 
 const biomeIcon: Record<BiomeType, React.ElementType> = {
@@ -36,11 +38,18 @@ const biomeColor: Record<BiomeType, string> = {
 };
 
 
-export default function GameCard({ card, isPlayable = false, onClick, inHand = false, isActiveBiome = false, isAttacking = false, isTargeted = false, isTargetable = false }: GameCardProps) {
+export default function GameCard({ card, isPlayable = false, onClick, onSkillClick, inHand = false, isActiveBiome = false, isAttacking = false, isTargeted = false, isTargetable = false, showSkill = false }: GameCardProps) {
   const { name, manaCost, description, attack, health, armor, type, tapped, canAttack, criticalHitChance, preferredBiome, biome, taunt } = card;
 
   const Icon = preferredBiome ? biomeIcon[preferredBiome] : null;
   const borderClass = biome ? biomeColor[biome] : '';
+
+  const handleSkillClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click event from firing
+    if(onSkillClick) {
+      onSkillClick();
+    }
+  }
 
   return (
     <div
@@ -113,9 +122,16 @@ export default function GameCard({ card, isPlayable = false, onClick, inHand = f
                 </div>
             </div>
           )}
-           {preferredBiome && Icon && (
+          {preferredBiome && Icon && (
             <div className="absolute top-20 right-2" title={`Biome préféré : ${preferredBiome}`}>
                 <Icon size={18} className="text-white/70"/>
+            </div>
+          )}
+          {showSkill && card.skill && (
+            <div className="absolute bottom-1 left-1" onClick={handleSkillClick}>
+              <div className='p-1 bg-black/50 rounded-full cursor-pointer hover:bg-black/80 transition-colors'>
+                {card.skill.type === 'taunt' && <ShieldQuestion className='w-6 h-6 text-yellow-400'/>}
+              </div>
             </div>
           )}
         </CardFooter>

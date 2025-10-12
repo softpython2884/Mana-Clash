@@ -12,13 +12,15 @@ export type GameAction =
   | { type: 'DRAW_CARD'; player: 'player' | 'opponent' }
   | { type: 'PLAY_CARD'; cardId: string }
   | { type: 'CHANGE_BIOME'; cardId: string; player: 'player' | 'opponent' }
+  | { type: 'SELECT_CARD'; cardId: string }
   | { type: 'SELECT_ATTACKER'; cardId: string }
   | { type: 'SELECT_DEFENDER'; cardId: string | 'opponent' }
   | { type: 'DECLARE_ATTACK' }
   | { type: 'PASS_TURN' }
   | { type: 'EXECUTE_OPPONENT_TURN' }
   | { type: 'LOG_MESSAGE'; message: string }
-  | { type: 'CHANGE_PHASE', phase: GamePhase };
+  | { type: 'CHANGE_PHASE', phase: GamePhase }
+  | { type: 'ACTIVATE_SKILL', cardId: string };
 
 const drawCards = (player: Player, count: number, log: GameState['log'], turn: number): { player: Player, log: GameState['log'] } => {
   const drawnCards = player.deck.slice(0, count);
@@ -61,6 +63,7 @@ export const getInitialState = (): GameState => {
     isThinking: false,
     activeBiome: { ...defaultBiomeCard, tapped: false, isAttacking: false, canAttack: false, summoningSickness: false, initialHealth: defaultBiomeCard.health },
     winner: undefined,
+    selectedCardId: null,
     selectedAttackerId: null,
     selectedDefenderId: null,
   };
@@ -98,6 +101,7 @@ const shuffleAndDeal = (state: GameState): GameState => {
         winner: undefined,
         log: logAfterOpponentDraw,
         activeBiome: defaultBiomeCard ? { ...defaultBiomeCard, tapped: false, isAttacking: false, canAttack: false, summoningSickness: false, initialHealth: defaultBiomeCard.health} : null,
+        selectedCardId: null,
         selectedAttackerId: null,
         selectedDefenderId: null,
     }
@@ -330,13 +334,41 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         log: [...state.log, { turn: state.turn, message: action.message }],
       };
 
+    case 'SELECT_CARD': {
+        if (state.activePlayer !== 'player' || state.phase !== 'main') return state;
+        return { ...state, selectedCardId: action.cardId };
+    }
+
+    case 'ACTIVATE_SKILL': {
+        if (state.activePlayer !== 'player' || state.phase !== 'main') return state;
+        let player = { ...state.player };
+        const cardIndex = player.battlefield.findIndex(c => c.id === action.cardId);
+        if (cardIndex === -1) return state;
+
+        const card = player.battlefield[cardIndex];
+        if (!card.skill || card.skill.used) return state;
+        
+        if (card.skill.type === 'taunt') {
+            card.taunt = true;
+            card.skill.used = true;
+        }
+
+        player.battlefield[cardIndex] = card;
+        return { 
+            ...state, 
+            player,
+            selectedCardId: null, // Deselect card after using skill
+            log: [...state.log, { turn: state.turn, message: `Joueur active la compétence Provocation de ${card.name}!`}]
+        };
+    }
+
     case 'CHANGE_PHASE':
         if (state.activePlayer === 'player') {
              if (action.phase === 'combat' && state.player.battlefield.filter(c => c.canAttack && !c.tapped).length === 0) {
                  return { ...state, log: [...state.log, { turn: state.turn, message: "Aucune créature ne peut attaquer."}] };
              }
               if (action.phase === 'main') { // Reset selection when cancelling combat
-                return { ...state, phase: 'main', selectedAttackerId: null, selectedDefenderId: null };
+                return { ...state, phase: 'main', selectedAttackerId: null, selectedDefenderId: null, selectedCardId: null };
             }
              return { ...state, phase: action.phase, log: [...state.log, { turn: state.turn, message: `Phase de ${action.phase}.`}] };
         }
@@ -470,6 +502,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         summoningSickness: false,
         canAttack: c.type === 'Creature',
         isAttacking: false,
+        taunt: c.skill?.type === 'taunt' ? false : c.taunt, // Reset taunt if it was an activated skill
+        skill: c.skill ? { ...c.skill, used: false } : undefined,
       }));
        newState[currentPlayerKey].biomeChanges = 2;
 
@@ -481,6 +515,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       newState.turn = nextTurnNumber;
       newState.activePlayer = nextPlayerKey;
       newState.phase = 'main';
+      newState.selectedCardId = null;
       newState.selectedAttackerId = null;
       newState.selectedDefenderId = null;
       
