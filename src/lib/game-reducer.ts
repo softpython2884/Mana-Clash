@@ -3,7 +3,7 @@ import type { GameState, Card, Player, GamePhase } from './types';
 import { createDeck, allCards } from '@/data/initial-cards';
 import { useToast } from "@/hooks/use-toast";
 
-const MAX_HAND_SIZE = 7;
+const MAX_HAND_SIZE = 5;
 const MAX_BATTLEFIELD_SIZE = 6;
 
 export type GameAction =
@@ -23,23 +23,36 @@ export type GameAction =
   | { type: 'ACTIVATE_SKILL', cardId: string };
 
 const drawCards = (player: Player, count: number, log: GameState['log'], turn: number): { player: Player, log: GameState['log'] } => {
-  const drawnCards = player.deck.slice(0, count);
-  const newDeck = player.deck.slice(count);
+  const cardsToDrawCount = Math.max(0, MAX_HAND_SIZE - player.hand.length);
+  const actualCount = Math.min(count, cardsToDrawCount);
   
-  const newHand = [...player.hand];
-  const newGraveyard = [...player.graveyard];
+  if (actualCount === 0) {
+    return { player, log };
+  }
+
+  const drawnCards = player.deck.slice(0, actualCount);
+  const newDeck = player.deck.slice(actualCount);
+  const newHand = [...player.hand, ...drawnCards];
   let newLog = [...log];
+  
+  if (drawnCards.length > 0 && player.hand.length < MAX_HAND_SIZE) {
+      newLog.push({ turn, message: `${player === player ? 'Joueur' : 'Adversaire'} pioche ${drawnCards.length} carte(s).` });
+  }
 
-  drawnCards.forEach(card => {
-    if (newHand.length < MAX_HAND_SIZE) {
-      newHand.push(card);
-    } else {
-      newGraveyard.push(card);
-      newLog.push({ turn, message: `Main pleine, ${card.name} est défaussée.` });
-    }
-  });
+  // Handle overdraw if for some reason we still go over (should not happen with new logic)
+  const handOverflow = newHand.length - MAX_HAND_SIZE;
+  let finalHand = newHand;
+  let newGraveyard = player.graveyard;
 
-  return { player: { ...player, deck: newDeck, hand: newHand, graveyard: newGraveyard }, log: newLog };
+  if (handOverflow > 0) {
+      const cardsToDiscard = finalHand.slice(-handOverflow);
+      finalHand = finalHand.slice(0, MAX_HAND_SIZE);
+      newGraveyard = [...newGraveyard, ...cardsToDiscard];
+      newLog.push({ turn, message: `Main pleine, ${cardsToDiscard.map(c => c.name).join(', ')} est défaussée.` });
+  }
+
+
+  return { player: { ...player, deck: newDeck, hand: finalHand, graveyard: newGraveyard }, log: newLog };
 };
 
 const createInitialPlayer = (): Player => ({
