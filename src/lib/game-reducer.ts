@@ -1,7 +1,6 @@
 'use client';
 import type { GameState, Card, Player, GamePhase, Buff } from './types';
 import { createDeck, allCards } from '@/data/initial-cards';
-import { useToast } from "@/hooks/use-toast";
 
 const MAX_HAND_SIZE = 5;
 const MAX_BATTLEFIELD_SIZE = 6;
@@ -11,7 +10,7 @@ export type GameAction =
   | { type: 'RESTART_GAME' }
   | { type: 'DRAW_CARD'; player: 'player' | 'opponent'; count: number }
   | { type: 'PLAY_CARD'; cardId: string }
-  | { type: 'CHANGE_BIOME'; cardId: string; player: 'player' | 'opponent' }
+  | { type: 'CHANGE_BIOME'; card: Card; player: 'player' | 'opponent' }
   | { type: 'SELECT_CARD'; cardId: string }
   | { type: 'SELECT_ATTACKER'; cardId: string }
   | { type: 'SELECT_DEFENDER'; cardId: string | 'opponent' }
@@ -28,7 +27,7 @@ const drawCards = (player: Player, count: number, log: GameState['log'], turn: n
   
   if (actualCount === 0) {
     if (player.hand.length >= MAX_HAND_SIZE) {
-        // Do not log if it's just a regular turn start and hand is full.
+      log.push({ turn, message: `${player.id === 'player' ? "Votre" : "Sa"} main est pleine, la carte est défaussée.`});
     }
     return { player, log };
   }
@@ -36,18 +35,44 @@ const drawCards = (player: Player, count: number, log: GameState['log'], turn: n
   const drawnCards = player.deck.slice(0, actualCount);
   const newDeck = player.deck.slice(actualCount);
   const newHand = [...player.hand, ...drawnCards];
-  let newLog = [...log];
-  
-  if (drawnCards.length > 0) {
-       // We can refine this message if needed
-  }
 
-  return { player: { ...player, deck: newDeck, hand: newHand }, log: newLog };
+  return { player: { ...player, deck: newDeck, hand: newHand }, log };
 };
 
-const createInitialPlayer = (): Player => ({
+const createInitialPlayer = (id: 'player' | 'opponent'): Player => ({
+    id,
     hp: 20, mana: 0, maxMana: 0, deck: [], hand: [], battlefield: [], graveyard: [], biomeChanges: 2,
 });
+
+const applyBiomeBuffs = (battlefield: Card[], biome: Card | null): Card[] => {
+    if (!biome || !biome.biome) return battlefield;
+
+    return battlefield.map(card => {
+        // Remove old biome buffs first
+        card.buffs = card.buffs.filter(b => b.source !== 'biome');
+        
+        if (card.type === 'Creature' && card.preferredBiome === biome.biome) {
+            switch (biome.biome) {
+                case 'Forest':
+                    card.buffs.push({ type: 'armor', value: 1, duration: Infinity, source: 'biome' });
+                    break;
+                case 'Desert':
+                case 'Mountain': // Let's group desert and mountain for attack
+                    card.buffs.push({ type: 'attack', value: 1, duration: Infinity, source: 'biome' });
+                    break;
+                case 'Volcano':
+                     card.buffs.push({ type: 'crit', value: 10, duration: Infinity, source: 'biome' });
+                    break;
+                case 'Ice':
+                     card.buffs.push({ type: 'attack', value: 1, duration: Infinity, source: 'biome' });
+                     card.buffs.push({ type: 'armor', value: 1, duration: Infinity, source: 'biome' });
+                    break;
+                // Sanctuary is handled at end of turn
+            }
+        }
+        return card;
+    });
+};
 
 
 export const getInitialState = (): GameState => {
@@ -55,13 +80,13 @@ export const getInitialState = (): GameState => {
   if (!defaultBiomeCard) {
       throw new Error("Default biome card not found");
   }
-  const initialState = {
+  const initialState: GameState = {
     gameId: 0,
     turn: 1,
-    activePlayer: 'player' as 'player' | 'opponent',
-    phase: 'main' as GamePhase,
-    player: createInitialPlayer(),
-    opponent: createInitialPlayer(),
+    activePlayer: 'player',
+    phase: 'main',
+    player: createInitialPlayer('player'),
+    opponent: createInitialPlayer('opponent'),
     log: [],
     isThinking: false,
     activeBiome: { ...defaultBiomeCard, tapped: false, isAttacking: false, canAttack: false, summoningSickness: false, initialHealth: defaultBiomeCard.health, buffs: [] },
@@ -70,12 +95,6 @@ export const getInitialState = (): GameState => {
     selectedAttackerId: null,
     selectedDefenderId: null,
   };
-
-  const playerDeck = createDeck();
-  const opponentDeck = createDeck();
-
-  initialState.player = { ...initialState.player, deck: playerDeck };
-  initialState.opponent = { ...initialState.opponent, deck: opponentDeck };
   
   return initialState;
 };
@@ -88,9 +107,11 @@ const shuffleAndDeal = (state: GameState): GameState => {
 
     let initialLog = [{ turn: 1, message: "Le match commence!" }];
 
-    // Initial draw of 5 cards
-    const { player: playerAfterDraw, log: logAfterPlayerDraw } = drawCards({ ...createInitialPlayer(), deck: playerDeck }, 5, initialLog, 1);
-    const { player: opponentAfterDraw, log: logAfterOpponentDraw } = drawCards({ ...createInitialPlayer(), deck: opponentDeck }, 5, logAfterPlayerDraw, 1);
+    const { player: playerAfterDraw, log: logAfterPlayerDraw } = drawCards(createInitialPlayer('player'), 5, initialLog, 1);
+    playerAfterDraw.deck = playerDeck;
+
+    const { player: opponentAfterDraw, log: logAfterOpponentDraw } = drawCards(createInitialPlayer('opponent'), 5, logAfterPlayerDraw, 1);
+    opponentAfterDraw.deck = opponentDeck;
     
     const defaultBiomeCard = allCards.find(c => c.id === 'forest_biome');
     
@@ -111,12 +132,13 @@ const shuffleAndDeal = (state: GameState): GameState => {
     }
 }
 
-// --- COMBAT DAMAGE RESOLUTION ---
 const resolveDamage = (attacker: Card, defender: Card, log: any[], turn: number, owner: Player) => {
     const totalAttack = (attacker.attack || 0) + (attacker.buffs?.filter(b => b.type === 'attack').reduce((acc, b) => acc + b.value, 0) || 0);
     const totalArmor = (defender.armor || 0) + (defender.buffs?.filter(b => b.type === 'armor').reduce((acc, b) => acc + b.value, 0) || 0);
+    const totalCritChance = (attacker.criticalHitChance || 0) + (attacker.buffs?.filter(b => b.type === 'crit').reduce((acc, b) => acc + b.value, 0) || 0);
 
-    const isCritical = Math.random() * 100 < (attacker.criticalHitChance || 0);
+
+    const isCritical = Math.random() * 100 < totalCritChance;
     let damageDealt = totalAttack;
     
     log.push({ turn, message: `${attacker.name} attaque avec ${damageDealt} points de dégâts.` });
@@ -150,28 +172,22 @@ const resolveDamage = (attacker: Card, defender: Card, log: any[], turn: number,
 };
 
 
-// --- AI LOGIC ---
 const opponentAI = (state: GameState): GameState => {
-  let tempState = JSON.parse(JSON.stringify(state)); // Deep copy to simulate changes
+  let tempState = JSON.parse(JSON.stringify(state)); 
   let opponent = tempState.opponent;
   let player = tempState.player;
   let log = tempState.log;
   const turn = tempState.turn;
 
-  // 1. Play Biome Card
   if (opponent.biomeChanges > 0) {
-      const biomeCardInHand = opponent.hand.find((c: Card) => c.type === 'Biome');
-      if (biomeCardInHand && biomeCardInHand.biome !== tempState.activeBiome?.biome) {
-          log.push({ turn: tempState.turn, message: `Adversaire change le biome pour ${biomeCardInHand.name}.` });
-          tempState.activeBiome = biomeCardInHand;
-          opponent.hand = opponent.hand.filter((c: Card) => c.id !== biomeCardInHand.id);
-          opponent.graveyard.push(biomeCardInHand); // Biomes are consumed
-          opponent.mana += 1;
-          opponent.biomeChanges -= 1;
+      const biomeCardInHand = opponent.hand.find((c: Card) => c.type === 'Biome' && c.biome !== tempState.activeBiome?.biome);
+      if (biomeCardInHand) {
+        tempState = gameReducer(tempState, { type: 'CHANGE_BIOME', card: biomeCardInHand, player: 'opponent' });
+        opponent = tempState.opponent; // refresh reference
+        log = tempState.log;
       }
   }
 
-  // 2. Play Land Card
   const landPlayedThisTurn = opponent.battlefield.some((c: Card) => c.type === 'Land' && c.summoningSickness);
   if (!landPlayedThisTurn) {
       const landInHand = opponent.hand.find((c: Card) => c.type === 'Land');
@@ -179,13 +195,14 @@ const opponentAI = (state: GameState): GameState => {
           log.push({ turn: tempState.turn, message: `Adversaire joue ${landInHand.name}.` });
           opponent.battlefield.push({ ...landInHand, summoningSickness: true, buffs: [] });
           opponent.hand = opponent.hand.filter((c: Card) => c.id !== landInHand.id);
+          opponent.maxMana += 1;
+          opponent.mana = opponent.maxMana;
       }
   }
 
-  // 3. Play Creature/Artifact Cards
   let playedCard = true;
   while(playedCard) {
-      const currentCreatureCount = opponent.battlefield.filter((c: Card) => c.type === 'Creature').length;
+      const currentCreatureCount = opponent.battlefield.filter((c: Card) => c.type === 'Creature' || c.type === 'Artifact').length;
       if (currentCreatureCount >= MAX_BATTLEFIELD_SIZE) {
           playedCard = false;
           continue;
@@ -193,31 +210,33 @@ const opponentAI = (state: GameState): GameState => {
 
       const playableCards = opponent.hand
           .filter((c: Card) => (c.type === 'Creature' || c.type === 'Artifact') && c.manaCost <= opponent.mana)
-          .sort((a: Card, b: Card) => b.manaCost - a.manaCost); // Play most expensive first
+          .sort((a: Card, b: Card) => b.manaCost - a.manaCost); 
 
       if (playableCards.length > 0) {
           const cardToPlay = playableCards[0];
           log.push({ turn: tempState.turn, message: `Adversaire joue ${cardToPlay.name}.` });
-          opponent.battlefield.push({ ...cardToPlay, summoningSickness: true, canAttack: false, buffs: [] });
+          let newCardOnField = { ...cardToPlay, summoningSickness: true, canAttack: false, buffs: [] };
+          opponent.battlefield.push(newCardOnField);
           opponent.hand = opponent.hand.filter((c: Card) => c.id !== cardToPlay.id);
           opponent.mana -= cardToPlay.manaCost;
+
+          // Re-apply biome buffs for the new card
+          tempState.opponent.battlefield = applyBiomeBuffs(opponent.battlefield, tempState.activeBiome);
       } else {
           playedCard = false;
       }
   }
   
-  // 4. Declare Attack
   let attackers = opponent.battlefield.filter((c: Card) => c.type === 'Creature' && c.canAttack && !c.tapped);
   const playerTauntCreatures = player.battlefield.filter((c: Card) => c.taunt && !c.tapped);
   
   attackers.forEach((attacker: Card) => {
-      let target: Card | 'player' | null = null;
+      let targetId: string | 'player' | null = null;
       let targetPlayerCard: Card | undefined = undefined;
       
-      // Must attack taunt creatures first
       if(playerTauntCreatures.length > 0) {
           targetPlayerCard = playerTauntCreatures.sort((a,b) => (a.health || 0) - (b.health || 0))[0];
-          target = targetPlayerCard;
+          targetId = targetPlayerCard.id;
       } else {
         let potentialBlockers = player.battlefield.filter((c: Card) => c.type === 'Creature' && !c.tapped);
         if (potentialBlockers.length > 0) {
@@ -227,20 +246,21 @@ const opponentAI = (state: GameState): GameState => {
            } else {
                targetPlayerCard = potentialBlockers.sort((a,b) => (b.attack || 0) - (a.attack || 0))[0];
            }
-           target = targetPlayerCard;
+           targetId = targetPlayerCard.id;
         } else {
-          target = 'player';
+          targetId = 'player';
         }
       }
 
-      if (target) {
+      if (targetId) {
           const attackerInBattlefield = opponent.battlefield.find((c: Card) => c.id === attacker.id);
           if (!attackerInBattlefield) return;
 
-          if (target === 'player') {
+          if (targetId === 'player') {
             log.push({ turn: tempState.turn, message: `Adversaire: ${attacker.name} attaque le joueur directement.` });
-            player.hp -= attacker.attack || 0;
-            log.push({ turn: tempState.turn, message: `Joueur subit ${attacker.attack || 0} dégâts. PV restants: ${player.hp}.` });
+            const totalAttack = (attacker.attack || 0) + (attacker.buffs?.filter(b => b.type === 'attack').reduce((acc, b) => acc + b.value, 0) || 0);
+            player.hp -= totalAttack;
+            log.push({ turn: tempState.turn, message: `Joueur subit ${totalAttack} dégâts. PV restants: ${player.hp}.` });
           } else if(targetPlayerCard) {
             const defenderInPlayerField = player.battlefield.find((c: Card) => c.id === targetPlayerCard!.id);
             if (!defenderInPlayerField) return;
@@ -248,7 +268,7 @@ const opponentAI = (state: GameState): GameState => {
             log.push({ turn: tempState.turn, message: `Adversaire: ${attacker.name} attaque ${defenderInPlayerField.name}.` });
             
             const defenderHealthBefore = defenderInPlayerField.health || 0;
-            resolveDamage(attackerInBattlefield, defenderInPlayerField, log, tempState.turn, opponent);
+            const attackResult = resolveDamage(attackerInBattlefield, defenderInPlayerField, log, tempState.turn, opponent);
             
             if((defenderInPlayerField.health || 0) > 0 && (defenderInPlayerField.health || 0) < defenderHealthBefore) {
                log.push({ turn, message: `${defenderInPlayerField.name} riposte !` });
@@ -302,16 +322,6 @@ const resolvePlayerCombat = (state: GameState): GameState => {
     attacker.canAttack = false;
 
     if (selectedDefenderId === 'opponent') {
-        const opponentHasCreatures = opponent.battlefield.filter((c: Card) => c.type === 'Creature').length > 0;
-        const opponentHasTaunt = opponent.battlefield.some(c => c.taunt && !c.tapped);
-        if(opponentHasTaunt){
-            log.push({ turn, message: `Vous devez attaquer une créature avec Provocation.` });
-            return { ...newState, selectedAttackerId: null, selectedDefenderId: null, phase: 'combat' };
-        }
-        if(opponentHasCreatures) {
-            log.push({ turn, message: `Vous ne pouvez pas attaquer le joueur directement s'il a des créatures.` });
-            return { ...newState, selectedAttackerId: null, selectedDefenderId: null, phase: 'combat' };
-        }
         log.push({ turn, message: `Joueur: ${attacker.name} attaque l'adversaire directement !` });
         const totalAttack = (attacker.attack || 0) + (attacker.buffs?.filter(b => b.type === 'attack').reduce((acc, b) => acc + b.value, 0) || 0);
         opponent.hp -= totalAttack;
@@ -476,36 +486,36 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         return state;
 
     case 'CHANGE_BIOME': {
-        const { cardId, player: playerKey } = action;
-        const player = state[playerKey];
+        const { card, player: playerKey } = action;
+        let newState = JSON.parse(JSON.stringify(state));
+        let player = newState[playerKey];
         if (player.biomeChanges <= 0) return state;
 
-        const card = player.hand.find(c => c.id === cardId);
         if (!card || card.type !== 'Biome') return state;
 
-        const newHand = player.hand.filter(c => c.id !== card.id);
-        const oldBiome = state.activeBiome;
+        const newHand = player.hand.filter((c: Card) => c.id !== card.id);
+        const oldBiome = newState.activeBiome;
         const newGraveyard = oldBiome ? [...player.graveyard, oldBiome] : player.graveyard;
+        
+        player.hand = newHand;
+        player.graveyard = newGraveyard;
+        player.mana = player.mana + 1;
+        player.biomeChanges = player.biomeChanges - 1;
+        
+        newState.activeBiome = card;
+        newState.log = [...state.log, { turn: state.turn, message: `${playerKey === 'player' ? 'Joueur' : 'Adversaire'} change le biome pour ${card.name} et gagne 1 mana.` }];
 
-        const newState = { ...state };
-        newState[playerKey] = {
-            ...player,
-            hand: newHand,
-            graveyard: newGraveyard,
-            mana: player.mana + 1,
-            biomeChanges: player.biomeChanges - 1,
-        };
+        // Apply buffs to all creatures on the board
+        newState.player.battlefield = applyBiomeBuffs(newState.player.battlefield, card);
+        newState.opponent.battlefield = applyBiomeBuffs(newState.opponent.battlefield, card);
 
-        return {
-            ...newState,
-            activeBiome: card,
-            log: [...state.log, { turn: state.turn, message: `${playerKey === 'player' ? 'Joueur' : 'Adversaire'} change le biome pour ${card.name} et gagne 1 mana.` }]
-        };
+        return newState;
     }
 
     case 'PLAY_CARD': {
       if (state.activePlayer !== 'player' || state.phase !== 'main') return state;
-      const player = { ...state.player };
+      let newState = { ...state };
+      let player = { ...newState.player };
       const cardIndex = player.hand.findIndex(c => c.id === action.cardId);
       if (cardIndex === -1) return state;
 
@@ -523,7 +533,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         return { ...state, log: [...state.log, { turn: state.turn, message: "Vous avez trop de cartes sur le terrain." }] };
       }
       if (card.type === 'Biome') {
-          return gameReducer(state, { type: 'CHANGE_BIOME', cardId: card.id, player: 'player' });
+          return gameReducer(state, { type: 'CHANGE_BIOME', card: card, player: 'player' });
       }
       
       const newHand = player.hand.filter(c => c.id !== card.id);
@@ -536,12 +546,16 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (card.type === 'Land') {
         player.battlefield.push(newCardState);
         player.maxMana = player.maxMana + 1;
+        player.mana = player.maxMana;
       } else if (card.type === 'Creature' || card.type === 'Artifact') {
         player.battlefield.push(newCardState);
+         newState.player = player;
+         newState.player.battlefield = applyBiomeBuffs(player.battlefield, newState.activeBiome);
+
         if (card.type === 'Artifact' && card.skill?.type === 'global_buff_armor') {
             player.battlefield.forEach(c => {
                 if (c.type === 'Creature') {
-                    c.buffs.push({ type: 'armor', value: card.skill.value || 0, duration: card.skill.duration || 0 });
+                    c.buffs.push({ type: 'armor', value: card.skill.value || 0, duration: card.skill.duration || 0, source: 'artifact' });
                 }
             });
             newLog.push({ turn: state.turn, message: `${card.name} donne +${card.skill.value} armure à toutes les créatures.` });
@@ -555,10 +569,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             if (targetIndex > -1) {
                 const targetCard = player.battlefield[targetIndex];
                 if (card.skill.type === 'buff_attack') {
-                    targetCard.buffs.push({ type: 'attack', value: card.skill.value || 0, duration: card.skill.duration || 0 });
+                    targetCard.buffs.push({ type: 'attack', value: card.skill.value || 0, duration: card.skill.duration || 0, source: 'spell' });
                 }
                 if (card.skill.type === 'buff_armor') {
-                    targetCard.buffs.push({ type: 'armor', value: card.skill.value || 0, duration: card.skill.duration || 0 });
+                    targetCard.buffs.push({ type: 'armor', value: card.skill.value || 0, duration: card.skill.duration || 0, source: 'spell' });
                 }
                 newLog.push({ turn: state.turn, message: `${card.name} est lancé sur ${targetCard.name}.` });
             }
@@ -566,7 +580,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         player.graveyard.push(card);
       }
 
-      return { ...state, player, log: newLog, selectedCardId: null };
+      return { ...newState, player, log: newLog, selectedCardId: null };
     }
     
     case 'SELECT_ATTACKER': {
@@ -598,7 +612,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         }
       
         const targetCard = state.opponent.battlefield.find(c => c.id === action.cardId);
-        if(!targetCard) return state;
+        if(!targetCard || targetCard.type !== 'Creature') return state;
 
         if(opponentHasTaunt && !targetCard.taunt) {
             return { ...state, log: [...state.log, { turn: state.turn, message: "Vous devez attaquer une créature avec Provocation."}] };
@@ -620,30 +634,37 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const currentPlayerKey = newState.activePlayer;
       const nextPlayerKey = currentPlayerKey === 'player' ? 'opponent' : 'player';
       
-      // Handle Artifacts and Buffs for the player whose turn is starting
       let artifactsToRemove: string[] = [];
-      newState[nextPlayerKey].battlefield.forEach((c: Card) => {
-          if (c.type === 'Artifact') {
-              c.duration = (c.duration || 0) - 1;
-              if (c.duration <= 0) {
-                  artifactsToRemove.push(c.id);
-                  newState.log.push({ turn: newState.turn, message: `L'effet de ${c.name} se termine.` });
-                  // Remove global buffs applied by this artifact
-                  if (c.skill?.type === 'global_buff_armor') {
-                      newState[nextPlayerKey].battlefield.forEach((creature: Card) => {
-                          if (creature.type === 'Creature') {
-                              creature.buffs = creature.buffs.filter(b => b.duration !== c.skill?.duration); // a bit of a hack
-                          }
-                      });
-                  }
+      newState[currentPlayerKey].battlefield.forEach((c: Card) => {
+        if (c.type === 'Creature') {
+          c.buffs = c.buffs.map((b: Buff) => ({ ...b, duration: b.duration - 1 })).filter((b: Buff) => b.duration > 0 || b.source === 'biome');
+        }
+        if (c.type === 'Artifact') {
+            c.duration = (c.duration || 0) - 1;
+            if(c.duration <= 0) {
+              artifactsToRemove.push(c.id);
+              newState.log.push({ turn: newState.turn, message: `L'effet de ${c.name} se termine.` });
+              if (c.skill?.type === 'global_buff_armor') {
+                  newState[currentPlayerKey].battlefield.forEach((creature: Card) => {
+                      if (creature.type === 'Creature') {
+                          creature.buffs = creature.buffs.filter(b => b.source !== 'artifact');
+                      }
+                  });
               }
-          } else {
-            c.buffs = c.buffs.map(b => ({ ...b, duration: b.duration - 1 })).filter(b => b.duration > 0);
-          }
+            }
+        }
       });
-      
       if(artifactsToRemove.length > 0){
-        newState[nextPlayerKey].battlefield = newState[nextPlayerKey].battlefield.filter((c: Card) => !artifactsToRemove.includes(c.id));
+        newState[currentPlayerKey].battlefield = newState[currentPlayerKey].battlefield.filter((c: Card) => !artifactsToRemove.includes(c.id));
+      }
+
+      if (newState.activeBiome?.biome === 'Sanctuary') {
+          newState[currentPlayerKey].battlefield.forEach((c: Card) => {
+              if (c.type === 'Creature' && c.preferredBiome === 'Sanctuary' && c.health < c.initialHealth) {
+                  c.health = Math.min(c.initialHealth, (c.health || 0) + 1);
+                   newState.log.push({ turn: newState.turn, message: `${c.name} est soigné de 1 PV par le Sanctuaire.` });
+              }
+          });
       }
 
 
@@ -653,7 +674,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         summoningSickness: c.type === 'Creature' ? false : c.summoningSickness,
         canAttack: c.type === 'Creature',
         isAttacking: false,
-        taunt: c.skill?.type === 'taunt' ? false : c.taunt, // Reset activated taunt
         skill: c.skill ? { ...c.skill, used: false } : undefined,
       }));
        newState[currentPlayerKey].biomeChanges = 2;

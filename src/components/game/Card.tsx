@@ -54,13 +54,14 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
 
   const totalAttack = (attack || 0) + (buffs?.filter(b => b.type === 'attack').reduce((acc, b) => acc + b.value, 0) || 0);
   const totalArmor = (armor || 0) + (buffs?.filter(b => b.type === 'armor').reduce((acc, b) => acc + b.value, 0) || 0);
+  const totalCritChance = (criticalHitChance || 0) + (buffs?.filter(b => b.type === 'crit').reduce((acc, b) => acc + b.value, 0) || 0);
 
 
   return (
     <div
       className={cn(
-        "relative transition-all duration-300 ease-in-out shadow-md hover:shadow-xl",
-        inHand && "hover:-translate-y-4 hover:z-10",
+        "relative transition-all duration-300 ease-in-out shadow-lg hover:shadow-2xl rounded-xl",
+        inHand && "hover:-translate-y-6 hover:z-10",
         tapped && 'transform rotate-12 scale-95 opacity-70',
         isActiveBiome && 'ring-4 ring-white'
       )}
@@ -68,7 +69,7 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
     >
       <Card
         className={cn(
-          'w-[150px] h-[210px] md:w-[180px] md:h-[252px] flex flex-col overflow-hidden select-none bg-card-foreground/5 dark:bg-card-foreground/10 backdrop-blur-sm rounded-xl',
+          'w-[150px] h-[210px] md:w-[180px] md:h-[252px] flex flex-col overflow-hidden select-none bg-card-foreground/5 dark:bg-card-foreground/10 backdrop-blur-md rounded-xl',
           isPlayable && 'cursor-pointer ring-4 ring-primary ring-offset-2 ring-offset-background shadow-lg shadow-primary/50',
           canAttack && !tapped && 'cursor-pointer ring-4 ring-orange-500 ring-offset-2 ring-offset-background shadow-lg shadow-orange-500/50 animate-pulse',
           isAttacking && 'ring-4 ring-red-500 ring-offset-2 ring-offset-background shadow-lg shadow-red-500/50', // Red border for selected attacker
@@ -95,18 +96,21 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
             </CardDescription>
             {taunt && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-1 text-blue-400 font-bold text-xs bg-black/50 px-2 py-1 rounded-full"><ShieldQuestion size={12}/> PROVOCATION</div>}
             {isTargeted && (
-              <div className="absolute inset-0 bg-black/50 flex items-center justify-center animate-pulse rounded-xl">
-                <X className="w-16 h-16 text-red-500" />
+              <div className="absolute inset-0 bg-red-800/60 flex items-center justify-center animate-pulse rounded-xl">
+                <X className="w-16 h-16 text-white" />
               </div>
             )}
             <div className="absolute top-16 left-2 flex flex-col gap-1">
               {buffs?.map((buff, i) => (
                 <Badge key={i} variant="secondary" className={cn(
                   "px-1 py-0 text-xs",
-                  buff.type === 'attack' ? 'bg-red-500/80' : 'bg-blue-500/80'
+                  buff.type === 'attack' ? 'bg-red-500/80' : 'bg-blue-500/80',
+                  buff.type === 'crit' && 'bg-yellow-500/80'
                 )}>
-                  {buff.type === 'attack' ? <Swords size={10} className="mr-1"/> : <Shield size={10} className="mr-1"/>}
-                  +{buff.value} ({buff.duration}t)
+                  {buff.type === 'attack' && <Swords size={10} className="mr-1"/>}
+                  {buff.type === 'armor' && <Shield size={10} className="mr-1"/>}
+                  {buff.type === 'crit' && <Zap size={10} className="mr-1"/>}
+                  +{buff.value}{buff.type === 'crit' && '%'}{buff.duration !== Infinity && ` (${buff.duration}t)`}
                 </Badge>
               ))}
             </div>
@@ -114,10 +118,10 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
         <CardFooter className="p-2 flex-shrink-0 min-h-[50px] flex flex-col items-start bg-secondary/30">
           {type === 'Creature' && (
             <div className='w-full'>
-                {criticalHitChance !== undefined && criticalHitChance > 0 && (
+                {totalCritChance > 0 && (
                     <div className="absolute top-14 right-2 flex items-center gap-1 text-[hsl(var(--debuff))]" title="Chance de coup critique">
                         <Zap size={14} />
-                        <span>{criticalHitChance}%</span>
+                        <span>{totalCritChance}%</span>
                     </div>
                 )}
                 <div className="flex justify-around items-center w-full text-sm font-bold">

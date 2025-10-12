@@ -120,7 +120,7 @@ export default function GameBoard() {
 
 
   const MemoizedOpponentBattlefield = useMemo(() => opponent.battlefield.map((card) => {
-    const isTargetable = phase === 'targeting' && selectedAttackerId && (!opponentHasTaunt || card.taunt);
+    const isTargetable = phase === 'targeting' && selectedAttackerId && card.type === 'Creature' && (!opponentHasTaunt || card.taunt);
     return (
         <GameCard 
           key={card.id} 
@@ -175,7 +175,7 @@ export default function GameBoard() {
             onClick={() => handleSelectDefender('opponent')}
         />
         <div className="flex gap-2">
-            <UICard className="w-24 h-32 flex flex-col items-center justify-center bg-secondary rounded-xl">
+            <UICard className="w-24 h-32 flex flex-col items-center justify-center bg-secondary/20 rounded-xl backdrop-blur-sm">
                 <p className="font-bold">Pioche</p>
                 <p>{opponent.deck.length}</p>
             </UICard>
@@ -184,7 +184,7 @@ export default function GameBoard() {
             </div>
         </div>
       </div>
-      <div className="min-h-[18rem] bg-black/10 rounded-xl p-2 flex items-center justify-center gap-2">
+      <div className="min-h-[268px] bg-black/20 rounded-xl p-2 flex items-center justify-center gap-2 backdrop-blur-sm shadow-inner">
          {MemoizedOpponentBattlefield}
       </div>
 
@@ -223,7 +223,7 @@ export default function GameBoard() {
                 )}
             </div>
           </div>
-          <UICard className="w-64 h-32 rounded-xl">
+          <UICard className="w-64 h-32 rounded-xl backdrop-blur-sm bg-card/50">
             <CardContent className="p-2 h-full">
               <div className="flex items-center gap-2 mb-1">
                 <ScrollText size={16}/>
@@ -237,21 +237,23 @@ export default function GameBoard() {
       </div>
 
       {/* Player Area */}
-      <div className="min-h-[18rem] bg-black/10 rounded-xl p-2 flex items-center justify-center gap-2">
+      <div className="min-h-[268px] bg-black/20 rounded-xl p-2 flex items-center justify-center gap-2 backdrop-blur-sm shadow-inner">
          {MemoizedPlayerBattlefield}
       </div>
       <div className="flex justify-between items-end">
         <PlayerStats hp={player.hp} mana={player.mana} maxMana={player.maxMana} />
         <div className="flex gap-2 items-end">
-            <div className="flex justify-center gap-[-4rem]">{MemoizedPlayerHand}</div>
-            <UICard className="w-24 h-32 flex flex-col items-center justify-center bg-secondary rounded-xl">
-                <p className="font-bold">Pioche</p>
-                <p>{player.deck.length}</p>
-            </UICard>
-            <UICard className="w-24 h-32 flex flex-col items-center justify-center bg-black/30 text-white rounded-xl">
-                <p className="font-bold">Cimetière</p>
-                <p>{player.graveyard.length}</p>
-            </UICard>
+            <div className="flex justify-center gap-[-5rem]">{MemoizedPlayerHand}</div>
+            <div className="flex gap-2">
+              <UICard className="w-24 h-32 flex flex-col items-center justify-center bg-secondary/20 rounded-xl backdrop-blur-sm">
+                  <p className="font-bold">Pioche</p>
+                  <p>{player.deck.length}</p>
+              </UICard>
+              <UICard className="w-24 h-32 flex flex-col items-center justify-center bg-black/40 text-white rounded-xl backdrop-blur-sm">
+                  <p className="font-bold">Cimetière</p>
+                  <p>{player.graveyard.length}</p>
+              </UICard>
+            </div>
         </div>
       </div>
     </div>

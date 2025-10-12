@@ -18,9 +18,10 @@ export interface CardSkill {
 }
 
 export interface Buff {
-    type: 'attack' | 'armor';
+    type: 'attack' | 'armor' | 'crit';
     value: number;
-    duration: number; // in turns
+    duration: number; // in turns. Infinity for permanent
+    source: 'spell' | 'artifact' | 'biome';
 }
 
 export interface Card {
@@ -48,6 +49,7 @@ export interface Card {
 }
 
 export interface Player {
+  id: 'player' | 'opponent';
   hp: number;
   mana: number;
   maxMana: number;
