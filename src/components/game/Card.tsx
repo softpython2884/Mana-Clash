@@ -2,7 +2,8 @@
 import type { Card as CardType, BiomeType } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Swords, Shield, Heart, Zap, Mountain, Trees, Snowflake, Flame, Sun, ShieldQuestion, X } from 'lucide-react';
+import { Swords, Shield, Heart, Zap, Mountain, Trees, Snowflake, Flame, Sun, ShieldQuestion, X, BrainCircuit, Sparkles, PlusCircle } from 'lucide-react';
+import { Badge } from '../ui/badge';
 
 interface GameCardProps {
   card: CardType;
@@ -24,7 +25,7 @@ const biomeIcon: Record<BiomeType, React.ElementType> = {
     Volcano: Flame,
     Desert: Sun,
     Sanctuary: Sun,
-    Swamp: Trees 
+    Swamp: BrainCircuit 
 };
 
 const biomeColor: Record<BiomeType, string> = {
@@ -39,7 +40,7 @@ const biomeColor: Record<BiomeType, string> = {
 
 
 export default function GameCard({ card, isPlayable = false, onClick, onSkillClick, inHand = false, isActiveBiome = false, isAttacking = false, isTargeted = false, isTargetable = false, showSkill = false }: GameCardProps) {
-  const { name, manaCost, description, attack, health, armor, type, tapped, canAttack, criticalHitChance, preferredBiome, biome, taunt } = card;
+  const { name, manaCost, description, attack, health, armor, type, tapped, canAttack, criticalHitChance, preferredBiome, biome, taunt, buffs } = card;
 
   const Icon = preferredBiome ? biomeIcon[preferredBiome] : null;
   const borderClass = biome ? biomeColor[biome] : '';
@@ -50,6 +51,10 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
       onSkillClick();
     }
   }
+
+  const totalAttack = (attack || 0) + (buffs?.filter(b => b.type === 'attack').reduce((acc, b) => acc + b.value, 0) || 0);
+  const totalArmor = (armor || 0) + (buffs?.filter(b => b.type === 'armor').reduce((acc, b) => acc + b.value, 0) || 0);
+
 
   return (
     <div
@@ -66,11 +71,11 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
           'w-[150px] h-[210px] md:w-[180px] md:h-[252px] flex flex-col overflow-hidden select-none bg-card-foreground/5 dark:bg-card-foreground/10 backdrop-blur-sm',
           isPlayable && 'cursor-pointer ring-4 ring-primary ring-offset-2 ring-offset-background shadow-lg shadow-primary/50',
           canAttack && !tapped && 'cursor-pointer ring-4 ring-orange-500 ring-offset-2 ring-offset-background shadow-lg shadow-orange-500/50 animate-pulse',
-          isAttacking && 'ring-4 ring-black ring-offset-2 ring-offset-background shadow-lg shadow-black/50', // Black border for selected attacker
+          isAttacking && 'ring-4 ring-red-500 ring-offset-2 ring-offset-background shadow-lg shadow-red-500/50', // Red border for selected attacker
           isTargetable && 'cursor-pointer ring-4 ring-yellow-400', // Highlight for potential targets
           onClick && "cursor-pointer",
           type === 'Biome' && `border-4 ${borderClass}`,
-          taunt && 'shadow-lg shadow-blue-500/50'
+          taunt && 'shadow-lg shadow-blue-500/50 ring-2 ring-blue-500'
         )}
       >
         <CardHeader className="p-2 flex-shrink-0">
@@ -94,6 +99,17 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
                 <X className="w-16 h-16 text-red-500" />
               </div>
             )}
+            <div className="absolute top-16 left-2 flex flex-col gap-1">
+              {buffs?.map((buff, i) => (
+                <Badge key={i} variant="secondary" className={cn(
+                  "px-1 py-0 text-xs",
+                  buff.type === 'attack' ? 'bg-red-500/80' : 'bg-blue-500/80'
+                )}>
+                  {buff.type === 'attack' ? <Swords size={10} className="mr-1"/> : <Shield size={10} className="mr-1"/>}
+                  +{buff.value} ({buff.duration}t)
+                </Badge>
+              ))}
+            </div>
         </CardContent>
         <CardFooter className="p-2 flex-shrink-0 min-h-[50px] flex flex-col items-start bg-secondary/30">
           {type === 'Creature' && (
@@ -107,11 +123,11 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
                 <div className="flex justify-around items-center w-full text-sm font-bold">
                     <div className="flex items-center gap-1 text-[hsl(var(--hp))]" title="Dégâts">
                         <Swords size={14} />
-                        <span>{attack}</span>
+                        <span>{totalAttack}</span>
                     </div>
                     <div className="flex items-center gap-1 text-blue-400" title="Résistance">
                         <Shield size={14} />
-                        <span>{armor}</span>
+                        <span>{totalArmor}</span>
                     </div>
                 </div>
                 <div className='w-full px-2 mt-1'>
@@ -131,6 +147,9 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
             <div className="absolute bottom-1 left-1" onClick={handleSkillClick}>
               <div className='p-1 bg-black/50 rounded-full cursor-pointer hover:bg-black/80 transition-colors'>
                 {card.skill.type === 'taunt' && <ShieldQuestion className='w-6 h-6 text-yellow-400'/>}
+                {card.skill.type === 'heal' && <PlusCircle className='w-6 h-6 text-green-400'/>}
+                {card.skill.type === 'lifesteal' && <Heart className='w-6 h-6 text-red-400'/>}
+                {card.skill.type === 'draw' && <Sparkles className='w-6 h-6 text-blue-400'/>}
               </div>
             </div>
           )}

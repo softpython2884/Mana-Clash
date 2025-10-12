@@ -15,7 +15,7 @@ const createCard = (
   type: CardType,
   manaCost: number,
   description: string,
-  options: Partial<Omit<Card, 'id'|'name'|'type'|'manaCost'|'description'|'image'>> = {}
+  options: Partial<Omit<Card, 'id'|'name'|'type'|'manaCost'|'description'|'image'|'buffs'>> = {}
 ): Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summoningSickness'> => ({
   id: id,
   name,
@@ -24,6 +24,7 @@ const createCard = (
   description,
   image: getImage(id),
   initialHealth: options.health,
+  buffs: [],
   ...options,
 });
 
@@ -32,11 +33,13 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
   // Creatures
   createCard('goblin', 'Gobelin Féroce', 'Creature', 1, "Une petite créature vicieuse.", { attack: 2, health: 1, armor: 0, criticalHitChance: 10, preferredBiome: 'Mountain' }),
   createCard('knight', 'Chevalier Vaillant', 'Creature', 3, "Compétence: Peut forcer un adversaire à l'attaquer.", { attack: 2, health: 2, armor: 3, criticalHitChance: 5, preferredBiome: 'Sanctuary', skill: { type: 'taunt', used: false } }),
-  createCard('elf', 'Elfe Archer', 'Creature', 2, "Tire des flèches précises.", { attack: 2, health: 2, armor: 1, criticalHitChance: 15, preferredBiome: 'Forest' }),
+  createCard('elf', 'Elfe Archer', 'Creature', 2, "Tire des flèches précises.", { attack: 3, health: 1, armor: 1, criticalHitChance: 15, preferredBiome: 'Forest' }),
   createCard('wizard', 'Sorcier Érudit', 'Creature', 4, "Maîtrise les arcanes.", { attack: 4, health: 3, armor: 0, criticalHitChance: 10, preferredBiome: 'Ice' }),
   createCard('dragon', 'Jeune Dragon', 'Creature', 5, "Un souffle de feu dévastateur.", { attack: 5, health: 4, armor: 3, criticalHitChance: 20, preferredBiome: 'Volcano' }),
-  createCard('golem', 'Golem de Pierre', 'Creature', 6, "Une masse de roche animée, lente mais résistante.", { attack: 4, health: 7, armor: 4, criticalHitChance: 0, preferredBiome: 'Mountain', taunt: true }),
-
+  createCard('golem', 'Golem de Pierre', 'Creature', 6, "Une masse de roche animée, lente mais résistante.", { attack: 3, health: 8, armor: 4, criticalHitChance: 0, preferredBiome: 'Mountain', taunt: true }),
+  createCard('cleric', 'Clerc du Sanctuaire', 'Creature', 2, 'Compétence: Soigne 3 PV à une créature.', { attack: 1, health: 3, armor: 1, preferredBiome: 'Sanctuary', skill: { type: 'heal', value: 3, target: 'any_creature', used: false }}),
+  createCard('vampire', 'Vampire Maudit', 'Creature', 4, 'Vol de vie (se soigne de la moitié des dégâts infligés).', { attack: 4, health: 3, armor: 1, preferredBiome: 'Swamp', skill: { type: 'lifesteal', used: false }}),
+  createCard('sage', 'Sage Oublié', 'Creature', 3, 'Compétence: Piochez une carte.', { attack: 2, health: 2, armor: 0, skill: { type: 'draw', used: false }}),
 
   // Lands
   createCard('forest_land', 'Forêt', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),
@@ -45,7 +48,8 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
 
   // Spells & Artifacts
   createCard('potion', 'Potion de soin', 'Spell', 2, "Vous regagnez 5 points de vie."),
-  createCard('artifact', 'Amulette de pouvoir', 'Artifact', 3, "Vos créatures gagnent +1/+0."),
+  createCard('berserk_rage', "Rage du Berserker", 'Spell', 1, "Donne +3 en attaque à une créature pour 1 tour.", { skill: { type: 'buff_attack', value: 3, duration: 1, target: 'friendly_creature', used: false }}),
+  createCard('stoneskin', "Peau de pierre", 'Spell', 2, "Donne +4 en armure à une créature pour 2 tours.", { skill: { type: 'buff_armor', value: 4, duration: 2, target: 'friendly_creature', used: false }}),
 
   // Biomes
   createCard('forest_biome', 'Biome Forêt', 'Biome', 0, "Change le biome actuel en Forêt.", { biome: 'Forest' }),
@@ -64,27 +68,33 @@ export const createDeck = (): Card[] => {
         deck.push({ 
             ...cardTemplate, 
             id: `${cardTemplate.id}-${i}`,
-            health: cardTemplate.initialHealth, // Reset health to initial health
+            health: cardTemplate.initialHealth,
             tapped: false,
             isAttacking: false,
             canAttack: false,
             summoningSickness: false,
-            taunt: cardTemplate.taunt, // Set passive taunt
-            skill: cardTemplate.skill ? { ...cardTemplate.skill, used: false } : undefined
+            taunt: cardTemplate.taunt,
+            skill: cardTemplate.skill ? { ...cardTemplate.skill, used: false } : undefined,
+            buffs: [],
         });
       }
     }
   };
 
   // Player/Opponent Deck Composition
-  addCards('goblin', 4);
-  addCards('knight', 3);
-  addCards('elf', 3);
-  addCards('wizard', 2);
+  addCards('goblin', 3);
+  addCards('knight', 2);
+  addCards('elf', 2);
+  addCards('wizard', 1);
   addCards('dragon', 1);
   addCards('golem', 1);
+  addCards('cleric', 2);
+  addCards('vampire', 1);
+  addCards('sage', 1);
   
-  addCards('potion', 2);
+  addCards('potion', 1);
+  addCards('berserk_rage', 1);
+  addCards('stoneskin', 1);
   
   addCards('forest_land', 2);
   addCards('mountain_land', 2);

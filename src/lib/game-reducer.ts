@@ -1,5 +1,5 @@
 'use client';
-import type { GameState, Card, Player, GamePhase } from './types';
+import type { GameState, Card, Player, GamePhase, Buff } from './types';
 import { createDeck, allCards } from '@/data/initial-cards';
 import { useToast } from "@/hooks/use-toast";
 
@@ -9,7 +9,7 @@ const MAX_BATTLEFIELD_SIZE = 6;
 export type GameAction =
   | { type: 'INITIALIZE_GAME' }
   | { type: 'RESTART_GAME' }
-  | { type: 'DRAW_CARD'; player: 'player' | 'opponent' }
+  | { type: 'DRAW_CARD'; player: 'player' | 'opponent'; count: number }
   | { type: 'PLAY_CARD'; cardId: string }
   | { type: 'CHANGE_BIOME'; cardId: string; player: 'player' | 'opponent' }
   | { type: 'SELECT_CARD'; cardId: string }
@@ -20,7 +20,7 @@ export type GameAction =
   | { type: 'EXECUTE_OPPONENT_TURN' }
   | { type: 'LOG_MESSAGE'; message: string }
   | { type: 'CHANGE_PHASE', phase: GamePhase }
-  | { type: 'ACTIVATE_SKILL', cardId: string };
+  | { type: 'ACTIVATE_SKILL', cardId: string, targetId?: string };
 
 const drawCards = (player: Player, count: number, log: GameState['log'], turn: number): { player: Player, log: GameState['log'] } => {
   const cardsToDrawCount = Math.max(0, MAX_HAND_SIZE - player.hand.length);
@@ -29,8 +29,6 @@ const drawCards = (player: Player, count: number, log: GameState['log'], turn: n
   if (actualCount === 0) {
     if (player.hand.length >= MAX_HAND_SIZE) {
         // Do not log if it's just a regular turn start and hand is full.
-        // Only log if an effect tries to draw cards but fails.
-        // This check is a bit tricky here, maybe do it at call site.
     }
     return { player, log };
   }
@@ -42,9 +40,7 @@ const drawCards = (player: Player, count: number, log: GameState['log'], turn: n
   
   if (drawnCards.length > 0) {
        // We can refine this message if needed
-       // newLog.push({ turn, message: `${player === state.player ? 'Joueur' : 'Adversaire'} pioche ${drawnCards.length} carte(s).` });
   }
-
 
   return { player: { ...player, deck: newDeck, hand: newHand }, log: newLog };
 };
@@ -68,7 +64,7 @@ export const getInitialState = (): GameState => {
     opponent: createInitialPlayer(),
     log: [],
     isThinking: false,
-    activeBiome: { ...defaultBiomeCard, tapped: false, isAttacking: false, canAttack: false, summoningSickness: false, initialHealth: defaultBiomeCard.health },
+    activeBiome: { ...defaultBiomeCard, tapped: false, isAttacking: false, canAttack: false, summoningSickness: false, initialHealth: defaultBiomeCard.health, buffs: [] },
     winner: undefined,
     selectedCardId: null,
     selectedAttackerId: null,
@@ -108,7 +104,7 @@ const shuffleAndDeal = (state: GameState): GameState => {
         opponent: opponentAfterDraw,
         winner: undefined,
         log: logAfterOpponentDraw,
-        activeBiome: defaultBiomeCard ? { ...defaultBiomeCard, tapped: false, isAttacking: false, canAttack: false, summoningSickness: false, initialHealth: defaultBiomeCard.health} : null,
+        activeBiome: defaultBiomeCard ? { ...defaultBiomeCard, tapped: false, isAttacking: false, canAttack: false, summoningSickness: false, initialHealth: defaultBiomeCard.health, buffs: []} : null,
         selectedCardId: null,
         selectedAttackerId: null,
         selectedDefenderId: null,
@@ -116,9 +112,12 @@ const shuffleAndDeal = (state: GameState): GameState => {
 }
 
 // --- COMBAT DAMAGE RESOLUTION ---
-const resolveDamage = (attacker: Card, defender: Card, log: any[], turn: number) => {
+const resolveDamage = (attacker: Card, defender: Card, log: any[], turn: number, owner: Player) => {
+    const totalAttack = (attacker.attack || 0) + (attacker.buffs?.filter(b => b.type === 'attack').reduce((acc, b) => acc + b.value, 0) || 0);
+    const totalArmor = (defender.armor || 0) + (defender.buffs?.filter(b => b.type === 'armor').reduce((acc, b) => acc + b.value, 0) || 0);
+
     const isCritical = Math.random() * 100 < (attacker.criticalHitChance || 0);
-    let damageDealt = attacker.attack || 0;
+    let damageDealt = totalAttack;
     
     log.push({ turn, message: `${attacker.name} attaque avec ${damageDealt} points de dégâts.` });
 
@@ -127,12 +126,11 @@ const resolveDamage = (attacker: Card, defender: Card, log: any[], turn: number)
         defender.health = (defender.health || 0) - damageDealt;
         log.push({ turn, message: `${defender.name} subit ${damageDealt} dégâts directs. PV restants: ${defender.health}` });
     } else {
-        const armor = defender.armor || 0;
-        const damageAfterArmor = Math.max(0, damageDealt - armor);
+        const damageAfterArmor = Math.max(0, damageDealt - totalArmor);
         const absorbedDamage = damageDealt - damageAfterArmor;
 
         if (absorbedDamage > 0) {
-            defender.armor = Math.max(0, armor - damageDealt);
+            defender.armor = Math.max(0, totalArmor - damageDealt);
             log.push({ turn, message: `${defender.name} absorbe ${absorbedDamage} dégâts. Armure restante: ${defender.armor}` });
         }
         
@@ -141,6 +139,13 @@ const resolveDamage = (attacker: Card, defender: Card, log: any[], turn: number)
             log.push({ turn, message: `${defender.name} subit ${damageAfterArmor} dégâts. PV restants: ${defender.health}` });
         }
     }
+
+    if (attacker.skill?.type === 'lifesteal') {
+        const healedAmount = Math.ceil(damageDealt / 2);
+        owner.hp = Math.min(20, owner.hp + healedAmount);
+        log.push({ turn, message: `Vol de vie: ${attacker.name} soigne son propriétaire de ${healedAmount} PV.` });
+    }
+
     return { attacker, defender };
 };
 
@@ -172,7 +177,7 @@ const opponentAI = (state: GameState): GameState => {
       const landInHand = opponent.hand.find((c: Card) => c.type === 'Land');
       if (landInHand) {
           log.push({ turn: tempState.turn, message: `Adversaire joue ${landInHand.name}.` });
-          opponent.battlefield.push({ ...landInHand, summoningSickness: true });
+          opponent.battlefield.push({ ...landInHand, summoningSickness: true, buffs: [] });
           opponent.hand = opponent.hand.filter((c: Card) => c.id !== landInHand.id);
       }
   }
@@ -193,7 +198,7 @@ const opponentAI = (state: GameState): GameState => {
       if (playableCreatures.length > 0) {
           const creatureToPlay = playableCreatures[0];
           log.push({ turn: tempState.turn, message: `Adversaire invoque ${creatureToPlay.name}.` });
-          opponent.battlefield.push({ ...creatureToPlay, summoningSickness: true, canAttack: false });
+          opponent.battlefield.push({ ...creatureToPlay, summoningSickness: true, canAttack: false, buffs: [] });
           opponent.hand = opponent.hand.filter((c: Card) => c.id !== creatureToPlay.id);
           opponent.mana -= creatureToPlay.manaCost;
       } else {
@@ -211,24 +216,19 @@ const opponentAI = (state: GameState): GameState => {
       
       // Must attack taunt creatures first
       if(playerTauntCreatures.length > 0) {
-          // Attack the taunt creature with the lowest health
           targetPlayerCard = playerTauntCreatures.sort((a,b) => (a.health || 0) - (b.health || 0))[0];
           target = targetPlayerCard;
       } else {
-        // No taunt, can attack player or other creatures. AI will prioritize clearing board.
-        let potentialBlockers = player.battlefield.filter((c: Card) => !c.tapped);
+        let potentialBlockers = player.battlefield.filter((c: Card) => c.type === 'Creature' && !c.tapped);
         if (potentialBlockers.length > 0) {
-           // Find a target it can kill
            let killableTarget = potentialBlockers.find(p => (p.health || 0) <= (attacker.attack || 0));
            if(killableTarget) {
                targetPlayerCard = killableTarget;
            } else {
-               // Or attack the one with highest attack
                targetPlayerCard = potentialBlockers.sort((a,b) => (b.attack || 0) - (a.attack || 0))[0];
            }
            target = targetPlayerCard;
         } else {
-          // No creatures to block, attack player
           target = 'player';
         }
       }
@@ -248,12 +248,11 @@ const opponentAI = (state: GameState): GameState => {
             log.push({ turn: tempState.turn, message: `Adversaire: ${attacker.name} attaque ${defenderInPlayerField.name}.` });
             
             const defenderHealthBefore = defenderInPlayerField.health || 0;
-            resolveDamage(attackerInBattlefield, defenderInPlayerField, log, tempState.turn);
+            resolveDamage(attackerInBattlefield, defenderInPlayerField, log, tempState.turn, opponent);
             
-            // Riposte only if defender survives and took damage
             if((defenderInPlayerField.health || 0) > 0 && (defenderInPlayerField.health || 0) < defenderHealthBefore) {
                log.push({ turn, message: `${defenderInPlayerField.name} riposte !` });
-               resolveDamage(defenderInPlayerField, attackerInBattlefield, log, tempState.turn);
+               resolveDamage(defenderInPlayerField, attackerInBattlefield, log, tempState.turn, player);
             } else if ((defenderInPlayerField.health || 0) <= 0) {
                log.push({ turn, message: `${defenderInPlayerField.name} est détruit avant de pouvoir riposter.` });
             }
@@ -264,12 +263,11 @@ const opponentAI = (state: GameState): GameState => {
       }
   });
 
-   // Post-combat cleanup
     const updateField = (p: Player, owner: string): Player => {
         const remainingCreatures = p.battlefield.filter(c => {
             if ((c.health || 0) <= 0) {
                 log.push({ turn: tempState.turn, message: `${c.name} (${owner}) est détruit.` });
-                p.graveyard.push({...c, health: c.initialHealth});
+                p.graveyard.push({...c, health: c.initialHealth, buffs: []});
                 return false;
             }
             return true;
@@ -293,7 +291,6 @@ const opponentAI = (state: GameState): GameState => {
   return tempState;
 };
 
-// A generalized combat resolution function for the player
 const resolvePlayerCombat = (state: GameState): GameState => {
     let newState = JSON.parse(JSON.stringify(state));
     let { player, opponent, log, turn, selectedAttackerId, selectedDefenderId } = newState;
@@ -301,43 +298,42 @@ const resolvePlayerCombat = (state: GameState): GameState => {
     const attacker = player.battlefield.find((c: Card) => c.id === selectedAttackerId);
     if (!attacker) return state;
 
-    // Tap attacker immediately
     attacker.tapped = true;
     attacker.canAttack = false;
 
-    // Case 1: Attacking the opponent directly
     if (selectedDefenderId === 'opponent') {
+        const opponentHasCreatures = opponent.battlefield.filter((c: Card) => c.type === 'Creature').length > 0;
+        if(opponentHasCreatures) {
+            log.push({ turn, message: `Vous ne pouvez pas attaquer le joueur directement s'il a des créatures.` });
+            return { ...newState, selectedAttackerId: null, selectedDefenderId: null, phase: 'combat' };
+        }
         log.push({ turn, message: `Joueur: ${attacker.name} attaque l'adversaire directement !` });
-        opponent.hp -= attacker.attack || 0;
-        log.push({ turn, message: `Adversaire subit ${attacker.attack || 0} dégâts. PV restants: ${opponent.hp}.` });
+        const totalAttack = (attacker.attack || 0) + (attacker.buffs?.filter(b => b.type === 'attack').reduce((acc, b) => acc + b.value, 0) || 0);
+        opponent.hp -= totalAttack;
+        log.push({ turn, message: `Adversaire subit ${totalAttack} dégâts. PV restants: ${opponent.hp}.` });
     } 
-    // Case 2: Attacking a creature
     else {
         const defender = opponent.battlefield.find((c: Card) => c.id === selectedDefenderId);
-        if (!defender) return state; // Should not happen with proper targeting
+        if (!defender) return state;
         
         log.push({ turn, message: `Joueur: ${attacker.name} attaque ${defender.name}.` });
         
-        // Attacker deals damage to defender
         const defenderHealthBefore = defender.health || 0;
-        resolveDamage(attacker, defender, log, turn);
+        resolveDamage(attacker, defender, log, turn, player);
         
-        // Defender strikes back only if it survives AND took damage
         if ((defender.health || 0) > 0 && (defender.health || 0) < defenderHealthBefore) {
             log.push({ turn, message: `${defender.name} riposte !` });
-            resolveDamage(defender, attacker, log, turn);
+            resolveDamage(defender, attacker, log, turn, opponent);
         } else if ((defender.health || 0) <= 0) {
             log.push({ turn, message: `${defender.name} est détruit avant de pouvoir riposter.` });
         }
     }
 
-
-    // Post-combat cleanup for both battlefields
     const updateField = (p: Player, owner: string): Player => {
         const remainingCreatures = p.battlefield.filter(c => {
             if ((c.health || 0) <= 0) {
                 log.push({ turn, message: `${c.name} (${owner}) est détruit.` });
-                p.graveyard.push({...c, health: c.initialHealth});
+                p.graveyard.push({...c, health: c.initialHealth, buffs: []});
                 return false;
             }
             return true;
@@ -361,7 +357,7 @@ const resolvePlayerCombat = (state: GameState): GameState => {
     return {
       ...newState,
       winner,
-      phase: winner ? 'game-over' : 'combat', // Return to combat phase to allow more attacks
+      phase: winner ? 'game-over' : 'combat',
       selectedAttackerId: null,
       selectedDefenderId: null,
     };
@@ -373,7 +369,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'INITIALIZE_GAME': {
         let newState = getInitialState();
         newState = shuffleAndDeal(newState);
-        // Start game
         newState.player.maxMana = 1;
         newState.player.mana = 1;
         return newState;
@@ -382,10 +377,19 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'RESTART_GAME': {
       let newState = getInitialState();
       newState = shuffleAndDeal(newState);
-       // Start game
       newState.player.maxMana = 1;
       newState.player.mana = 1;
       return newState;
+    }
+
+    case 'DRAW_CARD': {
+        const { player: playerKey, count } = action;
+        const { player, log } = drawCards(state[playerKey], count, state.log, state.turn);
+        return {
+            ...state,
+            [playerKey]: player,
+            log
+        };
     }
 
     case 'LOG_MESSAGE':
@@ -397,11 +401,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'SELECT_CARD': {
         if (state.activePlayer !== 'player' || state.phase !== 'main') return state;
+        if (state.selectedCardId && state.selectedCardId === action.cardId) {
+            return { ...state, selectedCardId: null }; // Deselect
+        }
         return { ...state, selectedCardId: action.cardId };
     }
 
     case 'ACTIVATE_SKILL': {
-        if (state.activePlayer !== 'player' || state.phase !== 'main') return state;
+        if (state.activePlayer !== 'player') return state;
         let player = { ...state.player };
         const cardIndex = player.battlefield.findIndex(c => c.id === action.cardId);
         if (cardIndex === -1) return state;
@@ -409,10 +416,37 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         const card = player.battlefield[cardIndex];
         if (!card.skill || card.skill.used || card.summoningSickness || card.tapped) return state;
         
-        if (card.skill.type === 'taunt') {
-            card.taunt = true;
-            card.skill.used = true;
-            card.tapped = true; // Using a skill taps the card
+        let logMessage = '';
+
+        switch(card.skill.type) {
+            case 'taunt':
+                card.taunt = true;
+                card.skill.used = true;
+                card.tapped = true;
+                logMessage = `Joueur active la compétence Provocation de ${card.name}!`;
+                break;
+            case 'heal':
+                if(action.targetId) {
+                    const targetIndex = player.battlefield.findIndex(c => c.id === action.targetId);
+                    if (targetIndex > -1) {
+                        const targetCard = player.battlefield[targetIndex];
+                        targetCard.health = Math.min(targetCard.initialHealth || 0, (targetCard.health || 0) + (card.skill.value || 0));
+                        card.skill.used = true;
+                        card.tapped = true;
+                        logMessage = `${card.name} soigne ${targetCard.name} de ${card.skill.value} PV.`;
+                    }
+                }
+                break;
+            case 'draw':
+                const { player: playerAfterDraw, log: logAfterDraw } = drawCards(player, 1, state.log, state.turn);
+                player = playerAfterDraw;
+                state.log = logAfterDraw;
+                card.skill.used = true;
+                card.tapped = true;
+                logMessage = `${card.name} fait piocher une carte.`;
+                break;
+            default:
+                return state;
         }
 
         player.battlefield[cardIndex] = card;
@@ -420,7 +454,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             ...state, 
             player,
             selectedCardId: null, // Deselect card after using skill
-            log: [...state.log, { turn: state.turn, message: `Joueur active la compétence Provocation de ${card.name}!`}]
+            log: [...state.log, { turn: state.turn, message: logMessage }]
         };
     }
 
@@ -429,7 +463,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
              if (action.phase === 'combat' && state.player.battlefield.filter(c => c.canAttack && !c.tapped).length === 0) {
                  return { ...state, log: [...state.log, { turn: state.turn, message: "Aucune créature ne peut attaquer."}] };
              }
-              if (action.phase === 'main') { // Reset selection when cancelling combat
+              if (action.phase === 'main') {
                 return { ...state, phase: 'main', selectedAttackerId: null, selectedDefenderId: null, selectedCardId: null };
             }
              return { ...state, phase: action.phase, log: [...state.log, { turn: state.turn, message: `Phase de ${action.phase}.`}] };
@@ -466,7 +500,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'PLAY_CARD': {
       if (state.activePlayer !== 'player' || state.phase !== 'main') return state;
-      const player = state.player;
+      const player = { ...state.player };
       const cardIndex = player.hand.findIndex(c => c.id === action.cardId);
       if (cardIndex === -1) return state;
 
@@ -487,27 +521,38 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
       
       const newHand = player.hand.filter(c => c.id !== card.id);
-      let newPlayerState = { ...player, hand: newHand };
-      let newLog = state.log;
+      player.hand = newHand;
+      player.mana -= card.manaCost;
+      let newLog = [...state.log, { turn: state.turn, message: `Joueur joue ${card.name}.` }];
       
-      const newCardState: Card = { ...card, summoningSickness: true, canAttack: false };
+      const newCardState: Card = { ...card, summoningSickness: true, canAttack: false, buffs: [] };
 
       if (card.type === 'Land') {
-        newPlayerState.battlefield = [...player.battlefield, newCardState];
-        newPlayerState.maxMana = player.maxMana + 1;
-        newLog = [...state.log, { turn: state.turn, message: `Joueur joue ${card.name}.` }];
+        player.battlefield.push(newCardState);
+        player.maxMana = player.maxMana + 1;
       } else if (card.type === 'Creature') {
-        newPlayerState.battlefield = [...player.battlefield, newCardState];
-        newPlayerState.mana -= card.manaCost;
-        newLog = [...state.log, { turn: state.turn, message: `Joueur invoque ${card.name}.` }];
+        player.battlefield.push(newCardState);
       } else if (card.type === 'Spell') {
-        newPlayerState.hp = Math.min(20, player.hp + 5);
-        newPlayerState.graveyard = [...player.graveyard, card];
-        newPlayerState.mana -= card.manaCost;
-        newLog = [...state.log, { turn: state.turn, message: `Joueur lance ${card.name} et se soigne.` }];
+        if(card.id.startsWith('potion')) {
+            player.hp = Math.min(20, player.hp + 5);
+            newLog.push({ turn: state.turn, message: `Joueur se soigne de 5 PV.` });
+        } else if (card.skill?.target === 'friendly_creature' && state.selectedCardId) {
+            const targetIndex = player.battlefield.findIndex(c => c.id === state.selectedCardId);
+            if (targetIndex > -1) {
+                const targetCard = player.battlefield[targetIndex];
+                if (card.skill.type === 'buff_attack') {
+                    targetCard.buffs.push({ type: 'attack', value: card.skill.value || 0, duration: card.skill.duration || 0 });
+                }
+                if (card.skill.type === 'buff_armor') {
+                    targetCard.buffs.push({ type: 'armor', value: card.skill.value || 0, duration: card.skill.duration || 0 });
+                }
+                newLog.push({ turn: state.turn, message: `${card.name} est lancé sur ${targetCard.name}.` });
+            }
+        }
+        player.graveyard.push(card);
       }
 
-      return { ...state, player: newPlayerState, log: newLog };
+      return { ...state, player, log: newLog, selectedCardId: null };
     }
     
     case 'SELECT_ATTACKER': {
@@ -519,17 +564,16 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             ...state,
             phase: 'targeting',
             selectedAttackerId: action.cardId,
-            selectedDefenderId: null, // Reset defender selection
+            selectedDefenderId: null,
         };
     }
 
     case 'SELECT_DEFENDER': {
         if (state.phase !== 'targeting' || state.activePlayer !== 'player') return state;
         const opponentHasTaunt = state.opponent.battlefield.some(c => c.taunt && !c.tapped);
-        const opponentHasCreatures = state.opponent.battlefield.filter(c => c.type === 'Creature').length > 0;
-
-        // If targeting opponent directly
+        
         if (action.cardId === 'opponent') {
+            const opponentHasCreatures = state.opponent.battlefield.filter(c => c.type === 'Creature').length > 0;
             if (opponentHasTaunt) {
                 return { ...state, log: [...state.log, { turn: state.turn, message: "Vous devez attaquer une créature avec Provocation."}] };
             }
@@ -539,7 +583,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             return { ...state, selectedDefenderId: 'opponent' };
         }
       
-        // If targeting a creature
         const targetCard = state.opponent.battlefield.find(c => c.id === action.cardId);
         if(!targetCard) return state;
 
@@ -560,22 +603,26 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (state.phase === 'game-over') return state;
       let newState = JSON.parse(JSON.stringify(state));
 
-      // Untap current player's creatures and reset states
       const currentPlayerKey = newState.activePlayer;
+      const nextPlayerKey = currentPlayerKey === 'player' ? 'opponent' : 'player';
+      
+      // Decrement buff durations for the player whose turn is starting
+      newState[nextPlayerKey].battlefield.forEach((c: Card) => {
+          c.buffs = c.buffs.map(b => ({ ...b, duration: b.duration - 1 })).filter(b => b.duration > 0);
+      });
+
       newState[currentPlayerKey].battlefield = newState[currentPlayerKey].battlefield.map((c: Card) => ({
         ...c,
         tapped: false,
         summoningSickness: c.type === 'Creature' ? false : c.summoningSickness,
         canAttack: c.type === 'Creature',
         isAttacking: false,
-        taunt: c.skill?.type === 'taunt' ? false : c.taunt, // Reset taunt if it was an activated skill
+        taunt: c.skill?.type === 'taunt' ? false : c.taunt, // Reset activated taunt
         skill: c.skill ? { ...c.skill, used: false } : undefined,
       }));
        newState[currentPlayerKey].biomeChanges = 2;
 
 
-      // Switch to next player
-      const nextPlayerKey = currentPlayerKey === 'player' ? 'opponent' : 'player';
       const nextTurnNumber = nextPlayerKey === 'player' ? newState.turn + 1 : newState.turn;
       
       newState.turn = nextTurnNumber;
@@ -585,19 +632,16 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       newState.selectedAttackerId = null;
       newState.selectedDefenderId = null;
       
-      // Draw card for the new turn player, if hand not full
       const { player: nextPlayerAfterDraw, log: logAfterDraw } = drawCards(newState[nextPlayerKey], 1, newState.log, nextTurnNumber);
       newState[nextPlayerKey] = nextPlayerAfterDraw;
       newState.log = [...logAfterDraw, { turn: nextTurnNumber, message: `Début du tour de ${nextPlayerKey === 'player' ? 'Joueur' : 'l\'Adversaire'}.` }];
 
-      // Next player gets mana
       let nextPlayerState = newState[nextPlayerKey];
       nextPlayerState.maxMana = Math.min(10, nextPlayerState.maxMana + 1);
       nextPlayerState.mana = nextPlayerState.maxMana;
       
       newState[nextPlayerKey] = nextPlayerState;
       
-      // Set AI thinking state
       newState.isThinking = nextPlayerKey === 'opponent';
 
       return newState;

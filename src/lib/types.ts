@@ -5,9 +5,22 @@ export type CardType = 'Creature' | 'Land' | 'Spell' | 'Artifact' | 'Biome';
 export type GamePhase = 'main' | 'combat' | 'targeting' | 'end' | 'game-over';
 export type BiomeType = 'Forest' | 'Mountain' | 'Swamp' | 'Desert' | 'Ice' | 'Volcano' | 'Sanctuary';
 
+export type SkillType = 'taunt' | 'heal' | 'lifesteal' | 'draw' | 'buff_attack' | 'buff_armor';
+export type SkillTarget = 'self' | 'friendly_creature' | 'any_creature' | 'player' | 'opponent_creature';
+
+
 export interface CardSkill {
-  type: 'taunt';
+  type: SkillType;
   used: boolean;
+  value?: number; // e.g., amount to heal or damage
+  duration?: number; // for buffs
+  target?: SkillTarget;
+}
+
+export interface Buff {
+    type: 'attack' | 'armor';
+    value: number;
+    duration: number;
 }
 
 export interface Card {
@@ -30,6 +43,7 @@ export interface Card {
   preferredBiome?: BiomeType;
   taunt?: boolean;
   skill?: CardSkill;
+  buffs: Buff[];
 }
 
 export interface Player {

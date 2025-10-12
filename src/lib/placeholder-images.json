@@ -37,6 +37,24 @@
       "imageHint": "stone golem"
     },
     {
+      "id": "cleric",
+      "description": "A holy cleric.",
+      "imageUrl": "https://picsum.photos/seed/cleric/300/400",
+      "imageHint": "holy cleric"
+    },
+    {
+      "id": "vampire",
+      "description": "A cursed vampire.",
+      "imageUrl": "https://picsum.photos/seed/vampire/300/400",
+      "imageHint": "cursed vampire"
+    },
+    {
+      "id": "sage",
+      "description": "A forgotten sage.",
+      "imageUrl": "https://picsum.photos/seed/sage/300/400",
+      "imageHint": "forgotten sage"
+    },
+    {
       "id": "forest_land",
       "description": "A lush, green forest.",
       "imageUrl": "https://picsum.photos/seed/forest_land/300/400",
@@ -59,6 +77,18 @@
       "description": "A bubbling potion of power.",
       "imageUrl": "https://picsum.photos/seed/potion/300/400",
       "imageHint": "magic potion"
+    },
+    {
+      "id": "berserk_rage",
+      "description": "A barbarian in a furious rage.",
+      "imageUrl": "https://picsum.photos/seed/berserk/300/400",
+      "imageHint": "furious rage"
+    },
+    {
+      "id": "stoneskin",
+      "description": "A creature with skin of stone.",
+      "imageUrl": "https://picsum.photos/seed/stoneskin/300/400",
+      "imageHint": "stone skin"
     },
     {
       "id": "artifact",
