@@ -51,9 +51,9 @@ export default function GameBoard() {
     const card = player.battlefield.find(c => c.id === cardId);
     if (!card) return;
 
-    if (phase === 'combat' && card.canAttack) {
+    if (phase === 'combat' && card.canAttack && !card.tapped) {
       dispatch({ type: 'SELECT_ATTACKER', cardId });
-    } else {
+    } else if (phase === 'main') {
       dispatch({ type: 'SELECT_CARD', cardId });
     }
   }
@@ -82,7 +82,8 @@ export default function GameBoard() {
 
   const handlePassTurn = () => {
     if (activePlayer !== 'player') return;
-    if (phase === 'combat' || phase === 'targeting') return; 
+    // Allow passing turn from any phase except targeting to prevent accidental skips
+    if (phase === 'targeting') return; 
     dispatch({ type: 'PASS_TURN' });
   }
 
@@ -109,12 +110,14 @@ export default function GameBoard() {
           isAttacking={card.id === selectedAttackerId}
           onClick={() => handleSelectCardOnBattlefield(card.id)}
           onSkillClick={() => handleActivateSkill(card.id)}
-          showSkill={card.id === selectedCardId && !!card.skill && !card.skill.used}
+          showSkill={card.id === selectedCardId && !!card.skill && !card.skill.used && !card.summoningSickness && !card.tapped}
       />
   )), [player.battlefield, phase, selectedAttackerId, selectedCardId]);
 
   const opponentHasTaunt = opponent.battlefield.some(c => c.taunt && !c.tapped);
-  const canTargetOpponentDirectly = phase === 'targeting' && selectedAttackerId && !opponentHasTaunt;
+  const opponentHasCreatures = opponent.battlefield.filter(c => c.type === 'Creature').length > 0;
+  const canTargetOpponentDirectly = phase === 'targeting' && selectedAttackerId && !opponentHasTaunt && !opponentHasCreatures;
+
 
   const MemoizedOpponentBattlefield = useMemo(() => opponent.battlefield.map((card) => {
     const isTargetable = phase === 'targeting' && selectedAttackerId && (!opponentHasTaunt || card.taunt);
