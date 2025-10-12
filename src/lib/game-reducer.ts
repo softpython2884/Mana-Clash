@@ -131,27 +131,82 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'DECLARE_ATTACK': {
         if (state.phase !== 'combat' || state.activePlayer !== 'player') return state;
-        const attackers = state.player.battlefield.filter(c => c.isAttacking);
+        let attackers = state.player.battlefield.filter(c => c.isAttacking);
         if (attackers.length === 0) {
              return { ...state, phase: 'main', log: [...state.log, { turn: state.turn, message: "Aucun attaquant déclaré." }] };
         }
 
-        let newOpponentHp = state.opponent.hp;
         let newLog = [...state.log, { turn: state.turn, message: `Joueur attaque avec ${attackers.map(c=>c.name).join(', ')}.`}];
 
-        // Simple AI blocking logic - for now, no blocking
-        const totalDamage = attackers.reduce((sum, c) => sum + (c.attack || 0), 0);
-        newOpponentHp -= totalDamage;
-        newLog.push({ turn: state.turn, message: `L'adversaire subit ${totalDamage} points de dégâts.` });
-        
-        const newPlayerBattlefield = state.player.battlefield.map(c => ({...c, isAttacking: false, tapped: c.isAttacking ? true : c.tapped}));
+        let playerBattlefield = [...state.player.battlefield];
+        let opponentBattlefield = [...state.opponent.battlefield];
+        let playerGraveyard = [...state.player.graveyard];
+        let opponentGraveyard = [...state.opponent.graveyard];
+        let opponentHp = state.opponent.hp;
 
-        const winner = newOpponentHp <= 0 ? 'player' : undefined;
+        const availableBlockers = opponentBattlefield.filter(c => c.type === 'Creature' && !c.tapped);
+        let unblockedAttackers = [...attackers];
+
+        if (availableBlockers.length > 0) {
+            // Simple AI blocking logic: block the strongest attacker with the best available blocker
+            attackers.sort((a, b) => (b.attack || 0) - (a.attack || 0));
+            
+            for (const attacker of attackers) {
+                // Find a blocker that can survive or trade
+                let bestBlocker = availableBlockers.find(b => (b.defense || 0) >= (attacker.attack || 0));
+                // If not, find any blocker
+                if (!bestBlocker && availableBlockers.length > 0) {
+                    bestBlocker = availableBlockers[0];
+                }
+
+                if (bestBlocker) {
+                    newLog.push({ turn: state.turn, message: `${bestBlocker.name} bloque ${attacker.name}.` });
+
+                    const attackerRemainingHp = (attacker.defense || 0) - (bestBlocker.attack || 0);
+                    const blockerRemainingHp = (bestBlocker.defense || 0) - (attacker.attack || 0);
+
+                    if (attackerRemainingHp <= 0) {
+                        newLog.push({ turn: state.turn, message: `${attacker.name} est détruit.` });
+                        playerBattlefield = playerBattlefield.filter(c => c.id !== attacker.id);
+                        playerGraveyard.push(attacker);
+                    } else {
+                        const attackerIndex = playerBattlefield.findIndex(c => c.id === attacker.id);
+                        if(attackerIndex > -1) playerBattlefield[attackerIndex].defense = attackerRemainingHp;
+                    }
+                    
+                    if (blockerRemainingHp <= 0) {
+                        newLog.push({ turn: state.turn, message: `${bestBlocker.name} est détruit.` });
+                        opponentBattlefield = opponentBattlefield.filter(c => c.id !== bestBlocker!.id);
+                        opponentGraveyard.push(bestBlocker);
+                    } else {
+                         const blockerIndex = opponentBattlefield.findIndex(c => c.id === bestBlocker!.id);
+                         if(blockerIndex > -1) opponentBattlefield[blockerIndex].defense = blockerRemainingHp;
+                    }
+                    
+                    // Remove blocker and attacker from their respective groups for this combat phase
+                    unblockedAttackers = unblockedAttackers.filter(a => a.id !== attacker.id);
+                    const blockerIndexInAvailable = availableBlockers.findIndex(b => b.id === bestBlocker!.id);
+                    if (blockerIndexInAvailable > -1) {
+                        availableBlockers.splice(blockerIndexInAvailable, 1);
+                    }
+                }
+            }
+        }
+        
+        if (unblockedAttackers.length > 0) {
+            const totalUnblockedDamage = unblockedAttackers.reduce((sum, c) => sum + (c.attack || 0), 0);
+            opponentHp -= totalUnblockedDamage;
+            newLog.push({ turn: state.turn, message: `L'adversaire subit ${totalUnblockedDamage} points de dégâts non bloqués.` });
+        }
+
+        const finalPlayerBattlefield = playerBattlefield.map(c => ({...c, isAttacking: false, tapped: attackers.some(a => a.id === c.id) ? true : c.tapped}));
+        
+        const winner = opponentHp <= 0 ? 'player' : undefined;
 
         return {
             ...state,
-            player: {...state.player, battlefield: newPlayerBattlefield},
-            opponent: {...state.opponent, hp: newOpponentHp},
+            player: {...state.player, battlefield: finalPlayerBattlefield, graveyard: playerGraveyard},
+            opponent: {...state.opponent, hp: opponentHp, battlefield: opponentBattlefield, graveyard: opponentGraveyard},
             log: newLog,
             phase: winner ? 'game-over' : 'main',
             winner,
