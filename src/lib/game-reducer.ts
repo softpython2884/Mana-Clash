@@ -153,9 +153,17 @@ const opponentAI = (state: GameState): GameState => {
   
   // 4. Declare Attack
   let attackers = opponent.battlefield.filter(c => c.type === 'Creature' && c.canAttack && !c.tapped);
+  const playerHasTaunt = player.battlefield.some(c => c.taunt && c.type === 'Creature' && !c.tapped);
+
   if (attackers.length > 0) {
-      log.push({ turn: tempState.turn, message: `Adversaire attaque avec ${attackers.map(a => a.name).join(', ')}.` });
-      attackers.forEach(a => a.isAttacking = true); // Mark as attackers
+      // If player has no creatures, attack player directly
+      if (player.battlefield.filter((c: Card) => c.type === 'Creature').length === 0) {
+          log.push({ turn: tempState.turn, message: `Adversaire attaque directement le joueur avec ${attackers.map(a => a.name).join(', ')}.` });
+          attackers.forEach(a => a.isAttacking = true);
+      } else { // Otherwise, attack creatures
+          log.push({ turn: tempState.turn, message: `Adversaire attaque avec ${attackers.map(a => a.name).join(', ')}.` });
+          attackers.forEach(a => a.isAttacking = true);
+      }
       
       // Simulate combat against player
       tempState = resolveCombat(tempState, 'opponent');
@@ -184,16 +192,13 @@ const resolveCombat = (state: GameState, attackingPlayer: 'player' | 'opponent')
     const defendingTauntCreatures = defenderState.battlefield.filter((c: Card) => c.taunt && c.type === 'Creature' && !c.tapped);
     let potentialBlockers = defenderState.battlefield.filter((c: Card) => c.type === 'Creature' && !c.tapped);
     
-    // --- AI Blocking Logic ---
+    // --- AI Blocking Logic (if player is attacking) ---
     if (defenderPlayerKey === 'opponent') {
         attackers.forEach(attacker => {
-            let possibleBlockersForThisAttacker = potentialBlockers;
-            // If there are taunt creatures on player side, AI must block one of them if possible
-            const playerTauntCreatures = player.battlefield.filter(c => c.taunt && c.type === 'Creature' && !c.tapped);
-            if (playerTauntCreatures.length > 0) {
-              // This is a simplification; a real AI would need to decide which taunt to block
-            }
-
+             // If there are taunt creatures on opponent side, AI must use them to block if possible
+            const opponentTauntCreatures = defenderState.battlefield.filter((c: Card) => c.taunt && c.type === 'Creature' && !c.tapped);
+            let possibleBlockersForThisAttacker = opponentTauntCreatures.length > 0 ? opponentTauntCreatures : potentialBlockers;
+            
             // Simple AI: find a blocker that can survive or trade
             let blocker = possibleBlockersForThisAttacker.find(b => (b.health || 0) > (attacker.attack || 0));
             if (!blocker) {
@@ -217,13 +222,17 @@ const resolveCombat = (state: GameState, attackingPlayer: 'player' | 'opponent')
 
     // --- Damage Phase ---
     attackers.forEach(attacker => {
-        // If attacker has a blocker assigned, damage is already resolved.
-        // If not, it damages the player, but only if there are no taunt creatures.
         const wasBlocked = newLog.some(l => l.message.includes(`bloque ${attacker.name}`));
 
         if (!wasBlocked) {
+            // An attack can only go to the player if there are no creatures on the board.
+            // Or if there are taunt creatures, it must attack one of them. This is a simplified check.
+            const canAttackPlayer = defenderState.battlefield.filter((c: Card) => c.type === 'Creature').length === 0;
+
             if (defendingTauntCreatures.length > 0) {
-                 newLog.push({ turn: newState.turn, message: `${attacker.name} doit attaquer une créature avec Provocation !` });
+                 newLog.push({ turn: newState.turn, message: `${attacker.name} doit attaquer une créature avec Provocation, mais aucune n'a bloqué ! (Attaque annulée)` });
+            } else if (!canAttackPlayer) {
+                 newLog.push({ turn: newState.turn, message: `${attacker.name} ne peut pas attaquer le joueur directement car il y a des créatures.` });
             } else {
                 const totalDamage = attacker.attack || 0;
                 defenderState.hp -= totalDamage;
