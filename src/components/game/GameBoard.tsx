@@ -24,7 +24,7 @@ export default function GameBoard() {
     }
   }, [state.gameId]);
 
-  const { gameId, turn, activePlayer, phase, player, opponent, winner, log, isThinking, activeBiome } = state;
+  const { gameId, turn, activePlayer, phase, player, opponent, winner, log, isThinking, activeBiome, selectedAttackerId, selectedDefenderId } = state;
   
   // Opponent AI logic
   useEffect(() => {
@@ -47,9 +47,15 @@ export default function GameBoard() {
     dispatch({ type: 'PLAY_CARD', cardId });
   };
   
-  const handleToggleAttacker = (cardId: string) => {
-    dispatch({ type: 'TOGGLE_ATTACKER', cardId });
+  const handleSelectAttacker = (cardId: string) => {
+    dispatch({ type: 'SELECT_ATTACKER', cardId });
   };
+
+  const handleSelectDefender = (cardId: string) => {
+    if (phase === 'targeting') {
+      dispatch({ type: 'SELECT_DEFENDER', cardId });
+    }
+  }
 
   const handlePhaseAction = () => {
     if (activePlayer !== 'player') return;
@@ -59,13 +65,13 @@ export default function GameBoard() {
   };
 
   const handleDeclareAttack = () => {
-    if (activePlayer !== 'player' || phase !== 'combat') return;
+    if (activePlayer !== 'player' || phase !== 'targeting' || !selectedAttackerId || !selectedDefenderId) return;
     dispatch({ type: 'DECLARE_ATTACK' });
   };
 
   const handlePassTurn = () => {
     if (activePlayer !== 'player') return;
-    if (phase === 'combat') return; // Can't pass during combat phase, must attack or cancel
+    if (phase === 'combat' || phase === 'targeting') return; 
     dispatch({ type: 'PASS_TURN' });
   }
 
@@ -89,13 +95,25 @@ export default function GameBoard() {
       <GameCard
           key={card.id}
           card={card}
-          onClick={() => phase === 'combat' && card.canAttack && handleToggleAttacker(card.id)}
+          isAttacking={card.id === selectedAttackerId}
+          onClick={() => phase === 'combat' && card.canAttack && handleSelectAttacker(card.id)}
       />
-  )), [player.battlefield, phase]);
+  )), [player.battlefield, phase, selectedAttackerId]);
+
+  const opponentHasTaunt = opponent.battlefield.some(c => c.taunt && !c.tapped);
   
-  const MemoizedOpponentBattlefield = useMemo(() => opponent.battlefield.map((card) => (
-      <GameCard key={card.id} card={card} />
-  )), [opponent.battlefield]);
+  const MemoizedOpponentBattlefield = useMemo(() => opponent.battlefield.map((card) => {
+    const isTargetable = phase === 'targeting' && selectedAttackerId && (!opponentHasTaunt || card.taunt);
+    return (
+        <GameCard 
+          key={card.id} 
+          card={card} 
+          isTargeted={card.id === selectedDefenderId}
+          isTargetable={isTargetable}
+          onClick={() => handleSelectDefender(card.id)}
+        />
+    )
+  }), [opponent.battlefield, phase, selectedAttackerId, selectedDefenderId, opponentHasTaunt]);
 
   if (!isClient) {
     // Basic loading skeleton
@@ -111,8 +129,19 @@ export default function GameBoard() {
   }
 
   const canAttack = player.battlefield.some(c => c.canAttack && !c.tapped);
-  const isAttacking = player.battlefield.some(c => c.isAttacking);
 
+  const getPhaseDescription = () => {
+    switch(phase) {
+        case 'main':
+            return activePlayer === 'player' ? 'Votre tour' : 'Tour de l\'adversaire';
+        case 'combat':
+            return 'Choisissez un attaquant';
+        case 'targeting':
+            return 'Choisissez une cible';
+        default:
+            return '';
+    }
+  }
   return (
     <div className="w-full h-full flex flex-col p-4 gap-4 max-w-7xl mx-auto">
       <GameOverDialog winner={winner} onRestart={() => dispatch({ type: 'RESTART_GAME' })} />
@@ -141,11 +170,11 @@ export default function GameBoard() {
           <div className="flex items-center gap-4">
             {activeBiome && <GameCard card={activeBiome} isActiveBiome />}
             <div className="flex flex-col items-center gap-2">
-                <p className="font-headline text-xl">{activePlayer === 'player' ? 'Votre tour' : 'Tour de l\'adversaire'}</p>
+                <p className="font-headline text-xl">{getPhaseDescription()}</p>
                 {phase === 'main' && activePlayer === 'player' && (
                   <div className="flex gap-2">
                       <Button onClick={handlePhaseAction} disabled={winner !== undefined || !canAttack} className="w-48">
-                          Attaquer
+                          Combat
                           <Swords className="ml-2"/>
                       </Button>
                       <Button onClick={handlePassTurn} disabled={winner !== undefined} className="w-48">
@@ -153,10 +182,10 @@ export default function GameBoard() {
                       </Button>
                   </div>
                 )}
-                {phase === 'combat' && activePlayer === 'player' && (
+                {(phase === 'combat' || phase === 'targeting') && activePlayer === 'player' && (
                   <div className="flex gap-2">
-                      <Button onClick={handleDeclareAttack} disabled={winner !== undefined || !isAttacking} className="w-48 bg-red-600 hover:bg-red-700">
-                         Déclarer l'attaque
+                      <Button onClick={handleDeclareAttack} disabled={!selectedAttackerId || !selectedDefenderId} className="w-48 bg-red-600 hover:bg-red-700">
+                         Attaquer la cible
                          <Swords className="ml-2"/>
                       </Button>
                        <Button onClick={() => dispatch({ type: 'CHANGE_PHASE', phase: 'main' })} variant="outline" disabled={winner !== undefined} className="w-48">

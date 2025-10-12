@@ -1,7 +1,8 @@
+'use client';
 import type { ImagePlaceholder } from './placeholder-images';
 
 export type CardType = 'Creature' | 'Land' | 'Spell' | 'Artifact' | 'Biome';
-export type GamePhase = 'main' | 'combat' | 'end' | 'game-over';
+export type GamePhase = 'main' | 'combat' | 'targeting' | 'end' | 'game-over';
 export type BiomeType = 'Forest' | 'Mountain' | 'Swamp' | 'Desert' | 'Ice' | 'Volcano' | 'Sanctuary';
 
 
@@ -12,12 +13,12 @@ export interface Card {
   manaCost: number;
   attack?: number;
   health?: number;
-  initialHealth?: number; // Add this to store the max health
+  initialHealth?: number;
   armor?: number;
   description: string;
   image: ImagePlaceholder;
   tapped: boolean;
-  isAttacking: boolean;
+  isAttacking: boolean; // Will be used to show the "selected attacker" state
   canAttack: boolean;
   summoningSickness: boolean;
   criticalHitChance?: number;
@@ -48,4 +49,6 @@ export interface GameState {
   log: { turn: number; message: string }[];
   isThinking: boolean;
   activeBiome: Card | null;
+  selectedAttackerId: string | null;
+  selectedDefenderId: string | null;
 }

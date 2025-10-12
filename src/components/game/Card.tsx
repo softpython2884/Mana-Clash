@@ -2,7 +2,7 @@
 import type { Card as CardType, BiomeType } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Swords, Shield, Heart, Zap, Mountain, Trees, Snowflake, Flame, Sun, ShieldQuestion } from 'lucide-react';
+import { Swords, Shield, Heart, Zap, Mountain, Trees, Snowflake, Flame, Sun, ShieldQuestion, X } from 'lucide-react';
 
 interface GameCardProps {
   card: CardType;
@@ -10,6 +10,9 @@ interface GameCardProps {
   onClick?: () => void;
   inHand?: boolean;
   isActiveBiome?: boolean;
+  isAttacking?: boolean; // Card is selected to be an attacker
+  isTargeted?: boolean;  // Card is selected as a defender target
+  isTargetable?: boolean; // Card can be targeted by an attacker
 }
 
 const biomeIcon: Record<BiomeType, React.ElementType> = {
@@ -33,8 +36,8 @@ const biomeColor: Record<BiomeType, string> = {
 };
 
 
-export default function GameCard({ card, isPlayable = false, onClick, inHand = false, isActiveBiome = false }: GameCardProps) {
-  const { name, manaCost, description, attack, health, armor, type, tapped, isAttacking, canAttack, criticalHitChance, preferredBiome, biome, taunt } = card;
+export default function GameCard({ card, isPlayable = false, onClick, inHand = false, isActiveBiome = false, isAttacking = false, isTargeted = false, isTargetable = false }: GameCardProps) {
+  const { name, manaCost, description, attack, health, armor, type, tapped, canAttack, criticalHitChance, preferredBiome, biome, taunt } = card;
 
   const Icon = preferredBiome ? biomeIcon[preferredBiome] : null;
   const borderClass = biome ? biomeColor[biome] : '';
@@ -45,7 +48,6 @@ export default function GameCard({ card, isPlayable = false, onClick, inHand = f
         "relative transition-all duration-300 ease-in-out",
         inHand && "hover:-translate-y-4 hover:z-10",
         tapped && 'transform rotate-12 scale-95 opacity-70',
-        isAttacking && 'border-4 border-red-500 shadow-lg shadow-red-500/50',
         isActiveBiome && 'ring-4 ring-white'
       )}
       onClick={onClick}
@@ -55,6 +57,8 @@ export default function GameCard({ card, isPlayable = false, onClick, inHand = f
           'w-[150px] h-[210px] md:w-[180px] md:h-[252px] flex flex-col overflow-hidden select-none bg-card-foreground/5 dark:bg-card-foreground/10 backdrop-blur-sm',
           isPlayable && 'cursor-pointer ring-4 ring-primary ring-offset-2 ring-offset-background shadow-lg shadow-primary/50',
           canAttack && !tapped && 'cursor-pointer ring-4 ring-orange-500 ring-offset-2 ring-offset-background shadow-lg shadow-orange-500/50 animate-pulse',
+          isAttacking && 'ring-4 ring-destructive ring-offset-2 ring-offset-background shadow-lg shadow-destructive/50', // Red border for selected attacker
+          isTargetable && 'cursor-pointer ring-4 ring-yellow-400', // Highlight for potential targets
           onClick && "cursor-pointer",
           type === 'Biome' && `border-4 ${borderClass}`,
           taunt && 'shadow-lg shadow-blue-500/50'
@@ -76,7 +80,11 @@ export default function GameCard({ card, isPlayable = false, onClick, inHand = f
                 {description}
             </CardDescription>
             {taunt && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-1 text-blue-400 font-bold text-xs bg-black/50 px-2 py-1 rounded-full"><ShieldQuestion size={12}/> PROVOCATION</div>}
-
+            {isTargeted && (
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                <X className="w-16 h-16 text-red-500" />
+              </div>
+            )}
         </CardContent>
         <CardFooter className="p-2 flex-shrink-0 min-h-[50px] flex flex-col items-start bg-secondary/30">
           {type === 'Creature' && (
