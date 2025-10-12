@@ -18,7 +18,7 @@ const createCard = (
   attack?: number,
   defense?: number
 ): Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summoningSickness'> => ({
-  id: `${id}-${Math.random()}`,
+  id: id,
   name,
   type,
   manaCost,
@@ -54,7 +54,7 @@ export const createDeck = (): Card[] => {
       for (let i = 0; i < count; i++) {
         deck.push({ 
             ...cardTemplate, 
-            id: `${cardTemplate.id}-${i}`,
+            id: `${cardTemplate.id}-${i}-${Math.random()}`,
             tapped: false,
             isAttacking: false,
             canAttack: false,

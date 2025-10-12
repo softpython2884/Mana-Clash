@@ -4,6 +4,7 @@ import { createDeck } from '@/data/initial-cards';
 import { useToast } from "@/hooks/use-toast";
 
 export type GameAction =
+  | { type: 'INITIALIZE_GAME' }
   | { type: 'RESTART_GAME' }
   | { type: 'DRAW_CARD'; player: 'player' | 'opponent' }
   | { type: 'PLAY_CARD'; cardId: string }
@@ -23,34 +24,55 @@ const drawCards = (player: Player, count: number): Player => {
   return { ...player, deck: newDeck, hand: newHand };
 };
 
+const createInitialPlayer = (): Player => ({
+    hp: 20, mana: 0, maxMana: 0, deck: [], hand: [], battlefield: [], graveyard: []
+});
+
+
 export const getInitialState = (): GameState => {
-  const playerDeck = createDeck();
-  const opponentDeck = createDeck();
-
-  let player: Player = { hp: 20, mana: 0, maxMana: 0, deck: playerDeck, hand: [], battlefield: [], graveyard: [] };
-  player = drawCards(player, 5);
-
-  let opponent: Player = { hp: 20, mana: 0, maxMana: 0, deck: opponentDeck, hand: [], battlefield: [], graveyard: [] };
-  opponent = drawCards(opponent, 5);
-
   return {
-    gameId: Date.now(),
+    gameId: 0,
     turn: 1,
     activePlayer: 'player',
     phase: 'main',
-    player,
-    opponent,
-    log: [{ turn: 1, message: "Le match commence!" }],
+    player: createInitialPlayer(),
+    opponent: createInitialPlayer(),
+    log: [],
     isThinking: false,
   };
 };
 
+const shuffleAndDeal = (): Partial<GameState> => {
+    const playerDeck = createDeck();
+    const opponentDeck = createDeck();
+
+    let player = drawCards({ ...createInitialPlayer(), deck: playerDeck }, 5);
+    let opponent = drawCards({ ...createInitialPlayer(), deck: opponentDeck }, 5);
+    
+    return {
+        gameId: Date.now(),
+        player,
+        opponent,
+        log: [{ turn: 1, message: "Le match commence!" }],
+    }
+}
+
+
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
+    case 'INITIALIZE_GAME':
+        return {
+            ...state,
+            ...shuffleAndDeal(),
+        };
     case 'RESTART_GAME':
-      return getInitialState();
+      return {
+          ...getInitialState(),
+          ...shuffleAndDeal(),
+      };
 
     case 'LOG_MESSAGE':
+      if (!action.message) return state;
       return {
         ...state,
         log: [...state.log, { turn: state.turn, message: action.message }],

@@ -1,5 +1,5 @@
 'use client';
-import { useReducer, useEffect, useMemo } from 'react';
+import { useReducer, useEffect, useMemo, useState } from 'react';
 import { gameReducer, getInitialState } from '@/lib/game-reducer';
 import type { Card } from '@/lib/types';
 import GameCard from './Card';
@@ -14,7 +14,13 @@ import { cn } from '@/lib/utils';
 
 export default function GameBoard() {
   const [state, dispatch] = useReducer(gameReducer, getInitialState());
+  const [isClient, setIsClient] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    setIsClient(true);
+    dispatch({ type: 'INITIALIZE_GAME' });
+  }, []);
 
   const { gameId, turn, activePlayer, phase, player, opponent, winner, log, isThinking } = state;
   
@@ -97,7 +103,7 @@ export default function GameBoard() {
 
       opponentTurn();
     }
-  }, [activePlayer, phase, gameId, isThinking]);
+  }, [activePlayer, phase, gameId, isThinking, state]);
   
   const handlePlayCard = (cardId: string) => {
     dispatch({ type: 'PLAY_CARD', cardId });
@@ -147,6 +153,10 @@ export default function GameBoard() {
   const MemoizedOpponentBattlefield = useMemo(() => opponent.battlefield.map((card) => (
       <GameCard key={card.id} card={card} />
   )), [opponent.battlefield]);
+
+  if (!isClient) {
+    return null; // or a loading spinner
+  }
 
   return (
     <div className="w-full h-full flex flex-col p-4 gap-4 max-w-7xl mx-auto">
