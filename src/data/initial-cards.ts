@@ -1,5 +1,5 @@
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import type { Card, CardType } from '@/lib/types';
+import type { Card, CardType, BiomeType } from '@/lib/types';
 
 const getImage = (id: string) => {
   const img = PlaceHolderImages.find((p) => p.id === id);
@@ -15,48 +15,58 @@ const createCard = (
   type: CardType,
   manaCost: number,
   description: string,
-  attack?: number,
-  defense?: number,
-  criticalHitChance?: number
+  options: {
+    attack?: number;
+    defense?: number;
+    criticalHitChance?: number;
+    biome?: BiomeType;
+    preferredBiome?: BiomeType;
+  } = {}
 ): Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summoningSickness'> => ({
   id: id,
   name,
   type,
   manaCost,
   description,
-  attack,
-  defense,
-  criticalHitChance,
   image: getImage(id),
+  ...options,
 });
+
 
 export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summoningSickness'>[] = [
   // Creatures
-  createCard('goblin', 'Gobelin Féroce', 'Creature', 1, "Une petite créature vicieuse qui aime attaquer en groupe.", 1, 1, 10),
-  createCard('knight', 'Chevalier Vaillant', 'Creature', 3, "Un défenseur loyal qui protège son maître jusqu'à la mort.", 2, 3, 5),
-  createCard('elf', 'Elfe Archer', 'Creature', 2, "Tire des flèches précises depuis les ombres de la forêt.", 2, 1, 15),
-  createCard('wizard', 'Sorcier Érudit', 'Creature', 4, "Maîtrise les arcanes pour dérouter ses ennemis.", 3, 3, 10),
-  createCard('dragon', 'Jeune Dragon', 'Creature', 5, "Un souffle de feu qui peut renverser le cours de la bataille.", 4, 4, 20),
+  createCard('goblin', 'Gobelin Féroce', 'Creature', 1, "Une petite créature vicieuse.", { attack: 1, defense: 1, criticalHitChance: 10, preferredBiome: 'Mountain' }),
+  createCard('knight', 'Chevalier Vaillant', 'Creature', 3, "Un défenseur loyal qui protège son maître.", { attack: 2, defense: 3, criticalHitChance: 5, preferredBiome: 'Sanctuary' }),
+  createCard('elf', 'Elfe Archer', 'Creature', 2, "Tire des flèches précises.", { attack: 2, defense: 1, criticalHitChance: 15, preferredBiome: 'Forest' }),
+  createCard('wizard', 'Sorcier Érudit', 'Creature', 4, "Maîtrise les arcanes.", { attack: 3, defense: 3, criticalHitChance: 10, preferredBiome: 'Ice' }),
+  createCard('dragon', 'Jeune Dragon', 'Creature', 5, "Un souffle de feu dévastateur.", { attack: 4, defense: 4, criticalHitChance: 20, preferredBiome: 'Volcano' }),
   
   // Lands
-  createCard('forest', 'Forêt', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),
-  createCard('mountain', 'Montagne', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),
-  createCard('swamp', 'Marais', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),
+  createCard('forest_land', 'Forêt', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),
+  createCard('mountain_land', 'Montagne', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),
+  createCard('swamp_land', 'Marais', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),
 
   // Spells & Artifacts
   createCard('potion', 'Potion de soin', 'Spell', 2, "Vous regagnez 5 points de vie."),
   createCard('artifact', 'Amulette de pouvoir', 'Artifact', 3, "Vos créatures gagnent +1/+0."),
+
+  // Biomes
+  createCard('forest_biome', 'Biome Forêt', 'Biome', 0, "Change le biome actuel en Forêt.", { biome: 'Forest' }),
+  createCard('desert_biome', 'Biome Désert', 'Biome', 0, "Change le biome actuel en Désert.", { biome: 'Desert' }),
+  createCard('ice_biome', 'Biome Glace', 'Biome', 0, "Change le biome actuel en Glace.", { biome: 'Ice' }),
+  createCard('volcano_biome', 'Biome Volcan', 'Biome', 0, "Change le biome actuel en Volcan.", { biome: 'Volcano' }),
+  createCard('sanctuary_biome', 'Biome Sanctuaire', 'Biome', 0, "Change le biome actuel en Sanctuaire.", { biome: 'Sanctuary' }),
 ];
 
 export const createDeck = (): Card[] => {
   const deck: Card[] = [];
   const addCards = (id: string, count: number) => {
-    const cardTemplate = allCards.find(c => c.image.id === id);
+    const cardTemplate = allCards.find(c => c.id === id);
     if (cardTemplate) {
       for (let i = 0; i < count; i++) {
         deck.push({ 
             ...cardTemplate, 
-            id: `${cardTemplate.id}-${i}-${Math.random()}`,
+            id: `${cardTemplate.id}-${i}`,
             tapped: false,
             isAttacking: false,
             canAttack: false,
@@ -75,9 +85,16 @@ export const createDeck = (): Card[] => {
   
   addCards('potion', 2);
   
-  addCards('forest', 5);
-  addCards('mountain', 5);
-  addCards('swamp', 5);
+  addCards('forest_land', 2);
+  addCards('mountain_land', 2);
+  addCards('swamp_land', 2);
+
+  addCards('forest_biome', 1);
+  addCards('desert_biome', 1);
+  addCards('ice_biome', 1);
+  addCards('volcano_biome', 1);
+  addCards('sanctuary_biome', 1);
+
 
   // Shuffle deck
   for (let i = deck.length - 1; i > 0; i--) {

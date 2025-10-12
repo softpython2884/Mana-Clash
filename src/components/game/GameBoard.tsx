@@ -24,7 +24,7 @@ export default function GameBoard() {
     }
   }, []);
 
-  const { gameId, turn, activePlayer, phase, player, opponent, winner, log, isThinking } = state;
+  const { gameId, turn, activePlayer, phase, player, opponent, winner, log, isThinking, activeBiome } = state;
   
   // Opponent AI logic
   useEffect(() => {
@@ -128,19 +128,24 @@ export default function GameBoard() {
   };
 
   const handlePassTurn = () => {
-    if (activePlayer !== 'player' || phase !== 'main') return;
+    if (activePlayer !== 'player') return;
     dispatch({ type: 'PASS_TURN' });
   }
 
-  const MemoizedPlayerHand = useMemo(() => player.hand.map((card) => (
-      <GameCard
-          key={card.id}
-          card={card}
-          isPlayable={activePlayer === 'player' && phase === 'main' && card.manaCost <= player.mana && (card.type !== 'Land' || !player.battlefield.some(c=>c.type === 'Land' && c.summoningSickness))}
-          onClick={() => handlePlayCard(card.id)}
-          inHand
-      />
-  )), [player.hand, activePlayer, phase, player.mana, player.battlefield]);
+  const MemoizedPlayerHand = useMemo(() => player.hand.map((card) => {
+      const isBiomeChangeable = card.type === 'Biome' && player.biomeChanges > 0;
+      const isCardPlayable = card.manaCost <= player.mana && (card.type !== 'Land' || !player.battlefield.some(c => c.type === 'Land' && c.summoningSickness));
+      
+      return (
+          <GameCard
+              key={card.id}
+              card={card}
+              isPlayable={activePlayer === 'player' && phase === 'main' && (isBiomeChangeable || isCardPlayable)}
+              onClick={() => handlePlayCard(card.id)}
+              inHand
+          />
+      );
+  }), [player.hand, activePlayer, phase, player.mana, player.battlefield, player.biomeChanges]);
 
   const MemoizedPlayerBattlefield = useMemo(() => player.battlefield.map((card) => (
       <GameCard
@@ -186,30 +191,33 @@ export default function GameBoard() {
       {/* Mid-section */}
       <div className="flex justify-between items-center my-2 gap-4">
           <Button onClick={() => dispatch({ type: 'RESTART_GAME' })} variant="outline" size="icon"><RotateCcw/></Button>
-          <div className="flex flex-col items-center gap-2">
-              <p className="font-headline text-xl">{activePlayer === 'player' ? 'Votre tour' : 'Tour de l\'adversaire'}</p>
-              {phase === 'main' && (
-                <div className="flex gap-2">
-                    <Button onClick={handlePhaseAction} disabled={activePlayer !== 'player' || winner !== undefined || !canAttack} className="w-48">
-                        Attaquer
-                        <Swords className="ml-2"/>
-                    </Button>
-                    <Button onClick={handlePassTurn} disabled={activePlayer !== 'player' || winner !== undefined} className="w-48">
-                        Fin du tour
-                    </Button>
-                </div>
-              )}
-              {phase === 'combat' && (
-                <div className="flex gap-2">
-                    <Button onClick={handleDeclareAttack} disabled={activePlayer !== 'player' || winner !== undefined || !isAttacking} className="w-48 bg-red-600 hover:bg-red-700">
-                       Déclarer l'attaque
-                       <Swords className="ml-2"/>
-                    </Button>
-                     <Button onClick={() => dispatch({ type: 'CHANGE_PHASE', phase: 'main' })} variant="outline" disabled={activePlayer !== 'player' || winner !== undefined} className="w-48">
-                        Annuler
-                    </Button>
-                </div>
-              )}
+          <div className="flex items-center gap-4">
+            {activeBiome && <GameCard card={activeBiome} isActiveBiome />}
+            <div className="flex flex-col items-center gap-2">
+                <p className="font-headline text-xl">{activePlayer === 'player' ? 'Votre tour' : 'Tour de l\'adversaire'}</p>
+                {phase === 'main' && (
+                  <div className="flex gap-2">
+                      <Button onClick={handlePhaseAction} disabled={activePlayer !== 'player' || winner !== undefined || !canAttack} className="w-48">
+                          Attaquer
+                          <Swords className="ml-2"/>
+                      </Button>
+                      <Button onClick={handlePassTurn} disabled={activePlayer !== 'player' || winner !== undefined} className="w-48">
+                          Fin du tour
+                      </Button>
+                  </div>
+                )}
+                {phase === 'combat' && (
+                  <div className="flex gap-2">
+                      <Button onClick={handleDeclareAttack} disabled={activePlayer !== 'player' || winner !== undefined || !isAttacking} className="w-48 bg-red-600 hover:bg-red-700">
+                         Déclarer l'attaque
+                         <Swords className="ml-2"/>
+                      </Button>
+                       <Button onClick={() => dispatch({ type: 'CHANGE_PHASE', phase: 'main' })} variant="outline" disabled={activePlayer !== 'player' || winner !== undefined} className="w-48">
+                          Annuler
+                      </Button>
+                  </div>
+                )}
+            </div>
           </div>
           <UICard className="w-64 h-32">
             <CardContent className="p-2 h-full">

@@ -31,21 +31,21 @@
       "imageHint": "wizard spell"
     },
     {
-      "id": "forest",
+      "id": "forest_land",
       "description": "A lush, green forest.",
-      "imageUrl": "https://picsum.photos/seed/forest/300/400",
+      "imageUrl": "https://picsum.photos/seed/forest_land/300/400",
       "imageHint": "enchanted forest"
     },
     {
-      "id": "mountain",
+      "id": "mountain_land",
       "description": "A tall, rocky mountain.",
-      "imageUrl": "https://picsum.photos/seed/mountain/300/400",
+      "imageUrl": "https://picsum.photos/seed/mountain_land/300/400",
       "imageHint": "snowy mountain"
     },
     {
-      "id": "swamp",
+      "id": "swamp_land",
       "description": "A dark and murky swamp.",
-      "imageUrl": "https://picsum.photos/seed/swamp/300/400",
+      "imageUrl": "https://picsum.photos/seed/swamp_land/300/400",
       "imageHint": "dark swamp"
     },
     {
@@ -59,6 +59,36 @@
       "description": "An ancient, powerful artifact.",
       "imageUrl": "https://picsum.photos/seed/artifact/300/400",
       "imageHint": "ancient artifact"
+    },
+    {
+      "id": "forest_biome",
+      "description": "A forest biome card.",
+      "imageUrl": "https://picsum.photos/seed/forest_biome/300/400",
+      "imageHint": "forest biome"
+    },
+    {
+      "id": "desert_biome",
+      "description": "A desert biome card.",
+      "imageUrl": "https://picsum.photos/seed/desert_biome/300/400",
+      "imageHint": "desert biome"
+    },
+    {
+      "id": "ice_biome",
+      "description": "An ice biome card.",
+      "imageUrl": "https://picsum.photos/seed/ice_biome/300/400",
+      "imageHint": "ice biome"
+    },
+    {
+      "id": "volcano_biome",
+      "description": "A volcano biome card.",
+      "imageUrl": "https://picsum.photos/seed/volcano_biome/300/400",
+      "imageHint": "volcano biome"
+    },
+    {
+      "id": "sanctuary_biome",
+      "description": "A sanctuary biome card.",
+      "imageUrl": "https://picsum.photos/seed/sanctuary_biome/300/400",
+      "imageHint": "sanctuary biome"
     }
   ]
 }

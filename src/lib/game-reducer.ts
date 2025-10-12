@@ -1,6 +1,6 @@
 'use client';
 import type { GameState, Card, Player, GamePhase } from './types';
-import { createDeck } from '@/data/initial-cards';
+import { createDeck, allCards } from '@/data/initial-cards';
 import { useToast } from "@/hooks/use-toast";
 
 export type GameAction =
@@ -8,6 +8,7 @@ export type GameAction =
   | { type: 'RESTART_GAME' }
   | { type: 'DRAW_CARD'; player: 'player' | 'opponent' }
   | { type: 'PLAY_CARD'; cardId: string }
+  | { type: 'CHANGE_BIOME'; cardId: string }
   | { type: 'TOGGLE_ATTACKER'; cardId: string }
   | { type: 'DECLARE_ATTACK' }
   | { type: 'RESOLVE_COMBAT'; blocks: { attackerId: string, blockerId: string }[] }
@@ -26,11 +27,15 @@ const drawCards = (player: Player, count: number): Player => {
 };
 
 const createInitialPlayer = (): Player => ({
-    hp: 20, mana: 0, maxMana: 0, deck: [], hand: [], battlefield: [], graveyard: []
+    hp: 20, mana: 0, maxMana: 0, deck: [], hand: [], battlefield: [], graveyard: [], biomeChanges: 2,
 });
 
 
 export const getInitialState = (): GameState => {
+  const defaultBiomeCard = allCards.find(c => c.id === 'forest_biome');
+  if (!defaultBiomeCard) {
+      throw new Error("Default biome card not found");
+  }
   return {
     gameId: 0,
     turn: 1,
@@ -40,6 +45,7 @@ export const getInitialState = (): GameState => {
     opponent: createInitialPlayer(),
     log: [],
     isThinking: false,
+    activeBiome: { ...defaultBiomeCard, tapped: false, isAttacking: false, canAttack: false, summoningSickness: false},
   };
 };
 
@@ -50,6 +56,8 @@ const shuffleAndDeal = (): Partial<GameState> => {
     let player = drawCards({ ...createInitialPlayer(), deck: playerDeck }, 5);
     let opponent = drawCards({ ...createInitialPlayer(), deck: opponentDeck }, 5);
     
+    const defaultBiomeCard = allCards.find(c => c.id === 'forest_biome');
+    
     return {
         gameId: Date.now(),
         turn: 1,
@@ -58,6 +66,7 @@ const shuffleAndDeal = (): Partial<GameState> => {
         player,
         opponent,
         log: [{ turn: 1, message: "Le match commence!" }],
+        activeBiome: defaultBiomeCard ? { ...defaultBiomeCard, tapped: false, isAttacking: false, canAttack: false, summoningSickness: false} : null,
     }
 }
 
@@ -90,6 +99,29 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         }
         return state;
 
+    case 'CHANGE_BIOME': {
+        if (state.activePlayer !== 'player' || state.player.biomeChanges <= 0) return state;
+        const card = state.player.hand.find(c => c.id === action.cardId);
+        if (!card || card.type !== 'Biome') return state;
+
+        const newHand = state.player.hand.filter(c => c.id !== card.id);
+        const oldBiome = state.activeBiome;
+        const newGraveyard = oldBiome ? [...state.player.graveyard, oldBiome] : state.player.graveyard;
+
+        return {
+            ...state,
+            activeBiome: card,
+            player: {
+                ...state.player,
+                hand: newHand,
+                graveyard: newGraveyard,
+                mana: state.player.mana + 1,
+                biomeChanges: state.player.biomeChanges - 1,
+            },
+            log: [...state.log, { turn: state.turn, message: `Joueur change le biome pour ${card.name} et gagne 1 mana.` }]
+        };
+    }
+
     case 'PLAY_CARD': {
       if (state.activePlayer !== 'player' || state.phase !== 'main') return state;
       const player = state.player;
@@ -104,6 +136,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
       if (card.manaCost > player.mana) {
         return { ...state, log: [...state.log, { turn: state.turn, message: "Pas assez de mana." }] };
+      }
+      if (card.type === 'Biome') {
+          return gameReducer(state, { type: 'CHANGE_BIOME', cardId: card.id });
       }
       
       const newHand = player.hand.filter(c => c.id !== card.id);
@@ -229,7 +264,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'PASS_TURN': {
       if (state.phase === 'game-over') return state;
       const isPlayerTurn = state.activePlayer === 'player';
-      const nextPlayer = isPlayerTurn ? 'opponent' : 'player';
       
       let newState = { ...state };
       
@@ -241,21 +275,24 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         summoningSickness: false,
         canAttack: c.type === 'Creature',
       }));
+      // Reset biome changes for the current player
+      newState[current].biomeChanges = 2;
+
 
       // Next player starts their turn
-      const next = isPlayerTurn ? 'opponent' : 'player';
+      const nextPlayer = isPlayerTurn ? 'opponent' : 'player';
       const nextTurnNumber = isPlayerTurn ? state.turn : state.turn + 1;
       
       // Increase max mana
-      newState[next].maxMana = Math.min(10, newState[next].maxMana + 1);
+      newState[nextPlayer].maxMana = Math.min(10, newState[nextPlayer].maxMana + 1);
       // Refill mana
-      newState[next].mana = newState[next].maxMana;
+      newState[nextPlayer].mana = newState[nextPlayer].maxMana;
 
       // Draw a card
-      const drawnCard = newState[next].deck[0];
+      const drawnCard = newState[nextPlayer].deck[0];
       if(drawnCard) {
-          newState[next].deck = newState[next].deck.slice(1);
-          newState[next].hand = [...newState[next].hand, drawnCard];
+          newState[nextPlayer].deck = newState[nextPlayer].deck.slice(1);
+          newState[nextPlayer].hand = [...newState[nextPlayer].hand, drawnCard];
       }
 
       return {
@@ -263,7 +300,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         turn: nextTurnNumber,
         activePlayer: nextPlayer,
         phase: 'main',
-        log: [...state.log, { turn: nextTurnNumber, message: `Début du tour de ${next === 'player' ? 'Joueur' : 'l\'Adversaire'}.` }],
+        log: [...state.log, { turn: nextTurnNumber, message: `Début du tour de ${nextPlayer === 'player' ? 'Joueur' : 'l\'Adversaire'}.` }],
         isThinking: nextPlayer === 'opponent',
       };
     }

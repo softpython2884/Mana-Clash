@@ -1,7 +1,9 @@
 import type { ImagePlaceholder } from './placeholder-images';
 
-export type CardType = 'Creature' | 'Land' | 'Spell' | 'Artifact';
+export type CardType = 'Creature' | 'Land' | 'Spell' | 'Artifact' | 'Biome';
 export type GamePhase = 'main' | 'combat' | 'end' | 'game-over';
+export type BiomeType = 'Forest' | 'Mountain' | 'Swamp' | 'Desert' | 'Ice' | 'Volcano' | 'Sanctuary';
+
 
 export interface Card {
   id: string;
@@ -17,6 +19,8 @@ export interface Card {
   canAttack: boolean;
   summoningSickness: boolean;
   criticalHitChance?: number;
+  biome?: BiomeType;
+  preferredBiome?: BiomeType;
 }
 
 export interface Player {
@@ -27,6 +31,7 @@ export interface Player {
   hand: Card[];
   battlefield: Card[];
   graveyard: Card[];
+  biomeChanges: number;
 }
 
 export interface GameState {
@@ -39,4 +44,5 @@ export interface GameState {
   opponent: Player;
   log: { turn: number; message: string }[];
   isThinking: boolean;
+  activeBiome: Card | null;
 }
