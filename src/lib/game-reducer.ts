@@ -102,16 +102,17 @@ export const getInitialState = (): GameState => {
 const shuffleAndDeal = (state: GameState): GameState => {
     let newState = JSON.parse(JSON.stringify(state));
     
-    const playerDeck = createDeck();
-    const opponentDeck = createDeck();
+    let player = createInitialPlayer('player');
+    let opponent = createInitialPlayer('opponent');
+
+    player.deck = createDeck();
+    opponent.deck = createDeck();
 
     let initialLog = [{ turn: 1, message: "Le match commence!" }];
 
-    const { player: playerAfterDraw, log: logAfterPlayerDraw } = drawCards(createInitialPlayer('player'), 5, initialLog, 1);
-    playerAfterDraw.deck = playerDeck;
+    const { player: playerAfterDraw, log: logAfterPlayerDraw } = drawCards(player, 5, initialLog, 1);
 
-    const { player: opponentAfterDraw, log: logAfterOpponentDraw } = drawCards(createInitialPlayer('opponent'), 5, logAfterPlayerDraw, 1);
-    opponentAfterDraw.deck = opponentDeck;
+    const { player: opponentAfterDraw, log: logAfterOpponentDraw } = drawCards(opponent, 5, logAfterPlayerDraw, 1);
     
     const defaultBiomeCard = allCards.find(c => c.id === 'forest_biome');
     
