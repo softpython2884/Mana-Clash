@@ -47,9 +47,12 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
   createCard('swamp_land', 'Marais', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),
 
   // Spells
-  createCard('potion', 'Potion de soin', 'Spell', 2, "Vous regagnez 5 points de vie."),
   createCard('berserk_rage', "Rage du Berserker", 'Spell', 1, "Donne +3 en attaque à une créature pour 1 tour.", { skill: { type: 'buff_attack', value: 3, duration: 1, target: 'friendly_creature', used: false }}),
   createCard('stoneskin', "Peau de pierre", 'Spell', 2, "Donne +4 en armure à une créature pour 2 tours.", { skill: { type: 'buff_armor', value: 4, duration: 2, target: 'friendly_creature', used: false }}),
+
+  // Potions
+  createCard('health_potion', 'Potion de soin', 'Potion', 2, "Vous regagnez 5 points de vie."),
+  createCard('mana_potion', 'Potion de mana', 'Potion', 0, "Vous gagnez 2 points de mana pour ce tour."),
 
   // Enchantments
   createCard('strength_enchantment', 'Enchantement de Force', 'Enchantment', 3, "Donne +1 en attaque à une créature de façon permanente.", { skill: { type: 'buff_attack', value: 1, duration: 99, target: 'friendly_creature', used: false }}),
@@ -98,7 +101,8 @@ export const createDeck = (): Card[] => {
   addCards('vampire', 1);
   addCards('sage', 1);
   
-  addCards('potion', 1);
+  addCards('health_potion', 1);
+  addCards('mana_potion', 1);
   addCards('berserk_rage', 1);
   addCards('stoneskin', 1);
   addCards('strength_enchantment', 1);

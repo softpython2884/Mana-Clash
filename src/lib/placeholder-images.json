@@ -73,10 +73,16 @@
       "imageHint": "dark swamp"
     },
     {
-      "id": "potion",
-      "description": "A bubbling potion of power.",
+      "id": "health_potion",
+      "description": "A bubbling potion of healing.",
       "imageUrl": "https://picsum.photos/seed/potion/300/400",
       "imageHint": "magic potion"
+    },
+    {
+      "id": "mana_potion",
+      "description": "A swirling potion of mana.",
+      "imageUrl": "https://picsum.photos/seed/mana_potion/300/400",
+      "imageHint": "energy potion"
     },
     {
       "id": "berserk_rage",

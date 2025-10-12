@@ -561,10 +561,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             });
             newLog.push({ turn: state.turn, message: `${card.name} donne +${card.skill.value} armure à toutes les créatures.` });
         }
-      } else if (card.type === 'Spell' || card.type === 'Enchantment') {
-        if(card.id.startsWith('potion')) {
+      } else if (card.type === 'Spell' || card.type === 'Enchantment' || card.type === 'Potion') {
+        if(card.id.startsWith('health_potion')) {
             player.hp = Math.min(20, player.hp + 5);
             newLog.push({ turn: state.turn, message: `Joueur se soigne de 5 PV.` });
+        } else if (card.id.startsWith('mana_potion')) {
+            player.mana = player.mana + 2;
+            newLog.push({ turn: state.turn, message: `Joueur gagne 2 mana.` });
         } else if (card.skill?.target === 'friendly_creature' && state.selectedCardId) {
             const targetIndex = player.battlefield.findIndex(c => c.id === state.selectedCardId);
             if (targetIndex > -1) {
