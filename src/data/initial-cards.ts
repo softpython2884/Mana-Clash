@@ -16,7 +16,8 @@ const createCard = (
   manaCost: number,
   description: string,
   attack?: number,
-  defense?: number
+  defense?: number,
+  criticalHitChance?: number
 ): Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summoningSickness'> => ({
   id: id,
   name,
@@ -25,16 +26,17 @@ const createCard = (
   description,
   attack,
   defense,
+  criticalHitChance,
   image: getImage(id),
 });
 
 export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summoningSickness'>[] = [
   // Creatures
-  createCard('goblin', 'Gobelin Féroce', 'Creature', 1, "Une petite créature vicieuse qui aime attaquer en groupe.", 1, 1),
-  createCard('knight', 'Chevalier Vaillant', 'Creature', 3, "Un défenseur loyal qui protège son maître jusqu'à la mort.", 2, 3),
-  createCard('elf', 'Elfe Archer', 'Creature', 2, "Tire des flèches précises depuis les ombres de la forêt.", 2, 1),
-  createCard('wizard', 'Sorcier Érudit', 'Creature', 4, "Maîtrise les arcanes pour dérouter ses ennemis.", 3, 3),
-  createCard('dragon', 'Jeune Dragon', 'Creature', 5, "Un souffle de feu qui peut renverser le cours de la bataille.", 4, 4),
+  createCard('goblin', 'Gobelin Féroce', 'Creature', 1, "Une petite créature vicieuse qui aime attaquer en groupe.", 1, 1, 10),
+  createCard('knight', 'Chevalier Vaillant', 'Creature', 3, "Un défenseur loyal qui protège son maître jusqu'à la mort.", 2, 3, 5),
+  createCard('elf', 'Elfe Archer', 'Creature', 2, "Tire des flèches précises depuis les ombres de la forêt.", 2, 1, 15),
+  createCard('wizard', 'Sorcier Érudit', 'Creature', 4, "Maîtrise les arcanes pour dérouter ses ennemis.", 3, 3, 10),
+  createCard('dragon', 'Jeune Dragon', 'Creature', 5, "Un souffle de feu qui peut renverser le cours de la bataille.", 4, 4, 20),
   
   // Lands
   createCard('forest', 'Forêt', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),

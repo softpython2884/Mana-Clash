@@ -1,10 +1,8 @@
 'use client';
 import type { Card as CardType } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { ManaIcon } from '../icons/ManaIcon';
-import { Swords, Shield } from 'lucide-react';
+import { Swords, Shield, Heart, Zap } from 'lucide-react';
 
 interface GameCardProps {
   card: CardType;
@@ -14,7 +12,7 @@ interface GameCardProps {
 }
 
 export default function GameCard({ card, isPlayable = false, onClick, inHand = false }: GameCardProps) {
-  const { name, manaCost, image, description, attack, defense, type, tapped, isAttacking } = card;
+  const { name, manaCost, description, attack, defense, type, tapped, isAttacking, criticalHitChance } = card;
 
   return (
     <div
@@ -41,32 +39,30 @@ export default function GameCard({ card, isPlayable = false, onClick, inHand = f
             </div>
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-0 flex-grow relative">
-          <Image
-            src={image.imageUrl}
-            alt={image.description}
-            width={180}
-            height={120}
-            data-ai-hint={image.imageHint}
-            className="w-full h-full object-cover"
-          />
+        <CardContent className="p-2 flex-grow flex flex-col justify-center items-center text-center">
+            <p className="text-xs font-bold text-muted-foreground">{type}</p>
+             <CardDescription className="text-xs leading-tight mt-2 text-card-foreground/80">
+                {description}
+            </CardDescription>
         </CardContent>
         <CardFooter className="p-2 flex-shrink-0 min-h-[70px] flex flex-col items-start bg-secondary/30">
-          <p className="text-xs font-bold text-muted-foreground">{type}</p>
-          <CardDescription className="text-xs leading-tight mt-1 text-card-foreground/80">
-            {description}
-          </CardDescription>
           {type === 'Creature' && (
-            <div className="flex justify-end items-center w-full mt-auto pt-1">
-              <div className="flex items-center gap-2 text-sm font-bold">
-                <div className="flex items-center gap-1 text-red-600">
-                  <Swords size={14} />
-                  <span>{attack}</span>
-                </div>
-                <div className="flex items-center gap-1 text-blue-700">
-                  <Shield size={14} />
-                  <span>{defense}</span>
-                </div>
+            <div className="flex justify-around items-center w-full mt-auto pt-1 text-sm font-bold">
+              <div className="flex items-center gap-1 text-red-600" title="Dégâts">
+                <Swords size={14} />
+                <span>{attack}</span>
+              </div>
+              <div className="flex items-center gap-1 text-green-600" title="Vie">
+                <Heart size={14} />
+                <span>{defense}</span>
+              </div>
+              <div className="flex items-center gap-1 text-blue-700" title="Résistance">
+                <Shield size={14} />
+                <span>{defense}</span>
+              </div>
+              <div className="flex items-center gap-1 text-yellow-500" title="Chance de coup critique">
+                <Zap size={14} />
+                <span>{criticalHitChance}%</span>
               </div>
             </div>
           )}

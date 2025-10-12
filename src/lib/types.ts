@@ -15,6 +15,7 @@ export interface Card {
   isAttacking: boolean;
   canAttack: boolean;
   summoningSickness: boolean;
+  criticalHitChance?: number;
 }
 
 export interface Player {
