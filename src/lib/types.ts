@@ -1,6 +1,7 @@
 import type { ImagePlaceholder } from './placeholder-images';
 
 export type CardType = 'Creature' | 'Land' | 'Spell' | 'Artifact';
+export type GamePhase = 'main' | 'combat' | 'end' | 'game-over';
 
 export interface Card {
   id: string;
@@ -32,7 +33,7 @@ export interface GameState {
   gameId: number;
   turn: number;
   activePlayer: 'player' | 'opponent';
-  phase: 'main' | 'combat' | 'end' | 'game-over';
+  phase: GamePhase;
   winner?: 'player' | 'opponent';
   player: Player;
   opponent: Player;

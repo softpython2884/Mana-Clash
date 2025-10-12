@@ -19,7 +19,9 @@ export default function GameBoard() {
 
   useEffect(() => {
     setIsClient(true);
-    dispatch({ type: 'INITIALIZE_GAME' });
+    if (state.gameId === 0) {
+        dispatch({ type: 'INITIALIZE_GAME' });
+    }
   }, []);
 
   const { gameId, turn, activePlayer, phase, player, opponent, winner, log, isThinking } = state;
@@ -116,21 +118,19 @@ export default function GameBoard() {
   const handlePhaseAction = () => {
     if (activePlayer !== 'player') return;
     if (phase === 'main') {
-      const hasAttackers = player.battlefield.some(c => c.canAttack);
-      if (hasAttackers) {
-          dispatch({ type: 'LOG_MESSAGE', message: 'Phase d\'attaque. Sélectionnez vos attaquants.' });
-          const newState = gameReducer(state, { type: 'LOG_MESSAGE', message: 'Phase d\'attaque. Sélectionnez vos attaquants.' });
-          // This is a bit of a hack to change phase
-          Object.assign(state, { ...newState, phase: 'combat' });
-          // Force re-render if needed
-          dispatch({ type: 'LOG_MESSAGE', message: '' }); 
-      } else {
-          dispatch({ type: 'PASS_TURN' });
-      }
-    } else if (phase === 'combat') {
-      dispatch({ type: 'DECLARE_ATTACK' });
+        dispatch({ type: 'CHANGE_PHASE', phase: 'combat' });
     }
   };
+
+  const handleDeclareAttack = () => {
+    if (activePlayer !== 'player' || phase !== 'combat') return;
+    dispatch({ type: 'DECLARE_ATTACK' });
+  };
+
+  const handlePassTurn = () => {
+    if (activePlayer !== 'player' || phase !== 'main') return;
+    dispatch({ type: 'PASS_TURN' });
+  }
 
   const MemoizedPlayerHand = useMemo(() => player.hand.map((card) => (
       <GameCard
@@ -146,7 +146,7 @@ export default function GameBoard() {
       <GameCard
           key={card.id}
           card={card}
-          onClick={() => phase === 'combat' && handleToggleAttacker(card.id)}
+          onClick={() => phase === 'combat' && card.canAttack && handleToggleAttacker(card.id)}
       />
   )), [player.battlefield, phase]);
   
@@ -157,6 +157,9 @@ export default function GameBoard() {
   if (!isClient) {
     return null; // or a loading spinner
   }
+
+  const canAttack = player.battlefield.some(c => c.canAttack && !c.tapped);
+  const isAttacking = player.battlefield.some(c => c.isAttacking);
 
   return (
     <div className="w-full h-full flex flex-col p-4 gap-4 max-w-7xl mx-auto">
@@ -185,10 +188,28 @@ export default function GameBoard() {
           <Button onClick={() => dispatch({ type: 'RESTART_GAME' })} variant="outline" size="icon"><RotateCcw/></Button>
           <div className="flex flex-col items-center gap-2">
               <p className="font-headline text-xl">{activePlayer === 'player' ? 'Votre tour' : 'Tour de l\'adversaire'}</p>
-              <Button onClick={handlePhaseAction} disabled={activePlayer !== 'player' || winner !== undefined} className={cn("w-48", phase === 'combat' && 'bg-red-600 hover:bg-red-700')}>
-                {phase === 'main' ? 'Fin du tour' : 'Déclarer l\'attaque'}
-                <Swords className="ml-2"/>
-              </Button>
+              {phase === 'main' && (
+                <div className="flex gap-2">
+                    <Button onClick={handlePhaseAction} disabled={activePlayer !== 'player' || winner !== undefined || !canAttack} className="w-48">
+                        Attaquer
+                        <Swords className="ml-2"/>
+                    </Button>
+                    <Button onClick={handlePassTurn} disabled={activePlayer !== 'player' || winner !== undefined} className="w-48">
+                        Fin du tour
+                    </Button>
+                </div>
+              )}
+              {phase === 'combat' && (
+                <div className="flex gap-2">
+                    <Button onClick={handleDeclareAttack} disabled={activePlayer !== 'player' || winner !== undefined || !isAttacking} className="w-48 bg-red-600 hover:bg-red-700">
+                       Déclarer l'attaque
+                       <Swords className="ml-2"/>
+                    </Button>
+                     <Button onClick={() => dispatch({ type: 'CHANGE_PHASE', phase: 'main' })} variant="outline" disabled={activePlayer !== 'player' || winner !== undefined} className="w-48">
+                        Annuler
+                    </Button>
+                </div>
+              )}
           </div>
           <UICard className="w-64 h-32">
             <CardContent className="p-2 h-full">
@@ -197,7 +218,7 @@ export default function GameBoard() {
                 <h3 className="font-headline text-sm">Log de jeu</h3>
               </div>
               <ScrollArea className="h-24">
-                  {log.slice().reverse().map((l, i) => <p key={i} className="text-xs text-muted-foreground">{l.message}</p>)}
+                  {log.slice().reverse().map((l, i) => <p key={i} className="text-xs text-muted-foreground">{`[${l.turn}] ${l.message}`}</p>)}
               </ScrollArea>
             </CardContent>
           </UICard>

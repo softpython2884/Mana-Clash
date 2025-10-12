@@ -1,5 +1,5 @@
 'use client';
-import type { GameState, Card, Player } from './types';
+import type { GameState, Card, Player, GamePhase } from './types';
 import { createDeck } from '@/data/initial-cards';
 import { useToast } from "@/hooks/use-toast";
 
@@ -15,7 +15,8 @@ export type GameAction =
   | { type: 'OPPONENT_TURN_START' }
   | { type: 'OPPONENT_ACTION'; action: () => GameState }
   | { type: 'OPPONENT_TURN_END' }
-  | { type: 'LOG_MESSAGE'; message: string };
+  | { type: 'LOG_MESSAGE'; message: string }
+  | { type: 'CHANGE_PHASE', phase: GamePhase };
 
 const drawCards = (player: Player, count: number): Player => {
   const drawnCards = player.deck.slice(0, count);
@@ -51,6 +52,9 @@ const shuffleAndDeal = (): Partial<GameState> => {
     
     return {
         gameId: Date.now(),
+        turn: 1,
+        activePlayer: 'player',
+        phase: 'main',
         player,
         opponent,
         log: [{ turn: 1, message: "Le match commence!" }],
@@ -61,10 +65,12 @@ const shuffleAndDeal = (): Partial<GameState> => {
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case 'INITIALIZE_GAME':
+        const initialState = getInitialState();
         return {
-            ...state,
+            ...initialState,
             ...shuffleAndDeal(),
         };
+
     case 'RESTART_GAME':
       return {
           ...getInitialState(),
@@ -77,6 +83,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         log: [...state.log, { turn: state.turn, message: action.message }],
       };
+
+    case 'CHANGE_PHASE':
+        if (state.activePlayer === 'player') {
+             return { ...state, phase: action.phase, log: [...state.log, { turn: state.turn, message: `Phase de ${action.phase === 'combat' ? 'combat' : 'principale'}.`}] };
+        }
+        return state;
 
     case 'PLAY_CARD': {
       if (state.activePlayer !== 'player' || state.phase !== 'main') return state;
@@ -101,7 +113,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (card.type === 'Land') {
         newPlayerState.battlefield = [...player.battlefield, { ...card, summoningSickness: true }];
         newPlayerState.maxMana = player.maxMana + 1;
-        newPlayerState.mana = newPlayerState.maxMana;
+        // Tapping lands is not necessary with this logic
+        // newPlayerState.mana = newPlayerState.maxMana;
         newLog = [...state.log, { turn: state.turn, message: `Joueur joue ${card.name}.` }];
       } else if (card.type === 'Creature') {
         newPlayerState.battlefield = [...player.battlefield, { ...card, summoningSickness: true, canAttack: false }];
@@ -121,7 +134,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'TOGGLE_ATTACKER': {
         if (state.phase !== 'combat' || state.activePlayer !== 'player') return state;
         const card = state.player.battlefield.find(c => c.id === action.cardId);
-        if (!card || !card.canAttack) return state;
+        if (!card || !card.canAttack || card.tapped) return state;
 
         const newBattlefield = state.player.battlefield.map(c => 
             c.id === action.cardId ? {...c, isAttacking: !c.isAttacking} : c
@@ -156,7 +169,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
                 let bestBlocker = availableBlockers.find(b => (b.defense || 0) >= (attacker.attack || 0));
                 // If not, find any blocker
                 if (!bestBlocker && availableBlockers.length > 0) {
-                    bestBlocker = availableBlockers[0];
+                    bestBlocker = availableBlockers.sort((a,b) => (b.attack || 0) - (a.attack || 0))[0];
                 }
 
                 if (bestBlocker) {
