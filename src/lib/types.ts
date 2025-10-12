@@ -7,6 +7,8 @@ export type BiomeType = 'Forest' | 'Mountain' | 'Swamp' | 'Desert' | 'Ice' | 'Vo
 
 export type SkillType = 'taunt' | 'heal' | 'lifesteal' | 'draw' | 'buff_attack' | 'buff_armor' | 'global_buff_armor';
 export type SkillTarget = 'self' | 'friendly_creature' | 'any_creature' | 'player' | 'opponent_creature';
+export type Rarity = 'Common' | 'Rare' | 'Epic' | 'Legendary';
+export type ElementType = 'Fire' | 'Water' | 'Earth' | 'Air' | 'Shadow' | 'Light' | 'Neutral';
 
 
 export interface CardSkill {
@@ -29,11 +31,14 @@ export interface Card {
   name: string;
   type: CardType;
   manaCost: number;
+  rarity?: Rarity;
+  element?: ElementType;
   attack?: number;
   health?: number;
   initialHealth?: number;
   armor?: number;
   description: string;
+  lore?: string;
   image: ImagePlaceholder;
   tapped: boolean;
   isAttacking: boolean; // Will be used to show the "selected attacker" state
