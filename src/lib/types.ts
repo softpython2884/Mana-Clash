@@ -12,6 +12,7 @@ export interface Card {
   manaCost: number;
   attack?: number;
   health?: number;
+  initialHealth?: number; // Add this to store the max health
   armor?: number;
   description: string;
   image: ImagePlaceholder;

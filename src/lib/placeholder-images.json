@@ -31,6 +31,12 @@
       "imageHint": "wizard spell"
     },
     {
+      "id": "golem",
+      "description": "A stone golem.",
+      "imageUrl": "https://picsum.photos/seed/golem/300/400",
+      "imageHint": "stone golem"
+    },
+    {
       "id": "forest_land",
       "description": "A lush, green forest.",
       "imageUrl": "https://picsum.photos/seed/forest_land/300/400",

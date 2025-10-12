@@ -30,133 +30,18 @@ export default function GameBoard() {
   useEffect(() => {
     if (activePlayer === 'opponent' && phase !== 'game-over' && isThinking) {
       const opponentTurn = async () => {
-        await new Promise(res => setTimeout(res, 1000));
-        
-        let tempState = {...state};
-
-        const playLand = () => {
-          const landInHand = tempState.opponent.hand.find(c => c.type === 'Land');
-          if (landInHand) {
-              const landPlayedThisTurn = tempState.opponent.battlefield.some(c => c.type === 'Land' && c.summoningSickness);
-              if (!landPlayedThisTurn) {
-                const newHand = tempState.opponent.hand.filter(c => c.id !== landInHand.id);
-                const newMaxMana = tempState.opponent.maxMana + 1;
-                tempState = {
-                  ...tempState,
-                  opponent: {
-                    ...tempState.opponent,
-                    hand: newHand,
-                    battlefield: [...tempState.opponent.battlefield, { ...landInHand, summoningSickness: true }],
-                    maxMana: newMaxMana,
-                    mana: newMaxMana,
-                  },
-                  log: [...tempState.log, { turn: tempState.turn, message: `Adversaire joue ${landInHand.name}.` }]
-                };
-              }
-          }
-        };
-
-        const playCreature = () => {
-          const playableCreatures = tempState.opponent.hand.filter(c => c.type === 'Creature' && c.manaCost <= tempState.opponent.mana);
-          if (playableCreatures.length > 0) {
-            const creatureToPlay = playableCreatures[Math.floor(Math.random() * playableCreatures.length)];
-            const newHand = tempState.opponent.hand.filter(c => c.id !== creatureToPlay.id);
-            tempState = {
-              ...tempState,
-              opponent: {
-                ...tempState.opponent,
-                hand: newHand,
-                battlefield: [...tempState.opponent.battlefield, { ...creatureToPlay, summoningSickness: true, canAttack: false }],
-                mana: tempState.opponent.mana - creatureToPlay.manaCost,
-              },
-              log: [...tempState.log, { turn: tempState.turn, message: `Adversaire invoque ${creatureToPlay.name}.` }]
-            };
-          }
-        };
-
-        const attack = () => {
-            const attackers = tempState.opponent.battlefield.filter(c => c.canAttack && !c.summoningSickness && !c.tapped);
-            if (attackers.length === 0) return;
-            
-            let playerBattlefield = [...tempState.player.battlefield];
-            let opponentBattlefield = [...tempState.opponent.battlefield];
-            let playerGraveyard = [...tempState.player.graveyard];
-            let opponentGraveyard = [...tempState.opponent.graveyard];
-            let playerHp = tempState.player.hp;
-            let newLog = [...tempState.log];
-
-            const availableBlockers = playerBattlefield.filter(c => c.type === 'Creature' && !c.tapped);
-            let unblockedAttackers = [...attackers];
-
-            for(const attacker of attackers) {
-                // Basic blocking AI for player (auto-block if possible)
-                const bestBlocker = availableBlockers.find(b => (b.health || 0) > (attacker.attack || 0));
-                if(bestBlocker) {
-                    newLog.push({ turn: tempState.turn, message: `${bestBlocker.name} bloque ${attacker.name}.` });
-                    
-                    const attackerDamage = attacker.attack || 0;
-                    const blockerDamage = bestBlocker.attack || 0;
-
-                    const attackerNewHealth = (attacker.health || 0) - blockerDamage;
-                    const blockerNewHealth = (bestBlocker.health || 0) - attackerDamage;
-
-                    if(attackerNewHealth <= 0) {
-                        newLog.push({ turn: tempState.turn, message: `${attacker.name} est détruit.` });
-                        opponentBattlefield = opponentBattlefield.filter(c => c.id !== attacker.id);
-                        opponentGraveyard.push(attacker);
-                    } else {
-                        const attackerIndex = opponentBattlefield.findIndex(c => c.id === attacker.id);
-                        if (attackerIndex > -1) opponentBattlefield[attackerIndex].health = attackerNewHealth;
-                    }
-
-                    if(blockerNewHealth <= 0) {
-                        newLog.push({ turn: tempState.turn, message: `${bestBlocker.name} est détruit.` });
-                        playerBattlefield = playerBattlefield.filter(c => c.id !== bestBlocker.id);
-                        playerGraveyard.push(bestBlocker);
-                    } else {
-                        const blockerIndex = playerBattlefield.findIndex(c => c.id === bestBlocker.id);
-                        if (blockerIndex > -1) playerBattlefield[blockerIndex].health = blockerNewHealth;
-                    }
-                    unblockedAttackers = unblockedAttackers.filter(a => a.id !== attacker.id);
-                    const blockerIndexInAvailable = availableBlockers.findIndex(b => b.id === bestBlocker.id);
-                    if (blockerIndexInAvailable > -1) {
-                        availableBlockers.splice(blockerIndexInAvailable, 1);
-                    }
-                }
-            }
-
-            if (unblockedAttackers.length > 0) {
-                const totalDamage = unblockedAttackers.reduce((sum, c) => sum + (c.attack || 0), 0);
-                playerHp -= totalDamage;
-                newLog.push({ turn: tempState.turn, message: `Le joueur subit ${totalDamage} dégâts.` });
-            }
-            
-            const newOpponentBattlefield = opponentBattlefield.map(c => attackers.some(a => a.id === c.id) ? { ...c, tapped: true } : c);
-            const winner = playerHp <= 0 ? 'opponent' : undefined;
-            tempState = {
-                ...tempState,
-                player: { ...tempState.player, hp: playerHp, battlefield: playerBattlefield, graveyard: playerGraveyard },
-                opponent: { ...tempState.opponent, battlefield: newOpponentBattlefield, graveyard: opponentGraveyard },
-                log: newLog,
-                phase: winner ? 'game-over' : tempState.phase,
-                winner,
-            };
-        };
-        
-        playLand();
         await new Promise(res => setTimeout(res, 500));
-        playCreature();
-        await new Promise(res => setTimeout(res, 500));
-        attack();
-        await new Promise(res => setTimeout(res, 1000));
+        
+        // The reducer now handles the complex state transitions.
+        // We'll dispatch a single action that encapsulates the AI's entire turn.
+        dispatch({ type: 'EXECUTE_OPPONENT_TURN' });
 
-        dispatch({ type: 'OPPONENT_ACTION', action: () => tempState });
-        dispatch({ type: 'PASS_TURN' });
+        // The reducer will set isThinking to false and pass the turn.
       };
 
       opponentTurn();
     }
-  }, [activePlayer, phase, gameId, isThinking, state]);
+  }, [activePlayer, phase, gameId, isThinking, dispatch]);
   
   const handlePlayCard = (cardId: string) => {
     dispatch({ type: 'PLAY_CARD', cardId });
@@ -179,13 +64,15 @@ export default function GameBoard() {
   };
 
   const handlePassTurn = () => {
-    if (activePlayer !== 'player' || phase === 'combat') return;
+    if (activePlayer !== 'player') return;
+     if (phase === 'combat' && player.battlefield.some(c => c.isAttacking)) return; // Don't pass during attack declaration
     dispatch({ type: 'PASS_TURN' });
   }
 
   const MemoizedPlayerHand = useMemo(() => player.hand.map((card) => {
       const isBiomeChangeable = card.type === 'Biome' && player.biomeChanges > 0;
-      const isCardPlayable = card.manaCost <= player.mana && (card.type !== 'Land' || !player.battlefield.some(c => c.type === 'Land' && c.summoningSickness));
+      const hasPlayedLand = player.battlefield.some(c => c.type === 'Land' && c.summoningSickness);
+      const isCardPlayable = card.manaCost <= player.mana && (card.type !== 'Land' || !hasPlayedLand);
       
       return (
           <GameCard

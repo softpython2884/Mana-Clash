@@ -62,11 +62,19 @@ export default function GameCard({ card, isPlayable = false, onClick, inHand = f
         <CardHeader className="p-2 flex-shrink-0">
           <CardTitle className="flex justify-between items-center text-sm md:text-base font-headline truncate">
             <span className="truncate mr-2 text-card-foreground">{name}</span>
-            {manaCost > 0 && (
-                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-[hsl(var(--mana))] text-white text-xs font-bold shrink-0">
-                {manaCost}
-                </div>
-            )}
+            <div className='flex items-center gap-1'>
+                {criticalHitChance !== undefined && criticalHitChance > 0 && (
+                    <div className="flex items-center gap-1 text-[hsl(var(--debuff))]" title="Chance de coup critique">
+                        <Zap size={14} />
+                        <span>{criticalHitChance}%</span>
+                    </div>
+                )}
+                {manaCost > 0 && (
+                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-[hsl(var(--mana))] text-white text-xs font-bold shrink-0">
+                    {manaCost}
+                    </div>
+                )}
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-2 flex-grow flex flex-col justify-center items-center text-center">
@@ -75,25 +83,25 @@ export default function GameCard({ card, isPlayable = false, onClick, inHand = f
                 {description}
             </CardDescription>
         </CardContent>
-        <CardFooter className="p-2 flex-shrink-0 min-h-[70px] flex flex-col items-start bg-secondary/30">
+        <CardFooter className="p-2 flex-shrink-0 min-h-[50px] flex flex-col items-start bg-secondary/30">
           {type === 'Creature' && (
-            <div className="flex justify-around items-center w-full mt-auto pt-1 text-sm font-bold">
-              <div className="flex items-center gap-1 text-[hsl(var(--hp))]" title="Dégâts">
-                <Swords size={14} />
-                <span>{attack}</span>
-              </div>
-              <div className="flex items-center gap-1 text-[hsl(var(--buff))]" title="Vie">
-                <Heart size={14} />
-                <span>{health}</span>
-              </div>
-              <div className="flex items-center gap-1 text-blue-400" title="Résistance">
-                <Shield size={14} />
-                <span>{armor}</span>
-              </div>
-              <div className="flex items-center gap-1 text-[hsl(var(--debuff))]" title="Chance de coup critique">
-                <Zap size={14} />
-                <span>{criticalHitChance}%</span>
-              </div>
+            <div className='w-full'>
+                <div className="flex justify-around items-center w-full text-sm font-bold">
+                    <div className="flex items-center gap-1 text-[hsl(var(--hp))]" title="Dégâts">
+                        <Swords size={14} />
+                        <span>{attack}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-blue-400" title="Résistance">
+                        <Shield size={14} />
+                        <span>{armor}</span>
+                    </div>
+                </div>
+                <div className='w-full px-2 mt-1'>
+                    <div className="w-full bg-red-900 rounded-full h-2.5 dark:bg-red-800 relative">
+                        <div className="bg-red-500 h-2.5 rounded-full" style={{width: `${health ? (health / card.initialHealth!) * 100 : 0}%`}}></div>
+                        <span className='absolute inset-0 text-white text-xs font-bold text-center w-full'>{health || 0} / {card.initialHealth || 0}</span>
+                    </div>
+                </div>
             </div>
           )}
            {preferredBiome && Icon && (

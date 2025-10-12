@@ -15,14 +15,7 @@ const createCard = (
   type: CardType,
   manaCost: number,
   description: string,
-  options: {
-    attack?: number;
-    health?: number;
-    armor?: number;
-    criticalHitChance?: number;
-    biome?: BiomeType;
-    preferredBiome?: BiomeType;
-  } = {}
+  options: Partial<Omit<Card, 'id'|'name'|'type'|'manaCost'|'description'|'image'>> = {}
 ): Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summoningSickness'> => ({
   id: id,
   name,
@@ -30,6 +23,7 @@ const createCard = (
   manaCost,
   description,
   image: getImage(id),
+  initialHealth: options.health,
   ...options,
 });
 
@@ -38,10 +32,12 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
   // Creatures
   createCard('goblin', 'Gobelin Féroce', 'Creature', 1, "Une petite créature vicieuse.", { attack: 2, health: 1, armor: 0, criticalHitChance: 10, preferredBiome: 'Mountain' }),
   createCard('knight', 'Chevalier Vaillant', 'Creature', 3, "Un défenseur loyal qui protège son maître.", { attack: 2, health: 2, armor: 2, criticalHitChance: 5, preferredBiome: 'Sanctuary' }),
-  createCard('elf', 'Elfe Archer', 'Creature', 2, "Tire des flèches précises.", { attack: 2, health: 2, armor: 0, criticalHitChance: 15, preferredBiome: 'Forest' }),
+  createCard('elf', 'Elfe Archer', 'Creature', 2, "Tire des flèches précises.", { attack: 2, health: 2, armor: 1, criticalHitChance: 15, preferredBiome: 'Forest' }),
   createCard('wizard', 'Sorcier Érudit', 'Creature', 4, "Maîtrise les arcanes.", { attack: 4, health: 3, armor: 0, criticalHitChance: 10, preferredBiome: 'Ice' }),
-  createCard('dragon', 'Jeune Dragon', 'Creature', 5, "Un souffle de feu dévastateur.", { attack: 5, health: 4, armor: 1, criticalHitChance: 20, preferredBiome: 'Volcano' }),
-  
+  createCard('dragon', 'Jeune Dragon', 'Creature', 5, "Un souffle de feu dévastateur.", { attack: 5, health: 4, armor: 3, criticalHitChance: 20, preferredBiome: 'Volcano' }),
+  createCard('golem', 'Golem de Pierre', 'Creature', 6, "Une masse de roche animée, lente mais résistante.", { attack: 4, health: 7, armor: 4, criticalHitChance: 0, preferredBiome: 'Mountain' }),
+
+
   // Lands
   createCard('forest_land', 'Forêt', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),
   createCard('mountain_land', 'Montagne', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),
@@ -68,6 +64,7 @@ export const createDeck = (): Card[] => {
         deck.push({ 
             ...cardTemplate, 
             id: `${cardTemplate.id}-${i}`,
+            health: cardTemplate.initialHealth, // Reset health to initial health
             tapped: false,
             isAttacking: false,
             canAttack: false,
@@ -83,6 +80,7 @@ export const createDeck = (): Card[] => {
   addCards('elf', 3);
   addCards('wizard', 2);
   addCards('dragon', 1);
+  addCards('golem', 1);
   
   addCards('potion', 2);
   
