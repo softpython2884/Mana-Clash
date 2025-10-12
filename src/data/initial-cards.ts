@@ -69,7 +69,7 @@ export const createDeck = (): Card[] => {
             isAttacking: false,
             canAttack: false,
             summoningSickness: false,
-            taunt: cardTemplate.skill?.type === 'taunt' ? false : cardTemplate.taunt, // Reset active taunt
+            taunt: cardTemplate.taunt, // Set passive taunt
             skill: cardTemplate.skill ? { ...cardTemplate.skill, used: false } : undefined
         });
       }
@@ -91,10 +91,8 @@ export const createDeck = (): Card[] => {
   addCards('swamp_land', 2);
 
   addCards('forest_biome', 1);
-  addCards('desert_biome', 1);
   addCards('ice_biome', 1);
   addCards('volcano_biome', 1);
-  addCards('sanctuary_biome', 1);
 
 
   // Shuffle deck
@@ -103,5 +101,5 @@ export const createDeck = (): Card[] => {
     [deck[i], deck[j]] = [deck[j], deck[i]];
   }
 
-  return deck.slice(0, 30); // 30 card deck
+  return deck.slice(0, 25); // 25 card deck
 };

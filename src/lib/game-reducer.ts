@@ -140,14 +140,15 @@ const opponentAI = (state: GameState): GameState => {
   let opponent = tempState.opponent;
   let player = tempState.player;
   let log = tempState.log;
+  const turn = tempState.turn;
 
   // 1. Play Biome Card
   if (opponent.biomeChanges > 0) {
-      const biomeCardInHand = opponent.hand.find(c => c.type === 'Biome');
+      const biomeCardInHand = opponent.hand.find((c: Card) => c.type === 'Biome');
       if (biomeCardInHand && biomeCardInHand.biome !== tempState.activeBiome?.biome) {
           log.push({ turn: tempState.turn, message: `Adversaire change le biome pour ${biomeCardInHand.name}.` });
           tempState.activeBiome = biomeCardInHand;
-          opponent.hand = opponent.hand.filter(c => c.id !== biomeCardInHand.id);
+          opponent.hand = opponent.hand.filter((c: Card) => c.id !== biomeCardInHand.id);
           opponent.graveyard.push(biomeCardInHand); // Biomes are consumed
           opponent.mana += 1;
           opponent.biomeChanges -= 1;
@@ -155,34 +156,34 @@ const opponentAI = (state: GameState): GameState => {
   }
 
   // 2. Play Land Card
-  const landPlayedThisTurn = opponent.battlefield.some(c => c.type === 'Land' && c.summoningSickness);
+  const landPlayedThisTurn = opponent.battlefield.some((c: Card) => c.type === 'Land' && c.summoningSickness);
   if (!landPlayedThisTurn) {
-      const landInHand = opponent.hand.find(c => c.type === 'Land');
+      const landInHand = opponent.hand.find((c: Card) => c.type === 'Land');
       if (landInHand) {
           log.push({ turn: tempState.turn, message: `Adversaire joue ${landInHand.name}.` });
           opponent.battlefield.push({ ...landInHand, summoningSickness: true });
-          opponent.hand = opponent.hand.filter(c => c.id !== landInHand.id);
+          opponent.hand = opponent.hand.filter((c: Card) => c.id !== landInHand.id);
       }
   }
 
   // 3. Play Creature Cards
   let playedCreature = true;
   while(playedCreature) {
-      const currentCreatureCount = opponent.battlefield.filter(c => c.type === 'Creature').length;
+      const currentCreatureCount = opponent.battlefield.filter((c: Card) => c.type === 'Creature').length;
       if (currentCreatureCount >= MAX_BATTLEFIELD_SIZE) {
           playedCreature = false;
           continue;
       }
 
       const playableCreatures = opponent.hand
-          .filter(c => c.type === 'Creature' && c.manaCost <= opponent.mana)
-          .sort((a, b) => b.manaCost - a.manaCost); // Play most expensive first
+          .filter((c: Card) => c.type === 'Creature' && c.manaCost <= opponent.mana)
+          .sort((a: Card, b: Card) => b.manaCost - a.manaCost); // Play most expensive first
 
       if (playableCreatures.length > 0) {
           const creatureToPlay = playableCreatures[0];
           log.push({ turn: tempState.turn, message: `Adversaire invoque ${creatureToPlay.name}.` });
           opponent.battlefield.push({ ...creatureToPlay, summoningSickness: true, canAttack: false });
-          opponent.hand = opponent.hand.filter(c => c.id !== creatureToPlay.id);
+          opponent.hand = opponent.hand.filter((c: Card) => c.id !== creatureToPlay.id);
           opponent.mana -= creatureToPlay.manaCost;
       } else {
           playedCreature = false;
@@ -190,10 +191,10 @@ const opponentAI = (state: GameState): GameState => {
   }
   
   // 4. Declare Attack
-  let attackers = opponent.battlefield.filter(c => c.type === 'Creature' && c.canAttack && !c.tapped);
+  let attackers = opponent.battlefield.filter((c: Card) => c.type === 'Creature' && c.canAttack && !c.tapped);
   const playerTauntCreatures = player.battlefield.filter((c: Card) => c.taunt && !c.tapped);
   
-  attackers.forEach(attacker => {
+  attackers.forEach((attacker: Card) => {
       let target: Card | 'player' | null = null;
       let targetPlayerCard: Card | undefined = undefined;
       
@@ -202,9 +203,10 @@ const opponentAI = (state: GameState): GameState => {
           // Attack the taunt creature with the lowest health
           targetPlayerCard = playerTauntCreatures.sort((a,b) => (a.health || 0) - (b.health || 0))[0];
           target = targetPlayerCard;
-      } else if (player.battlefield.filter((c: Card) => !c.tapped).length > 0) {
-           // Simple version: if there are creatures, attack the one it can kill
-           let potentialBlockers = player.battlefield.filter((c: Card) => !c.tapped);
+      } else {
+        // No taunt, can attack player or other creatures. AI will prioritize clearing board.
+        let potentialBlockers = player.battlefield.filter((c: Card) => !c.tapped);
+        if (potentialBlockers.length > 0) {
            let killableTarget = potentialBlockers.find(p => (p.health || 0) <= (attacker.attack || 0));
            if(killableTarget) {
                targetPlayerCard = killableTarget;
@@ -213,35 +215,37 @@ const opponentAI = (state: GameState): GameState => {
                targetPlayerCard = potentialBlockers.sort((a,b) => (b.attack || 0) - (a.attack || 0))[0];
            }
            target = targetPlayerCard;
-      } else {
-        // No creatures to block, attack player
-        target = 'player';
+        } else {
+          // No creatures to block, attack player
+          target = 'player';
+        }
       }
 
       if (target) {
+          const attackerInBattlefield = opponent.battlefield.find((c: Card) => c.id === attacker.id);
+          if (!attackerInBattlefield) return;
+
           if (target === 'player') {
             log.push({ turn: tempState.turn, message: `Adversaire: ${attacker.name} attaque le joueur directement.` });
             player.hp -= attacker.attack || 0;
             log.push({ turn: tempState.turn, message: `Joueur subit ${attacker.attack || 0} dégâts. PV restants: ${player.hp}.` });
           } else if(targetPlayerCard) {
             log.push({ turn: tempState.turn, message: `Adversaire: ${attacker.name} attaque ${targetPlayerCard.name}.` });
+            
             const defenderHealthBefore = targetPlayerCard.health || 0;
-            resolveDamage(attacker, targetPlayerCard, log, tempState.turn);
+            resolveDamage(attackerInBattlefield, targetPlayerCard, log, tempState.turn);
             
             // Riposte only if defender survives
-            if((targetPlayerCard.health || 0) > 0) {
+            if((targetPlayerCard.health || 0) > 0 && (targetPlayerCard.health || 0) < defenderHealthBefore) {
                log.push({ turn, message: `${targetPlayerCard.name} riposte !` });
-               resolveDamage(targetPlayerCard, attacker, log, tempState.turn);
-            } else {
+               resolveDamage(targetPlayerCard, attackerInBattlefield, log, tempState.turn);
+            } else if ((targetPlayerCard.health || 0) <= 0) {
                log.push({ turn, message: `${targetPlayerCard.name} est détruit avant de pouvoir riposter.` });
             }
           }
           
-          const attackerInBattlefield = opponent.battlefield.find(c => c.id === attacker.id);
-          if (attackerInBattlefield) {
-            attackerInBattlefield.tapped = true;
-            attackerInBattlefield.canAttack = false;
-          }
+          attackerInBattlefield.tapped = true;
+          attackerInBattlefield.canAttack = false;
       }
   });
 
@@ -265,6 +269,10 @@ const opponentAI = (state: GameState): GameState => {
         tempState.winner = 'opponent';
         tempState.phase = 'game-over';
         log.push({ turn: tempState.turn, message: "Le joueur a été vaincu."})
+    } else if (tempState.opponent.hp <= 0) {
+        tempState.winner = 'player';
+        tempState.phase = 'game-over';
+        log.push({ turn: tempState.turn, message: "L'adversaire a été vaincu."})
     }
 
   return tempState;
@@ -299,11 +307,11 @@ const resolvePlayerCombat = (state: GameState): GameState => {
         const defenderHealthBefore = defender.health || 0;
         resolveDamage(attacker, defender, log, turn);
         
-        // Defender strikes back only if it survives
-        if ((defender.health || 0) > 0) {
+        // Defender strikes back only if it survives AND took damage
+        if ((defender.health || 0) > 0 && (defender.health || 0) < defenderHealthBefore) {
             log.push({ turn, message: `${defender.name} riposte !` });
             resolveDamage(defender, attacker, log, turn);
-        } else {
+        } else if ((defender.health || 0) <= 0) {
             log.push({ turn, message: `${defender.name} est détruit avant de pouvoir riposter.` });
         }
     }
@@ -560,7 +568,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // Draw card for the new turn player
       const { player: nextPlayerAfterDraw, log: logAfterDraw } = drawCards(newState[nextPlayerKey], 1, newState.log, nextTurnNumber);
       newState[nextPlayerKey] = nextPlayerAfterDraw;
-      newState.log = [...logAfterDraw, { turn: nextTurnNumber, message: `Début du tour de ${nextPlayerKey === 'player' ? 'Joueur' : 'l\'Adversaire'}.` }];
+      newState.log = [...logAfterDraw, { turn: nextTurnNumber, message: `Début du tour de ${nextPlayerKey === 'player' ? 'Joueur' : "l'Adversaire"}.` }];
 
       // Next player gets mana
       let nextPlayerState = newState[nextPlayerKey];
