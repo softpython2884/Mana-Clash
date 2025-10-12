@@ -34,7 +34,7 @@ const biomeColor: Record<BiomeType, string> = {
 
 
 export default function GameCard({ card, isPlayable = false, onClick, inHand = false, isActiveBiome = false }: GameCardProps) {
-  const { name, manaCost, description, attack, defense, type, tapped, isAttacking, canAttack, criticalHitChance, preferredBiome, biome } = card;
+  const { name, manaCost, description, attack, health, armor, type, tapped, isAttacking, canAttack, criticalHitChance, preferredBiome, biome } = card;
 
   const Icon = preferredBiome ? biomeIcon[preferredBiome] : null;
   const borderClass = biome ? biomeColor[biome] : '';
@@ -84,11 +84,11 @@ export default function GameCard({ card, isPlayable = false, onClick, inHand = f
               </div>
               <div className="flex items-center gap-1 text-[hsl(var(--buff))]" title="Vie">
                 <Heart size={14} />
-                <span>{defense}</span>
+                <span>{health}</span>
               </div>
               <div className="flex items-center gap-1 text-blue-400" title="Résistance">
                 <Shield size={14} />
-                <span>{defense}</span>
+                <span>{armor}</span>
               </div>
               <div className="flex items-center gap-1 text-[hsl(var(--debuff))]" title="Chance de coup critique">
                 <Zap size={14} />

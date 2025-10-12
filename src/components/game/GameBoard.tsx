@@ -76,20 +76,71 @@ export default function GameBoard() {
 
         const attack = () => {
             const attackers = tempState.opponent.battlefield.filter(c => c.canAttack && !c.summoningSickness && !c.tapped);
-            if (attackers.length > 0) {
-                const totalDamage = attackers.reduce((sum, c) => sum + (c.attack || 0), 0);
-                const newPlayerHp = tempState.player.hp - totalDamage;
-                const newOpponentBattlefield = tempState.opponent.battlefield.map(c => attackers.some(a => a.id === c.id) ? { ...c, tapped: true } : c);
-                const winner = newPlayerHp <= 0 ? 'opponent' : undefined;
-                tempState = {
-                    ...tempState,
-                    player: { ...tempState.player, hp: newPlayerHp },
-                    opponent: { ...tempState.opponent, battlefield: newOpponentBattlefield },
-                    log: [...tempState.log, { turn: tempState.turn, message: `Adversaire attaque avec ${attackers.length} créature(s) pour ${totalDamage} dégâts.` }],
-                    phase: winner ? 'game-over' : tempState.phase,
-                    winner,
-                };
+            if (attackers.length === 0) return;
+            
+            let playerBattlefield = [...tempState.player.battlefield];
+            let opponentBattlefield = [...tempState.opponent.battlefield];
+            let playerGraveyard = [...tempState.player.graveyard];
+            let opponentGraveyard = [...tempState.opponent.graveyard];
+            let playerHp = tempState.player.hp;
+            let newLog = [...tempState.log];
+
+            const availableBlockers = playerBattlefield.filter(c => c.type === 'Creature' && !c.tapped);
+            let unblockedAttackers = [...attackers];
+
+            for(const attacker of attackers) {
+                // Basic blocking AI for player (auto-block if possible)
+                const bestBlocker = availableBlockers.find(b => (b.health || 0) > (attacker.attack || 0));
+                if(bestBlocker) {
+                    newLog.push({ turn: tempState.turn, message: `${bestBlocker.name} bloque ${attacker.name}.` });
+                    
+                    const attackerDamage = attacker.attack || 0;
+                    const blockerDamage = bestBlocker.attack || 0;
+
+                    const attackerNewHealth = (attacker.health || 0) - blockerDamage;
+                    const blockerNewHealth = (bestBlocker.health || 0) - attackerDamage;
+
+                    if(attackerNewHealth <= 0) {
+                        newLog.push({ turn: tempState.turn, message: `${attacker.name} est détruit.` });
+                        opponentBattlefield = opponentBattlefield.filter(c => c.id !== attacker.id);
+                        opponentGraveyard.push(attacker);
+                    } else {
+                        const attackerIndex = opponentBattlefield.findIndex(c => c.id === attacker.id);
+                        if (attackerIndex > -1) opponentBattlefield[attackerIndex].health = attackerNewHealth;
+                    }
+
+                    if(blockerNewHealth <= 0) {
+                        newLog.push({ turn: tempState.turn, message: `${bestBlocker.name} est détruit.` });
+                        playerBattlefield = playerBattlefield.filter(c => c.id !== bestBlocker.id);
+                        playerGraveyard.push(bestBlocker);
+                    } else {
+                        const blockerIndex = playerBattlefield.findIndex(c => c.id === bestBlocker.id);
+                        if (blockerIndex > -1) playerBattlefield[blockerIndex].health = blockerNewHealth;
+                    }
+                    unblockedAttackers = unblockedAttackers.filter(a => a.id !== attacker.id);
+                    const blockerIndexInAvailable = availableBlockers.findIndex(b => b.id === bestBlocker.id);
+                    if (blockerIndexInAvailable > -1) {
+                        availableBlockers.splice(blockerIndexInAvailable, 1);
+                    }
+                }
             }
+
+            if (unblockedAttackers.length > 0) {
+                const totalDamage = unblockedAttackers.reduce((sum, c) => sum + (c.attack || 0), 0);
+                playerHp -= totalDamage;
+                newLog.push({ turn: tempState.turn, message: `Le joueur subit ${totalDamage} dégâts.` });
+            }
+            
+            const newOpponentBattlefield = opponentBattlefield.map(c => attackers.some(a => a.id === c.id) ? { ...c, tapped: true } : c);
+            const winner = playerHp <= 0 ? 'opponent' : undefined;
+            tempState = {
+                ...tempState,
+                player: { ...tempState.player, hp: playerHp, battlefield: playerBattlefield, graveyard: playerGraveyard },
+                opponent: { ...tempState.opponent, battlefield: newOpponentBattlefield, graveyard: opponentGraveyard },
+                log: newLog,
+                phase: winner ? 'game-over' : tempState.phase,
+                winner,
+            };
         };
         
         playLand();
@@ -128,7 +179,7 @@ export default function GameBoard() {
   };
 
   const handlePassTurn = () => {
-    if (activePlayer !== 'player') return;
+    if (activePlayer !== 'player' || phase === 'combat') return;
     dispatch({ type: 'PASS_TURN' });
   }
 
@@ -195,27 +246,30 @@ export default function GameBoard() {
             {activeBiome && <GameCard card={activeBiome} isActiveBiome />}
             <div className="flex flex-col items-center gap-2">
                 <p className="font-headline text-xl">{activePlayer === 'player' ? 'Votre tour' : 'Tour de l\'adversaire'}</p>
-                {phase === 'main' && (
+                {phase === 'main' && activePlayer === 'player' && (
                   <div className="flex gap-2">
-                      <Button onClick={handlePhaseAction} disabled={activePlayer !== 'player' || winner !== undefined || !canAttack} className="w-48">
+                      <Button onClick={handlePhaseAction} disabled={winner !== undefined || !canAttack} className="w-48">
                           Attaquer
                           <Swords className="ml-2"/>
                       </Button>
-                      <Button onClick={handlePassTurn} disabled={activePlayer !== 'player' || winner !== undefined} className="w-48">
+                      <Button onClick={handlePassTurn} disabled={winner !== undefined} className="w-48">
                           Fin du tour
                       </Button>
                   </div>
                 )}
-                {phase === 'combat' && (
+                {phase === 'combat' && activePlayer === 'player' && (
                   <div className="flex gap-2">
-                      <Button onClick={handleDeclareAttack} disabled={activePlayer !== 'player' || winner !== undefined || !isAttacking} className="w-48 bg-red-600 hover:bg-red-700">
+                      <Button onClick={handleDeclareAttack} disabled={winner !== undefined || !isAttacking} className="w-48 bg-red-600 hover:bg-red-700">
                          Déclarer l'attaque
                          <Swords className="ml-2"/>
                       </Button>
-                       <Button onClick={() => dispatch({ type: 'CHANGE_PHASE', phase: 'main' })} variant="outline" disabled={activePlayer !== 'player' || winner !== undefined} className="w-48">
+                       <Button onClick={() => dispatch({ type: 'CHANGE_PHASE', phase: 'main' })} variant="outline" disabled={winner !== undefined} className="w-48">
                           Annuler
                       </Button>
                   </div>
+                )}
+                 {activePlayer === 'opponent' && (
+                    <p className="text-sm text-muted-foreground animate-pulse">L'adversaire réfléchit...</p>
                 )}
             </div>
           </div>

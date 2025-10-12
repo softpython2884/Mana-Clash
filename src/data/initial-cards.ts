@@ -17,7 +17,8 @@ const createCard = (
   description: string,
   options: {
     attack?: number;
-    defense?: number;
+    health?: number;
+    armor?: number;
     criticalHitChance?: number;
     biome?: BiomeType;
     preferredBiome?: BiomeType;
@@ -35,11 +36,11 @@ const createCard = (
 
 export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summoningSickness'>[] = [
   // Creatures
-  createCard('goblin', 'Gobelin Féroce', 'Creature', 1, "Une petite créature vicieuse.", { attack: 1, defense: 1, criticalHitChance: 10, preferredBiome: 'Mountain' }),
-  createCard('knight', 'Chevalier Vaillant', 'Creature', 3, "Un défenseur loyal qui protège son maître.", { attack: 2, defense: 3, criticalHitChance: 5, preferredBiome: 'Sanctuary' }),
-  createCard('elf', 'Elfe Archer', 'Creature', 2, "Tire des flèches précises.", { attack: 2, defense: 1, criticalHitChance: 15, preferredBiome: 'Forest' }),
-  createCard('wizard', 'Sorcier Érudit', 'Creature', 4, "Maîtrise les arcanes.", { attack: 3, defense: 3, criticalHitChance: 10, preferredBiome: 'Ice' }),
-  createCard('dragon', 'Jeune Dragon', 'Creature', 5, "Un souffle de feu dévastateur.", { attack: 4, defense: 4, criticalHitChance: 20, preferredBiome: 'Volcano' }),
+  createCard('goblin', 'Gobelin Féroce', 'Creature', 1, "Une petite créature vicieuse.", { attack: 2, health: 1, armor: 0, criticalHitChance: 10, preferredBiome: 'Mountain' }),
+  createCard('knight', 'Chevalier Vaillant', 'Creature', 3, "Un défenseur loyal qui protège son maître.", { attack: 2, health: 2, armor: 2, criticalHitChance: 5, preferredBiome: 'Sanctuary' }),
+  createCard('elf', 'Elfe Archer', 'Creature', 2, "Tire des flèches précises.", { attack: 2, health: 2, armor: 0, criticalHitChance: 15, preferredBiome: 'Forest' }),
+  createCard('wizard', 'Sorcier Érudit', 'Creature', 4, "Maîtrise les arcanes.", { attack: 4, health: 3, armor: 0, criticalHitChance: 10, preferredBiome: 'Ice' }),
+  createCard('dragon', 'Jeune Dragon', 'Creature', 5, "Un souffle de feu dévastateur.", { attack: 5, health: 4, armor: 1, criticalHitChance: 20, preferredBiome: 'Volcano' }),
   
   // Lands
   createCard('forest_land', 'Forêt', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),

@@ -95,6 +95,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'CHANGE_PHASE':
         if (state.activePlayer === 'player') {
+             if (action.phase === 'combat' && state.player.battlefield.filter(c => c.canAttack && !c.tapped).length === 0) {
+                 return { ...state, log: [...state.log, { turn: state.turn, message: "Aucune créature ne peut attaquer."}] };
+             }
              return { ...state, phase: action.phase, log: [...state.log, { turn: state.turn, message: `Phase de ${action.phase === 'combat' ? 'combat' : 'principale'}.`}] };
         }
         return state;
@@ -194,67 +197,118 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
         const availableBlockers = opponentBattlefield.filter(c => c.type === 'Creature' && !c.tapped);
         let unblockedAttackers = [...attackers];
+        
+        // Simple AI blocking logic: block the strongest attacker with the best available blocker
+        attackers.sort((a, b) => (b.attack || 0) - (a.attack || 0));
+        
+        const combatPairs: { attacker: Card, blocker: Card | null }[] = [];
 
+        // AI assigns blockers
         if (availableBlockers.length > 0) {
-            // Simple AI blocking logic: block the strongest attacker with the best available blocker
-            attackers.sort((a, b) => (b.attack || 0) - (a.attack || 0));
-            
             for (const attacker of attackers) {
                 // Find a blocker that can survive or trade
-                let bestBlocker = availableBlockers.find(b => (b.defense || 0) >= (attacker.attack || 0));
+                let bestBlocker = availableBlockers.find(b => (b.health || 0) > (attacker.attack || 0) || (b.attack || 0) >= (attacker.health || 0));
                 // If not, find any blocker
                 if (!bestBlocker && availableBlockers.length > 0) {
-                    bestBlocker = availableBlockers.sort((a,b) => (b.attack || 0) - (a.attack || 0))[0];
+                    bestBlocker = availableBlockers.sort((a,b) => (b.health || 0) - (a.health || 0))[0];
                 }
 
                 if (bestBlocker) {
-                    newLog.push({ turn: state.turn, message: `${bestBlocker.name} bloque ${attacker.name}.` });
-
-                    const attackerRemainingHp = (attacker.defense || 0) - (bestBlocker.attack || 0);
-                    const blockerRemainingHp = (bestBlocker.defense || 0) - (attacker.attack || 0);
-
-                    if (attackerRemainingHp <= 0) {
-                        newLog.push({ turn: state.turn, message: `${attacker.name} est détruit.` });
-                        playerBattlefield = playerBattlefield.filter(c => c.id !== attacker.id);
-                        playerGraveyard.push(attacker);
-                    } else {
-                        const attackerIndex = playerBattlefield.findIndex(c => c.id === attacker.id);
-                        if(attackerIndex > -1) playerBattlefield[attackerIndex].defense = attackerRemainingHp;
-                    }
-                    
-                    if (blockerRemainingHp <= 0) {
-                        newLog.push({ turn: state.turn, message: `${bestBlocker.name} est détruit.` });
-                        opponentBattlefield = opponentBattlefield.filter(c => c.id !== bestBlocker!.id);
-                        opponentGraveyard.push(bestBlocker);
-                    } else {
-                         const blockerIndex = opponentBattlefield.findIndex(c => c.id === bestBlocker!.id);
-                         if(blockerIndex > -1) opponentBattlefield[blockerIndex].defense = blockerRemainingHp;
-                    }
-                    
-                    // Remove blocker and attacker from their respective groups for this combat phase
-                    unblockedAttackers = unblockedAttackers.filter(a => a.id !== attacker.id);
+                    combatPairs.push({ attacker, blocker: bestBlocker });
                     const blockerIndexInAvailable = availableBlockers.findIndex(b => b.id === bestBlocker!.id);
                     if (blockerIndexInAvailable > -1) {
                         availableBlockers.splice(blockerIndexInAvailable, 1);
                     }
+                    unblockedAttackers = unblockedAttackers.filter(a => a.id !== attacker.id);
                 }
             }
         }
-        
-        if (unblockedAttackers.length > 0) {
-            const totalUnblockedDamage = unblockedAttackers.reduce((sum, c) => sum + (c.attack || 0), 0);
-            opponentHp -= totalUnblockedDamage;
-            newLog.push({ turn: state.turn, message: `L'adversaire subit ${totalUnblockedDamage} points de dégâts non bloqués.` });
-        }
 
-        const finalPlayerBattlefield = playerBattlefield.map(c => ({...c, isAttacking: false, tapped: attackers.some(a => a.id === c.id) ? true : c.tapped}));
+        // Add unblocked attackers
+        unblockedAttackers.forEach(attacker => combatPairs.push({ attacker, blocker: null }));
+
+        // Resolve combat
+        for (const { attacker, blocker } of combatPairs) {
+            const isCrit = Math.random() * 100 < (attacker.criticalHitChance || 0);
+            const attackDamage = attacker.attack || 0;
+            
+            if (blocker) {
+                newLog.push({ turn: state.turn, message: `${blocker.name} bloque ${attacker.name}.` });
+                if (isCrit) {
+                     newLog.push({ turn: state.turn, message: `Coup Critique ! ${attacker.name} ignore l'armure de ${blocker.name}.` });
+                }
+
+                // Damage to blocker
+                let damageToBlocker = attackDamage;
+                if (!isCrit && blocker.armor && blocker.armor > 0) {
+                    const armorAbsorption = Math.min(blocker.armor, damageToBlocker);
+                    damageToBlocker -= armorAbsorption;
+                    const blockerIndex = opponentBattlefield.findIndex(c => c.id === blocker.id);
+                    if (blockerIndex !== -1) {
+                        opponentBattlefield[blockerIndex] = { ...opponentBattlefield[blockerIndex], armor: opponentBattlefield[blockerIndex].armor! - armorAbsorption };
+                    }
+                }
+                const blockerIndex = opponentBattlefield.findIndex(c => c.id === blocker.id);
+                if (blockerIndex !== -1) {
+                    const newHealth = (opponentBattlefield[blockerIndex].health || 0) - damageToBlocker;
+                    opponentBattlefield[blockerIndex] = { ...opponentBattlefield[blockerIndex], health: newHealth };
+                }
+
+                // Damage to attacker
+                const damageToAttacker = blocker.attack || 0;
+                let attackerArmor = attacker.armor || 0;
+                let damageLeftForAttacker = damageToAttacker;
+                if (attackerArmor > 0) {
+                    const armorAbsorption = Math.min(attackerArmor, damageToAttacker);
+                    damageLeftForAttacker -= armorAbsorption;
+                    const attackerIndex = playerBattlefield.findIndex(c => c.id === attacker.id);
+                     if (attackerIndex !== -1) {
+                        playerBattlefield[attackerIndex] = { ...playerBattlefield[attackerIndex], armor: playerBattlefield[attackerIndex].armor! - armorAbsorption };
+                    }
+                }
+                 const attackerIndex = playerBattlefield.findIndex(c => c.id === attacker.id);
+                if (attackerIndex !== -1) {
+                    const newHealth = (playerBattlefield[attackerIndex].health || 0) - damageLeftForAttacker;
+                    playerBattlefield[attackerIndex] = { ...playerBattlefield[attackerIndex], health: newHealth };
+                }
+
+            } else { // Unblocked
+                newLog.push({ turn: state.turn, message: `${attacker.name} attaque directement l'adversaire.` });
+                 if (isCrit) {
+                     newLog.push({ turn: state.turn, message: `Coup Critique !` });
+                }
+                opponentHp -= attackDamage;
+            }
+        }
+        
+        // Handle deaths
+        const newPlayerBattlefield = playerBattlefield.filter(c => {
+            if ((c.health || 0) <= 0) {
+                newLog.push({ turn: state.turn, message: `${c.name} est détruit.` });
+                playerGraveyard.push(c);
+                return false;
+            }
+            return true;
+        });
+
+        const newOpponentBattlefield = opponentBattlefield.filter(c => {
+             if ((c.health || 0) <= 0) {
+                newLog.push({ turn: state.turn, message: `${c.name} est détruit.` });
+                opponentGraveyard.push(c);
+                return false;
+            }
+            return true;
+        });
+
+
+        const finalPlayerBattlefield = newPlayerBattlefield.map(c => ({...c, isAttacking: false, tapped: attackers.some(a => a.id === c.id) ? true : c.tapped}));
         
         const winner = opponentHp <= 0 ? 'player' : undefined;
 
         return {
             ...state,
             player: {...state.player, battlefield: finalPlayerBattlefield, graveyard: playerGraveyard},
-            opponent: {...state.opponent, hp: opponentHp, battlefield: opponentBattlefield, graveyard: opponentGraveyard},
+            opponent: {...state.opponent, hp: opponentHp, battlefield: newOpponentBattlefield, graveyard: opponentGraveyard},
             log: newLog,
             phase: winner ? 'game-over' : 'main',
             winner,
@@ -265,6 +319,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (state.phase === 'game-over') return state;
       const isPlayerTurn = state.activePlayer === 'player';
       
+      // Prevent passing turn during combat if player is active
+      if (isPlayerTurn && state.phase === 'combat') return state;
+
       let newState = { ...state };
       
       // Untap current player's creatures and reset summoning sickness

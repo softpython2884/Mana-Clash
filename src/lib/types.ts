@@ -11,7 +11,8 @@ export interface Card {
   type: CardType;
   manaCost: number;
   attack?: number;
-  defense?: number;
+  health?: number;
+  armor?: number;
   description: string;
   image: ImagePlaceholder;
   tapped: boolean;
