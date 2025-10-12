@@ -136,11 +136,11 @@ export default function GameBoard() {
     // Basic loading skeleton
     return (
       <div className="w-full h-full flex flex-col p-4 gap-4 max-w-7xl mx-auto animate-pulse">
-        <div className="h-32 bg-gray-800 rounded"></div>
-        <div className="min-h-[18rem] bg-gray-800 rounded"></div>
-        <div className="h-16 bg-gray-800 rounded"></div>
-        <div className="min-h-[18rem] bg-gray-800 rounded"></div>
-        <div className="h-32 bg-gray-800 rounded"></div>
+        <div className="h-32 bg-gray-800 rounded-xl"></div>
+        <div className="min-h-[18rem] bg-gray-800 rounded-xl"></div>
+        <div className="h-16 bg-gray-800 rounded-xl"></div>
+        <div className="min-h-[18rem] bg-gray-800 rounded-xl"></div>
+        <div className="h-32 bg-gray-800 rounded-xl"></div>
       </div>
     );
   }
@@ -175,16 +175,16 @@ export default function GameBoard() {
             onClick={() => handleSelectDefender('opponent')}
         />
         <div className="flex gap-2">
-            <UICard className="w-24 h-32 flex flex-col items-center justify-center bg-secondary">
+            <UICard className="w-24 h-32 flex flex-col items-center justify-center bg-secondary rounded-xl">
                 <p className="font-bold">Pioche</p>
                 <p>{opponent.deck.length}</p>
             </UICard>
             <div className="flex flex-wrap-reverse gap-1 justify-end w-96 h-32">
-                {Array(opponent.hand.length).fill(0).map((_, i) => <div key={i} className="w-20 h-28 bg-primary rounded-lg"/>)}
+                {Array(opponent.hand.length).fill(0).map((_, i) => <div key={i} className="w-20 h-28 bg-primary rounded-xl shadow-md"/>)}
             </div>
         </div>
       </div>
-      <div className="min-h-[18rem] bg-black/10 rounded-lg p-2 flex items-center justify-center gap-2">
+      <div className="min-h-[18rem] bg-black/10 rounded-xl p-2 flex items-center justify-center gap-2">
          {MemoizedOpponentBattlefield}
       </div>
 
@@ -223,7 +223,7 @@ export default function GameBoard() {
                 )}
             </div>
           </div>
-          <UICard className="w-64 h-32">
+          <UICard className="w-64 h-32 rounded-xl">
             <CardContent className="p-2 h-full">
               <div className="flex items-center gap-2 mb-1">
                 <ScrollText size={16}/>
@@ -237,18 +237,18 @@ export default function GameBoard() {
       </div>
 
       {/* Player Area */}
-      <div className="min-h-[18rem] bg-black/10 rounded-lg p-2 flex items-center justify-center gap-2">
+      <div className="min-h-[18rem] bg-black/10 rounded-xl p-2 flex items-center justify-center gap-2">
          {MemoizedPlayerBattlefield}
       </div>
       <div className="flex justify-between items-end">
         <PlayerStats hp={player.hp} mana={player.mana} maxMana={player.maxMana} />
         <div className="flex gap-2 items-end">
             <div className="flex justify-center gap-[-4rem]">{MemoizedPlayerHand}</div>
-            <UICard className="w-24 h-32 flex flex-col items-center justify-center bg-secondary">
+            <UICard className="w-24 h-32 flex flex-col items-center justify-center bg-secondary rounded-xl">
                 <p className="font-bold">Pioche</p>
                 <p>{player.deck.length}</p>
             </UICard>
-            <UICard className="w-24 h-32 flex flex-col items-center justify-center bg-black/30 text-white">
+            <UICard className="w-24 h-32 flex flex-col items-center justify-center bg-black/30 text-white rounded-xl">
                 <p className="font-bold">Cimetière</p>
                 <p>{player.graveyard.length}</p>
             </UICard>

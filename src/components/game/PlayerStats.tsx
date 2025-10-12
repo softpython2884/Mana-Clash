@@ -19,7 +19,7 @@ export default function PlayerStats({ hp, mana, maxMana, isOpponent = false, isT
     <div
       onClick={onClick}
       className={cn(
-        "relative flex gap-4 items-center p-2 rounded-lg bg-card/50 backdrop-blur-sm transition-all",
+        "relative flex gap-4 items-center p-2 rounded-xl bg-card/50 backdrop-blur-sm transition-all shadow-lg",
         isOpponent ? 'flex-row-reverse' : '',
         isTargetable && 'cursor-pointer ring-2 ring-yellow-400',
         isTargeted && 'ring-2 ring-red-500'
@@ -34,7 +34,7 @@ export default function PlayerStats({ hp, mana, maxMana, isOpponent = false, isT
         <span>{mana} / {maxMana}</span>
       </div>
        {isTargeted && (
-        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-xl">
             <X className="w-16 h-16 text-red-500" />
         </div>
       )}
