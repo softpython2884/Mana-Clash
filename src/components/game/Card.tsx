@@ -12,7 +12,7 @@ interface GameCardProps {
 }
 
 export default function GameCard({ card, isPlayable = false, onClick, inHand = false }: GameCardProps) {
-  const { name, manaCost, description, attack, defense, type, tapped, isAttacking, criticalHitChance } = card;
+  const { name, manaCost, description, attack, defense, type, tapped, isAttacking, canAttack, criticalHitChance } = card;
 
   return (
     <div
@@ -27,7 +27,8 @@ export default function GameCard({ card, isPlayable = false, onClick, inHand = f
       <Card
         className={cn(
           'w-[150px] h-[210px] md:w-[180px] md:h-[252px] flex flex-col overflow-hidden select-none bg-card-foreground/5 dark:bg-card-foreground/10 backdrop-blur-sm',
-          isPlayable && 'cursor-pointer ring-4 ring-accent ring-offset-2 ring-offset-background shadow-lg shadow-accent/50 animate-pulse',
+          isPlayable && 'cursor-pointer ring-4 ring-primary ring-offset-2 ring-offset-background shadow-lg shadow-primary/50',
+          canAttack && !tapped && 'cursor-pointer ring-4 ring-orange-500 ring-offset-2 ring-offset-background shadow-lg shadow-orange-500/50 animate-pulse',
           onClick && "cursor-pointer"
         )}
       >
@@ -48,19 +49,19 @@ export default function GameCard({ card, isPlayable = false, onClick, inHand = f
         <CardFooter className="p-2 flex-shrink-0 min-h-[70px] flex flex-col items-start bg-secondary/30">
           {type === 'Creature' && (
             <div className="flex justify-around items-center w-full mt-auto pt-1 text-sm font-bold">
-              <div className="flex items-center gap-1 text-[#EF4444]" title="Dégâts">
+              <div className="flex items-center gap-1 text-[hsl(var(--hp))]" title="Dégâts">
                 <Swords size={14} />
                 <span>{attack}</span>
               </div>
-              <div className="flex items-center gap-1 text-[#22C55E]" title="Vie">
+              <div className="flex items-center gap-1 text-[hsl(var(--buff))]" title="Vie">
                 <Heart size={14} />
                 <span>{defense}</span>
               </div>
-              <div className="flex items-center gap-1 text-[#3B82F6]" title="Résistance">
+              <div className="flex items-center gap-1 text-blue-400" title="Résistance">
                 <Shield size={14} />
                 <span>{defense}</span>
               </div>
-              <div className="flex items-center gap-1 text-[#FACC15]" title="Chance de coup critique">
+              <div className="flex items-center gap-1 text-[hsl(var(--debuff))]" title="Chance de coup critique">
                 <Zap size={14} />
                 <span>{criticalHitChance}%</span>
               </div>

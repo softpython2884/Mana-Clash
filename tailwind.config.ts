@@ -64,6 +64,18 @@ export default {
           border: 'hsl(var(--sidebar-border))',
           ring: 'hsl(var(--sidebar-ring))',
         },
+        mana: 'hsl(var(--mana))',
+        hp: 'hsl(var(--hp))',
+        buff: 'hsl(var(--buff))',
+        debuff: 'hsl(var(--debuff))',
+        'attack-ready': 'hsl(var(--attack-ready))',
+        biome: {
+          forest: 'hsl(var(--biome-forest))',
+          desert: 'hsl(var(--biome-desert))',
+          ice: 'hsl(var(--biome-ice))',
+          volcano: 'hsl(var(--biome-volcano))',
+          sanctuary: 'hsl(var(--biome-sanctuary))',
+        }
       },
       borderRadius: {
         lg: 'var(--radius)',
