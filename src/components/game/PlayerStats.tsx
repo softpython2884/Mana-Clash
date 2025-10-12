@@ -14,11 +14,11 @@ interface PlayerStatsProps {
 export default function PlayerStats({ hp, mana, maxMana, isOpponent = false }: PlayerStatsProps) {
   return (
     <div className={cn("flex gap-4 items-center p-2 rounded-lg bg-card/50 backdrop-blur-sm", isOpponent ? 'flex-row-reverse' : '')}>
-      <div className="flex items-center gap-2 text-lg font-bold text-red-500">
+      <div className="flex items-center gap-2 text-lg font-bold text-[hsl(var(--hp))]">
         <Heart className="w-6 h-6 fill-current" />
         <span>{hp}</span>
       </div>
-      <div className="flex items-center gap-2 text-lg font-bold text-blue-500">
+      <div className="flex items-center gap-2 text-lg font-bold text-[hsl(var(--mana))]">
         <ManaIcon className="w-6 h-6" />
         <span>{mana} / {maxMana}</span>
       </div>

@@ -34,7 +34,7 @@ export default function GameCard({ card, isPlayable = false, onClick, inHand = f
         <CardHeader className="p-2 flex-shrink-0">
           <CardTitle className="flex justify-between items-center text-sm md:text-base font-headline truncate">
             <span className="truncate mr-2 text-card-foreground">{name}</span>
-            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-xs font-bold shrink-0">
+            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-[hsl(var(--mana))] text-white text-xs font-bold shrink-0">
               {manaCost}
             </div>
           </CardTitle>
@@ -48,19 +48,19 @@ export default function GameCard({ card, isPlayable = false, onClick, inHand = f
         <CardFooter className="p-2 flex-shrink-0 min-h-[70px] flex flex-col items-start bg-secondary/30">
           {type === 'Creature' && (
             <div className="flex justify-around items-center w-full mt-auto pt-1 text-sm font-bold">
-              <div className="flex items-center gap-1 text-red-600" title="Dégâts">
+              <div className="flex items-center gap-1 text-[#EF4444]" title="Dégâts">
                 <Swords size={14} />
                 <span>{attack}</span>
               </div>
-              <div className="flex items-center gap-1 text-green-600" title="Vie">
+              <div className="flex items-center gap-1 text-[#22C55E]" title="Vie">
                 <Heart size={14} />
                 <span>{defense}</span>
               </div>
-              <div className="flex items-center gap-1 text-blue-700" title="Résistance">
+              <div className="flex items-center gap-1 text-[#3B82F6]" title="Résistance">
                 <Shield size={14} />
                 <span>{defense}</span>
               </div>
-              <div className="flex items-center gap-1 text-yellow-500" title="Chance de coup critique">
+              <div className="flex items-center gap-1 text-[#FACC15]" title="Chance de coup critique">
                 <Zap size={14} />
                 <span>{criticalHitChance}%</span>
               </div>
