@@ -44,6 +44,7 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
   createCard('elemental_water', 'Élémentaire d\'Eau', 'Creature', 3, "Vague déferlante.", { attack: 2, health: 4, armor: 1, criticalHitChance: 5, preferredBiome: 'Ice', rarity: 'Rare', element: 'Water' }),
   createCard('elemental_earth', 'Élémentaire de Terre', 'Creature', 3, "Mur de pierre vivant.", { attack: 1, health: 5, armor: 2, criticalHitChance: 0, preferredBiome: 'Forest', rarity: 'Rare', element: 'Earth' }),
   createCard('fallen_shaman', 'Chaman Déchu', 'Creature', 2, "Compétence: Sacrifiez cette créature pour soigner un allié de 75% de ses PV restants.", { attack: 1, health: 3, armor: 0, skill: { type: 'sacrifice', target: 'friendly_creature', used: false, cooldown: 0 }, rarity: 'Rare', element: 'Shadow' }),
+  createCard('knowledge_priest', 'Prêtre du Savoir', 'Creature', 2, 'Compétence: Piochez une carte.', { attack: 1, health: 2, armor: 0, skill: { type: 'draw', used: false, cooldown: 3 }, rarity: 'Rare', element: 'Neutral' }),
 
 
   // Creatures - Epic
@@ -69,6 +70,10 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
   createCard('berserk_rage', "Rage du Berserker", 'Spell', 1, "Donne +3 en attaque à une créature pour 1 tour.", { skill: { type: 'buff_attack', value: 3, duration: 1, target: 'friendly_creature', used: false }}),
   createCard('stoneskin', "Peau de pierre", 'Spell', 2, "Donne +4 en armure à une créature pour 2 tours.", { skill: { type: 'buff_armor', value: 4, duration: 2, target: 'friendly_creature', used: false }}),
   createCard('lightning_bolt', "Foudre", 'Spell', 3, "Inflige 6 points de dégâts à une créature ciblée.", { skill: { type: 'damage', value: 6, target: 'opponent_creature', used: false }}),
+  createCard('frostbolt', "Éclair de Givre", 'Spell', 1, "Inflige 2 points de dégâts à une créature.", { skill: { type: 'damage', value: 2, target: 'opponent_creature', used: false }}),
+  createCard('shadow_bolt', "Trait de l'Ombre", 'Spell', 2, "Inflige 3 points de dégâts à une créature et vous soigne de 2 PV.", { skill: { type: 'damage_and_heal', value: 3, heal: 2, target: 'opponent_creature', used: false }}),
+  createCard('healing_light', "Lumière Guérisseuse", 'Spell', 2, "Soigne 5 PV à une créature.", { skill: { type: 'heal', value: 5, target: 'any_creature', used: false }}),
+  createCard('giant_growth', "Croissance Gigantesque", 'Spell', 3, "Donne +3/+3 à une créature pour 1 tour.", { skill: { type: 'buff_attack_and_armor', attack: 3, armor: 3, duration: 1, target: 'friendly_creature', used: false }}),
 
 
   // Potions
@@ -77,6 +82,7 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
 
   // Enchantments
   createCard('strength_enchantment', 'Enchantement de Force', 'Enchantment', 3, "Donne +1 en attaque à une créature de façon permanente.", { skill: { type: 'buff_attack', value: 1, duration: 99, target: 'friendly_creature', used: false }}),
+  createCard('kings_blessing', "Bénédiction des Rois", 'Enchantment', 4, "Donne +2/+2 à une créature de façon permanente.", { skill: { type: 'buff_attack_and_armor', attack: 2, armor: 2, duration: 99, target: 'friendly_creature', used: false }}),
 
   // Artifacts
   createCard('defense_totem', 'Totem de Défense', 'Artifact', 4, "Donne +1 d'armure à toutes vos créatures alliées. Dure 3 tours.", { skill: { type: 'global_buff_armor', value: 1, duration: 3, used: false }, duration: 3 }),
@@ -113,37 +119,41 @@ export const createDeck = (): Card[] => {
   };
 
   // Player/Opponent Deck Composition
-  addCards('goblin', 3);
-  addCards('elf', 3);
-  addCards('elemental_fire', 2);
-  addCards('elemental_water', 2);
-  addCards('elemental_earth', 3);
+  addCards('goblin', 2);
+  addCards('elf', 2);
+  addCards('elemental_fire', 1);
+  addCards('elemental_water', 1);
+  addCards('elemental_earth', 2);
 
-  addCards('knight', 2);
-  addCards('cleric', 2);
-  addCards('sage', 2);
+  addCards('knight', 1);
+  addCards('cleric', 1);
+  addCards('sage', 1);
   addCards('vampire', 1);
-  addCards('fallen_shaman', 2);
+  addCards('fallen_shaman', 1);
+  addCards('knowledge_priest', 2);
   
   addCards('golem', 1);
   addCards('griffon', 1);
-  addCards('minotaur', 1);
-  addCards('dragon', 1);
-
+  
   addCards('hydra', 1);
-  addCards('phoenix', 1);
   
   addCards('health_potion', 1);
   addCards('mana_potion', 1);
-  addCards('berserk_rage', 2);
+  addCards('berserk_rage', 1);
   addCards('stoneskin', 1);
   addCards('lightning_bolt', 1);
+  addCards('frostbolt', 2);
+  addCards('shadow_bolt', 1);
+  addCards('healing_light', 1);
+  addCards('giant_growth', 1);
+
   addCards('strength_enchantment', 1);
+  addCards('kings_blessing', 1);
   addCards('defense_totem', 1);
   
-  addCards('forest_land', 2);
-  addCards('mountain_land', 2);
-  addCards('swamp_land', 2);
+  addCards('forest_land', 3);
+  addCards('mountain_land', 3);
+  addCards('swamp_land', 3);
 
   addCards('forest_biome', 1);
   addCards('ice_biome', 1);
@@ -157,7 +167,3 @@ export const createDeck = (): Card[] => {
 
   return deck.slice(0, 40); // 40 card deck
 };
-
-    
-
-    

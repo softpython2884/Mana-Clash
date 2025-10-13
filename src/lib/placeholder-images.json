@@ -103,6 +103,12 @@
       "imageHint": "shaman skull"
     },
     {
+      "id": "knowledge_priest",
+      "description": "A priest of knowledge holding a book.",
+      "imageUrl": "https://picsum.photos/seed/knowledge_priest/300/400",
+      "imageHint": "priest book"
+    },
+    {
       "id": "berlin_wall",
       "description": "The Berlin Wall, made of concrete.",
       "imageUrl": "https://picsum.photos/seed/berlin_wall/300/400",
@@ -161,6 +167,36 @@
       "description": "A bolt of lightning.",
       "imageUrl": "https://picsum.photos/seed/lightning_bolt/300/400",
       "imageHint": "lightning bolt"
+    },
+    {
+      "id": "frostbolt",
+      "description": "A shard of ice.",
+      "imageUrl": "https://picsum.photos/seed/frostbolt/300/400",
+      "imageHint": "ice shard"
+    },
+    {
+      "id": "shadow_bolt",
+      "description": "A bolt of dark energy.",
+      "imageUrl": "https://picsum.photos/seed/shadow_bolt/300/400",
+      "imageHint": "dark energy"
+    },
+    {
+      "id": "healing_light",
+      "description": "A ray of healing light.",
+      "imageUrl": "https://picsum.photos/seed/healing_light/300/400",
+      "imageHint": "healing light"
+    },
+    {
+      "id": "giant_growth",
+      "description": "A creature growing to a giant size.",
+      "imageUrl": "https://picsum.photos/seed/giant_growth/300/400",
+      "imageHint": "giant growth"
+    },
+    {
+      "id": "kings_blessing",
+      "description": "A king's blessing.",
+      "imageUrl": "https://picsum.photos/seed/kings_blessing/300/400",
+      "imageHint": "king blessing"
     },
     {
       "id": "artifact",

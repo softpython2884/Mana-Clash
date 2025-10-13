@@ -12,6 +12,7 @@ export type SkillType =
   | 'draw' 
   | 'buff_attack' 
   | 'buff_armor' 
+  | 'buff_attack_and_armor'
   | 'global_buff_armor'
   | 'magic_shield'
   | 'counter_spell'
@@ -20,6 +21,7 @@ export type SkillType =
   | 'stealth'
   | 'summon'
   | 'damage'
+  | 'damage_and_heal'
   | 'sacrifice';
 
 export type SkillTarget = 'self' | 'friendly_creature' | 'any_creature' | 'player' | 'opponent_creature';
@@ -31,6 +33,9 @@ export interface CardSkill {
   type: SkillType;
   used: boolean;
   value?: number; // e.g., amount to heal or damage
+  heal?: number; // for damage_and_heal
+  attack?: number; // for buff_attack_and_armor
+  armor?: number; // for buff_attack_and_armor
   duration?: number; // for buffs
   target?: SkillTarget;
   cooldown?: number;

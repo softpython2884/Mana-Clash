@@ -217,8 +217,14 @@ const opponentAI = (state: GameState): GameState => {
 
   // Function to apply an action and update the temporary state
   const applyAction = (action: GameAction): boolean => {
-    const newState = gameReducer({ ...tempState, opponent, player, log }, action);
-    if (newState.log.length > log.length) { // Check if the action was successful
+    // We need to create a temporary state for the reducer to work on
+    const tempReducerState = { ...tempState, opponent, player, log, activePlayer: 'opponent' as const };
+    const newState = gameReducer(tempReducerState, action);
+
+    // Check if the action resulted in a change (e.g., a log entry was added, or state changed)
+    const wasSuccessful = newState.log.length > log.length || JSON.stringify(newState.opponent) !== JSON.stringify(opponent) || JSON.stringify(newState.player) !== JSON.stringify(player);
+    
+    if (wasSuccessful) {
         opponent = newState.opponent;
         player = newState.player;
         log = newState.log;
@@ -237,28 +243,38 @@ const opponentAI = (state: GameState): GameState => {
     }
   }
 
-  // 2. Survival & Healing
+  // 2. Survival & Healing (HIGHEST PRIORITY)
   if (opponent.hp <= 10) {
+    // Use health potion from hand
     const healthPotion = opponent.hand.find(c => c.id.startsWith('health_potion') && c.manaCost <= opponent.mana);
     if (healthPotion) {
-      applyAction({ type: 'PLAY_CARD', cardId: healthPotion.id });
+      if(applyAction({ type: 'PLAY_CARD', cardId: healthPotion.id })) {
+         // Potion used, re-evaluate state
+      }
     }
-  }
+    
+    // Use healing light from hand
+    const healingLight = opponent.hand.find(c => c.id.startsWith('healing_light') && c.manaCost <= opponent.mana);
+    const mostDamagedCreature = [...opponent.battlefield].filter(c => c.type === 'Creature' && c.health < c.initialHealth).sort((a,b) => (a.health/a.initialHealth) - (b.health/b.initialHealth))[0];
+    if(healingLight && mostDamagedCreature) {
+        if(applyAction({ type: 'PLAY_CARD', cardId: healingLight.id })) {
+            applyAction({ type: 'CAST_SPELL_ON_TARGET', targetId: mostDamagedCreature.id });
+        }
+    }
 
-  // Use Cleric to heal the most damaged ally
-  const clerics = opponent.battlefield.filter(c => c.id.startsWith('cleric') && c.skill && !c.skill.onCooldown && !c.tapped && !c.summoningSickness);
-  const damagedAllies = opponent.battlefield.filter(c => c.type === 'Creature' && c.health < c.initialHealth);
-  if (clerics.length > 0 && damagedAllies.length > 0) {
-    const cleric = clerics[0];
-    const target = damagedAllies.sort((a,b) => (a.health / a.initialHealth) - (b.health / b.initialHealth))[0]; // heal the most damaged
-    applyAction({ type: 'ACTIVATE_SKILL', cardId: cleric.id, targetId: target.id });
+    // Use Cleric to heal the most damaged ally
+    const clerics = opponent.battlefield.filter(c => c.id.startsWith('cleric') && c.skill && !c.skill.onCooldown && !c.tapped && !c.summoningSickness);
+    if (clerics.length > 0 && mostDamagedCreature) {
+      const cleric = clerics[0];
+      applyAction({ type: 'ACTIVATE_SKILL', cardId: cleric.id, targetId: mostDamagedCreature.id });
+    }
   }
 
   // 3. Use Mana Potion if it allows playing a better card
   const manaPotion = opponent.hand.find(c => c.id.startsWith('mana_potion') && c.manaCost <= opponent.mana);
   if (manaPotion) {
     const potentialMana = opponent.mana - manaPotion.manaCost + 2;
-    const powerfulCard = opponent.hand.find(c => c.manaCost > opponent.mana && c.manaCost <= potentialMana);
+    const powerfulCard = opponent.hand.find(c => c.type === 'Creature' && c.manaCost > opponent.mana && c.manaCost <= potentialMana);
     if (powerfulCard) {
       applyAction({ type: 'PLAY_CARD', cardId: manaPotion.id });
     }
@@ -266,24 +282,26 @@ const opponentAI = (state: GameState): GameState => {
 
   // 4. Use spells and skills strategically
   // Offensive spells
-  const lightningBolt = opponent.hand.find(c => c.id.startsWith('lightning_bolt') && c.manaCost <= opponent.mana);
-  if (lightningBolt) {
-    const killableTargets = player.battlefield.filter(t => t.type === 'Creature' && (t.health || 0) <= (lightningBolt.skill?.value || 0));
-    if (killableTargets.length > 0) {
-      const bestTarget = killableTargets.sort((a, b) => (b.attack || 0) - (a.attack || 0))[0];
-      applyAction({ type: 'PLAY_CARD', cardId: lightningBolt.id });
-      applyAction({ type: 'CAST_SPELL_ON_TARGET', targetId: bestTarget.id });
-    }
+  const damageSpells = opponent.hand.filter(c => c.type === 'Spell' && (c.skill?.type === 'damage' || c.skill?.type === 'damage_and_heal') && c.manaCost <= opponent.mana);
+  for (const spell of damageSpells) {
+      const killableTargets = player.battlefield.filter(t => t.type === 'Creature' && (t.health || 0) <= (spell.skill?.value || 0));
+      if (killableTargets.length > 0) {
+          const bestTarget = killableTargets.sort((a, b) => (b.attack || 0) - (a.attack || 0))[0];
+          if(applyAction({ type: 'PLAY_CARD', cardId: spell.id })) {
+             applyAction({ type: 'CAST_SPELL_ON_TARGET', targetId: bestTarget.id });
+          }
+      }
   }
   
   // Buff spells before combat
-  const berserkRage = opponent.hand.find(c => c.id.startsWith('berserk_rage') && c.manaCost <= opponent.mana);
-  if (berserkRage) {
+  const buffSpells = opponent.hand.filter(c => c.type === 'Spell' && (c.skill?.type === 'buff_attack' || c.skill?.type === 'buff_attack_and_armor' || c.skill?.type === 'buff_armor') && c.manaCost <= opponent.mana);
+  for (const spell of buffSpells) {
       const attackers = opponent.battlefield.filter(c => c.type === 'Creature' && !c.tapped && !c.summoningSickness);
       if (attackers.length > 0) {
           const bestTarget = attackers.sort((a,b) => (b.attack || 0) - (a.attack || 0))[0];
-          applyAction({ type: 'PLAY_CARD', cardId: berserkRage.id });
-          applyAction({ type: 'CAST_SPELL_ON_TARGET', targetId: bestTarget.id });
+           if(applyAction({ type: 'PLAY_CARD', cardId: spell.id })) {
+               applyAction({ type: 'CAST_SPELL_ON_TARGET', targetId: bestTarget.id });
+           }
       }
   }
 
@@ -307,19 +325,19 @@ const opponentAI = (state: GameState): GameState => {
       }
   }
 
-  // 5. Play creatures to establish board presence
-  let playedCreature = true;
-  while(playedCreature) {
-    playedCreature = false;
+  // 5. Play creatures/artifacts to establish board presence
+  let playedCard = true;
+  while(playedCard) {
+    playedCard = false;
     if (opponent.battlefield.length >= MAX_BATTLEFIELD_SIZE) break;
 
-    const playableCreatures = opponent.hand
-      .filter(c => c.type === 'Creature' && c.manaCost <= opponent.mana)
-      .sort((a, b) => b.manaCost - a.manaCost); // Prioritize more expensive creatures now
+    const playableCards = opponent.hand
+      .filter(c => (c.type === 'Creature' || c.type === 'Artifact') && c.manaCost <= opponent.mana)
+      .sort((a, b) => b.manaCost - a.manaCost); 
 
-    if (playableCreatures.length > 0) {
-      if(applyAction({ type: 'PLAY_CARD', cardId: playableCreatures[0].id })) {
-        playedCreature = true;
+    if (playableCards.length > 0) {
+      if(applyAction({ type: 'PLAY_CARD', cardId: playableCards[0].id })) {
+        playedCard = true;
       }
     }
   }
@@ -703,7 +721,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'ACTIVATE_SKILL': {
         if (stateWithClearedFlags.phase !== 'main') return stateWithClearedFlags;
         const activePlayerKey = stateWithClearedFlags.activePlayer;
-        const card = stateWithClearedFlags[activePlayerKey].battlefield.find((c: Card) => c.id === action.cardId);
+        const activePlayerObject = stateWithClearedFlags[activePlayerKey];
+        const card = activePlayerObject.battlefield.find((c: Card) => c.id === action.cardId);
 
         if (!card || !card.skill || card.skill.used || card.summoningSickness || card.tapped || card.skill.onCooldown) return stateWithClearedFlags;
         
@@ -718,13 +737,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
                     selectedCardId: action.cardId // Keep the caster selected
                 };
             } else { // AI targeting logic comes from opponentAI, which calls CAST_SPELL_ON_TARGET
-                if (!action.targetId) return stateWithClearedFlags; 
-                return gameReducer(stateWithClearedFlags, { type: 'CAST_SPELL_ON_TARGET', targetId: action.targetId });
+                if (!action.targetId) return stateWithClearedFlags; // Should not happen if AI is coded correctly
+                const tempState = {...stateWithClearedFlags, spellBeingCast: card};
+                return gameReducer(tempState, { type: 'CAST_SPELL_ON_TARGET', targetId: action.targetId });
             }
         }
 
         // --- Logic for skills that don't need a target (or target self/player) ---
-        let player = { ...stateWithClearedFlags[activePlayerKey] };
+        let player = { ...activePlayerObject };
         let log = [...stateWithClearedFlags.log];
         const cardIndex = player.battlefield.findIndex((c: Card) => c.id === action.cardId);
         let cardToUpdate = { ...player.battlefield[cardIndex] };
@@ -978,6 +998,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       log.push({ type: 'spell', turn, message: `${ownerName} utilise ${spellOrSkillCaster.name} sur ${target.name}.` });
     
       let targetCard = { ...target };
+      let activePlayerObject = activePlayerKey === 'player' ? player : opponent;
     
       // Apply skill/spell effect
       switch (spellOrSkillCaster.skill?.type) {
@@ -985,6 +1006,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           targetCard.health = (targetCard.health || 0) - (spellOrSkillCaster.skill.value || 0);
           log.push({ type: 'damage', turn, message: `${targetCard.name} subit ${spellOrSkillCaster.skill.value} dégâts. PV restants: ${targetCard.health}` });
           break;
+        case 'damage_and_heal':
+            targetCard.health = (targetCard.health || 0) - (spellOrSkillCaster.skill.value || 0);
+            activePlayerObject.hp = Math.min(20, activePlayerObject.hp + (spellOrSkillCaster.skill.heal || 0));
+            log.push({ type: 'damage', turn, message: `${targetCard.name} subit ${spellOrSkillCaster.skill.value} dégâts. PV restants: ${targetCard.health}` });
+            log.push({ type: 'heal', turn, message: `${ownerName} se soigne de ${spellOrSkillCaster.skill.heal} PV.` });
+            break;
         case 'buff_attack':
           targetCard.buffs.push({ type: 'attack', value: spellOrSkillCaster.skill.value || 0, duration: spellOrSkillCaster.skill.duration || Infinity, source: 'spell' });
           log.push({ type: 'buff', turn, message: `${targetCard.name} gagne +${spellOrSkillCaster.skill.value} en attaque.` });
@@ -993,6 +1020,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           targetCard.buffs.push({ type: 'armor', value: spellOrSkillCaster.skill.value || 0, duration: spellOrSkillCaster.skill.duration || Infinity, source: 'spell' });
           log.push({ type: 'buff', turn, message: `${targetCard.name} gagne +${spellOrSkillCaster.skill.value} en armure.` });
           break;
+        case 'buff_attack_and_armor':
+            targetCard.buffs.push({ type: 'attack', value: spellOrSkillCaster.skill.attack || 0, duration: spellOrSkillCaster.skill.duration || Infinity, source: 'spell' });
+            targetCard.buffs.push({ type: 'armor', value: spellOrSkillCaster.skill.armor || 0, duration: spellOrSkillCaster.skill.duration || Infinity, source: 'spell' });
+            log.push({ type: 'buff', turn, message: `${targetCard.name} gagne +${spellOrSkillCaster.skill.attack} en attaque et +${spellOrSkillCaster.skill.armor} en armure.` });
+            break;
         case 'heal':
           targetCard.health = Math.min(targetCard.initialHealth || 0, (targetCard.health || 0) + (spellOrSkillCaster.skill.value || 0));
           log.push({ type: 'heal', turn, message: `${spellOrSkillCaster.name} soigne ${targetCard.name} de ${spellOrSkillCaster.skill.value} PV.` });
