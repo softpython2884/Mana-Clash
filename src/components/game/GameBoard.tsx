@@ -116,7 +116,7 @@ export default function GameBoard() {
   }
   
   const handleRedraw = () => {
-    if (activePlayer !== 'player' || turn !== 1 || player.hasRedrawn) return;
+    if (activePlayer !== 'player' || phase !== 'main' || player.hand.length === 0) return;
     dispatch({ type: 'REDRAW_HAND' });
   }
 
@@ -146,7 +146,7 @@ export default function GameBoard() {
       <GameCard
           key={card.id}
           card={card}
-          isAttacking={card.id === selectedAttackerId}
+          isAttacking={card.id === selectedAttackerId || attackingCards?.attackerId === card.id}
           onClick={() => handleSelectCardOnBattlefield(card.id)}
           onSkillClick={() => handleActivateSkill(card.id)}
           showSkill={card.id === selectedCardId && !!card.skill && !card.skill.onCooldown && !card.summoningSickness && !card.tapped}
@@ -215,7 +215,7 @@ export default function GameBoard() {
 
   const canAttack = player.battlefield.some(c => c.canAttack && !c.tapped);
   const canMeditate = player.graveyard.length > 0;
-  const canRedraw = turn === 1 && !player.hasRedrawn;
+  const canRedraw = player.hand.length > 0;
 
   const getPhaseDescription = () => {
     switch(phase) {
@@ -274,12 +274,10 @@ export default function GameBoard() {
                   <p className="font-headline text-lg sm:text-xl">{getPhaseDescription()}</p>
                   {phase === 'main' && activePlayer === 'player' && (
                     <div className="flex gap-2">
-                        {turn === 1 && (
                         <Button onClick={handleRedraw} disabled={!canRedraw} variant="secondary" className="w-28 sm:w-36">
-                            Mulligan
+                            Changer Main
                             <Replace className="ml-2"/>
                         </Button>
-                        )}
                         <Button onClick={handlePhaseAction} disabled={winner !== undefined || !canAttack} className="w-28 sm:w-36">
                             Combat
                             <Swords className="ml-2"/>
@@ -342,7 +340,7 @@ export default function GameBoard() {
           </div>
         </div>
       </div>
-      <div className="w-80 hidden lg:block">
+      <div className="w-80 hidden lg:block hide-scrollbar">
         <GameLog log={log} />
       </div>
        <Sheet>

@@ -1,6 +1,6 @@
 'use client';
 import type { GameState, Card, Player, GamePhase, Buff, LogEntry } from './types';
-import { createDeck, allCards } from '@/data/initial-cards';
+import { createDeck } from '@/data/initial-cards';
 
 const MAX_HAND_SIZE = 5;
 const MAX_BATTLEFIELD_SIZE = 6;
@@ -99,10 +99,21 @@ const applyBiomeBuffs = (battlefield: Card[], biome: Card | null): Card[] => {
 
 
 export const getInitialState = (): GameState => {
-  const defaultBiomeCard = allCards.find(c => c.id === 'forest_biome');
-  if (!defaultBiomeCard) {
-      throw new Error("Default biome card not found");
-  }
+  const defaultBiomeCard: Card = {
+    id: 'forest_biome-initial',
+    name: 'Forêt',
+    type: 'Biome',
+    manaCost: 0,
+    description: 'Le biome de départ.',
+    image: { id: 'forest_biome', description: 'A forest biome card.', imageUrl: 'https://picsum.photos/seed/forest_biome/300/400', imageHint: 'forest biome' },
+    biome: 'Forest',
+    tapped: false,
+    isAttacking: false,
+    canAttack: false,
+    summoningSickness: false,
+    buffs: []
+  };
+
   const initialState: GameState = {
     gameId: 0,
     turn: 1,
@@ -112,7 +123,7 @@ export const getInitialState = (): GameState => {
     opponent: createInitialPlayer('opponent'),
     log: [],
     isThinking: false,
-    activeBiome: { ...defaultBiomeCard, tapped: false, isAttacking: false, canAttack: false, summoningSickness: false, initialHealth: defaultBiomeCard.health, buffs: [] },
+    activeBiome: defaultBiomeCard,
     winner: undefined,
     selectedCardId: null,
     selectedAttackerId: null,
@@ -131,8 +142,21 @@ const shuffleAndDeal = (state: GameState): Omit<GameState, 'gameId'> => {
     player.deck = createDeck('player');
     opponent.deck = createDeck('opponent');
     
-    const defaultBiomeCard = allCards.find(c => c.id === 'forest_biome');
-    const activeBiome = defaultBiomeCard ? { ...defaultBiomeCard, tapped: false, isAttacking: false, canAttack: false, summoningSickness: false, initialHealth: defaultBiomeCard.health, buffs: []} : null;
+    const defaultBiomeCard: Card = {
+      id: 'forest_biome-initial',
+      name: 'Forêt',
+      type: 'Biome',
+      manaCost: 0,
+      description: 'Le biome de départ.',
+      image: { id: 'forest_biome', description: 'A forest biome card.', imageUrl: 'https://picsum.photos/seed/forest_biome/300/400', imageHint: 'forest biome' },
+      biome: 'Forest',
+      tapped: false,
+      isAttacking: false,
+      canAttack: false,
+      summoningSickness: false,
+      buffs: []
+    };
+    const activeBiome = defaultBiomeCard;
 
     player = drawCardsWithBiomeAffinity(player, 5, activeBiome).player;
     opponent = drawCardsWithBiomeAffinity(opponent, 5, activeBiome).player;
@@ -451,7 +475,7 @@ const resolvePlayerCombat = (state: GameState): GameState => {
     let finalLog = [...log];
     let finalPlayer = { ...player };
     let finalOpponent = { ...opponent };
-    let combatAnimation = { attackerId: attackerCard.id, defenderId: selectedDefenderId as string | 'opponent' };
+    newState.combatAnimation = { attackerId: attackerCard.id, defenderId: selectedDefenderId as string | 'opponent' };
 
     if (selectedDefenderId === 'opponent') {
         const combatResult = resolveDamage(attackerCard, finalOpponent, finalLog, turn, finalPlayer);
@@ -526,7 +550,6 @@ const resolvePlayerCombat = (state: GameState): GameState => {
       phase: winner ? 'game-over' : nextPhase,
       selectedAttackerId: null,
       selectedDefenderId: null,
-      combatAnimation,
     };
 }
 
@@ -580,7 +603,7 @@ const checkForCombos = (state: GameState): GameState => {
             activePlayerObject.battlefield = activePlayerObject.battlefield.filter(c => !idsToRemove.includes(c.id));
             activePlayerObject.graveyard.push(...componentsToFuse.map(c => ({ ...c, health: c.initialHealth, buffs: [] })));
 
-            const fusionResultTemplate = allCards.find(c => c.id === fusion.result);
+            const fusionResultTemplate = createDeck('player').find(c => c.id.startsWith(fusion.result));
             if (fusionResultTemplate) {
                 const newCard: Card = {
                     ...fusionResultTemplate,
@@ -1145,7 +1168,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const activePlayerKey = state.activePlayer;
       let player = { ...state[activePlayerKey] };
       
-      if (state.turn !== 1 || player.hasRedrawn) return state;
+      if (player.hand.length === 0) return state;
+
+      const handSizeBeforeRedraw = player.hand.length;
 
       // Shuffle hand back into deck
       player.deck.push(...player.hand);
@@ -1155,20 +1180,18 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         [player.deck[i], player.deck[j]] = [player.deck[j], player.deck[i]];
       }
 
-      // Draw 5 new cards
-      player = drawCardsWithBiomeAffinity(player, 5, state.activeBiome).player;
-      player.hasRedrawn = true;
+      // Draw the same number of cards
+      player = drawCardsWithBiomeAffinity(player, handSizeBeforeRedraw, state.activeBiome).player;
 
       const logMessage = activePlayerKey === 'player' 
-        ? { type: 'draw' as const, turn: state.turn, message: 'Joueur pioche une nouvelle main.' }
-        : { type: 'draw' as const, turn: state.turn, message: 'Adversaire pioche une nouvelle main.' };
-
+        ? { type: 'draw' as const, turn: state.turn, message: 'Joueur change sa main.' }
+        : { type: 'draw' as const, turn: state.turn, message: 'Adversaire change sa main.' };
 
       return {
         ...state,
         [activePlayerKey]: player,
-        phase: 'post_mulligan',
-        log: [...state.log, logMessage]
+        log: [...state.log, logMessage],
+        phase: 'main',
       };
     }
 

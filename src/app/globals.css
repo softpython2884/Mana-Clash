@@ -86,10 +86,10 @@
   body {
     @apply bg-background text-foreground;
   }
-  body::-webkit-scrollbar {
+  body::-webkit-scrollbar, .hide-scrollbar::-webkit-scrollbar {
     display: none;
   }
-  body {
+  body, .hide-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
