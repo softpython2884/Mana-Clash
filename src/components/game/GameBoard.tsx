@@ -124,10 +124,23 @@ export default function GameBoard() {
   const opponentHasCreatures = opponent.battlefield.filter(c => c.type === 'Creature').length > 0;
   const canTargetOpponentDirectly = phase === 'targeting' && selectedAttackerId && !opponentHasTaunt && !opponentHasCreatures;
 
+  const attackerCard = useMemo(() => {
+    if (!selectedAttackerId) return null;
+    return player.battlefield.find(c => c.id === selectedAttackerId) || null;
+  }, [selectedAttackerId, player.battlefield]);
+
 
   const MemoizedOpponentBattlefield = useMemo(() => opponent.battlefield.map((card) => {
     const isTargetableForAttack = phase === 'targeting' && selectedAttackerId && card.type === 'Creature' && (!opponentHasTaunt || card.taunt);
     const isTargetableForSpell = phase === 'spell_targeting' && card.type === 'Creature';
+    
+    let isLethal = false;
+    if (isTargetableForAttack && attackerCard) {
+        const totalAttack = (attackerCard.attack || 0) + (attackerCard.buffs?.filter(b => b.type === 'attack').reduce((acc, b) => acc + b.value, 0) || 0);
+        const totalArmor = (card.armor || 0) + (card.buffs?.filter(b => b.type === 'armor').reduce((acc, b) => acc + b.value, 0) || 0);
+        const damageAfterArmor = Math.max(0, totalAttack - totalArmor);
+        isLethal = damageAfterArmor >= (card.health || 0);
+    }
 
     return (
         <GameCard 
@@ -135,13 +148,14 @@ export default function GameBoard() {
           card={card} 
           isTargeted={card.id === selectedDefenderId}
           isTargetable={isTargetableForAttack || isTargetableForSpell}
+          isLethal={isLethal}
           onClick={() => {
             if (isTargetableForAttack) handleSelectDefender(card.id);
             if (isTargetableForSpell) handleSelectSpellTarget(card.id);
           }}
         />
     )
-  }), [opponent.battlefield, phase, selectedAttackerId, selectedDefenderId, opponentHasTaunt, spellBeingCast]);
+  }), [opponent.battlefield, phase, selectedAttackerId, selectedDefenderId, opponentHasTaunt, spellBeingCast, attackerCard]);
 
   if (!isClient) {
     // Basic loading skeleton

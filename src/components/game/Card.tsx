@@ -2,7 +2,7 @@
 import type { Card as CardType, BiomeType } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Swords, Shield, Heart, Zap, Mountain, Trees, Snowflake, Flame, Sun, ShieldQuestion, X, BrainCircuit, Sparkles, PlusCircle, Timer } from 'lucide-react';
+import { Swords, Shield, Heart, Zap, Mountain, Trees, Snowflake, Flame, Sun, ShieldQuestion, X, BrainCircuit, Sparkles, PlusCircle, Timer, Skull } from 'lucide-react';
 import { Badge } from '../ui/badge';
 
 interface GameCardProps {
@@ -15,6 +15,7 @@ interface GameCardProps {
   isAttacking?: boolean; // Card is selected to be an attacker
   isTargeted?: boolean;  // Card is selected as a defender target
   isTargetable?: boolean; // Card can be targeted by an attacker
+  isLethal?: boolean; // If the current targeted attack would be lethal
   showSkill?: boolean; // Show the skill icon
   isEntering?: boolean; // To animate card entry
 }
@@ -40,7 +41,7 @@ const biomeColor: Record<BiomeType, string> = {
 };
 
 
-export default function GameCard({ card, isPlayable = false, onClick, onSkillClick, inHand = false, isActiveBiome = false, isAttacking = false, isTargeted = false, isTargetable = false, showSkill = false, isEntering = false }: GameCardProps) {
+export default function GameCard({ card, isPlayable = false, onClick, onSkillClick, inHand = false, isActiveBiome = false, isAttacking = false, isTargeted = false, isTargetable = false, isLethal = false, showSkill = false, isEntering = false }: GameCardProps) {
   const { name, manaCost, description, attack, health, armor, type, tapped, canAttack, criticalHitChance, preferredBiome, biome, taunt, buffs, duration } = card;
 
   const Icon = preferredBiome ? biomeIcon[preferredBiome] : null;
@@ -99,7 +100,7 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
             {taunt && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-1 text-blue-400 font-bold text-xs bg-black/50 px-2 py-1 rounded-full"><ShieldQuestion size={12}/> PROVOCATION</div>}
             {isTargeted && (
               <div className="absolute inset-0 bg-red-800/60 flex items-center justify-center animate-pulse rounded-xl">
-                <X className="w-16 h-16 text-white" />
+                {isLethal ? <Skull className="w-16 h-16 text-white" /> : <X className="w-16 h-16 text-white" />}
               </div>
             )}
             <div className="absolute top-16 left-2 flex flex-col gap-1">
