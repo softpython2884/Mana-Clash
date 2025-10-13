@@ -36,6 +36,10 @@ const skillIcon: Record<string, React.ElementType> = {
     heal: PlusCircle,
     lifesteal: Heart,
     draw: Sparkles,
+    damage: Skull,
+    buff_attack: Swords,
+    buff_armor: Shield,
+    global_buff_armor: Shield,
 };
 
 

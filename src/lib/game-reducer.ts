@@ -836,34 +836,55 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'CAST_SPELL_ON_TARGET': {
-      if (stateWithClearedFeedback.phase !== 'spell_targeting' || !stateWithClearedFeedback.spellBeingCast || stateWithClearedFeedback.activePlayer !== 'player') return stateWithClearedFeedback;
-
+      if (stateWithClearedFeedback.phase !== 'spell_targeting' || !stateWithClearedFeedback.spellBeingCast) return stateWithClearedFeedback;
+    
       const { targetId } = action;
       const spellOrSkillCaster = stateWithClearedFeedback.spellBeingCast;
+      const activePlayerKey = stateWithClearedFeedback.activePlayer;
+    
       let player = { ...stateWithClearedFeedback.player };
       let opponent = { ...stateWithClearedFeedback.opponent };
       let log = [...stateWithClearedFeedback.log];
       const turn = stateWithClearedFeedback.turn;
-
+    
       let target: Card | undefined;
       let targetOwner: 'player' | 'opponent' | undefined;
-
+    
+      // Determine which battlefield to search for the target
       if (spellOrSkillCaster.skill?.target === 'opponent_creature') {
         target = opponent.battlefield.find(c => c.id === targetId);
         targetOwner = 'opponent';
       } else if (spellOrSkillCaster.skill?.target === 'friendly_creature' || spellOrSkillCaster.skill?.target === 'any_creature') {
-        target = player.battlefield.find(c => c.id === targetId);
-        targetOwner = 'player';
+        if (activePlayerKey === 'player') {
+            target = player.battlefield.find(c => c.id === targetId);
+            if (target) {
+                targetOwner = 'player';
+            } else if (spellOrSkillCaster.skill.target === 'any_creature') {
+                target = opponent.battlefield.find(c => c.id === targetId);
+                targetOwner = 'opponent';
+            }
+        } else { // activePlayer is opponent
+            target = opponent.battlefield.find(c => c.id === targetId);
+             if (target) {
+                targetOwner = 'opponent';
+            } else if (spellOrSkillCaster.skill.target === 'any_creature') {
+                target = player.battlefield.find(c => c.id === targetId);
+                targetOwner = 'player';
+            }
+        }
       }
-      
+    
       if (!target || !targetOwner) {
-        return { ...stateWithClearedFeedback, phase: 'main', spellBeingCast: null, selectedCardId: null }; // Invalid target
+        // If target is invalid, simply exit targeting mode without consuming the spell/skill.
+        return { ...stateWithClearedFeedback, phase: 'main', spellBeingCast: null, selectedCardId: null };
       }
-
-      log.push({ type: 'spell', turn, message: `Joueur utilise ${spellOrSkillCaster.name} sur ${target.name}.` });
-      
+    
+      const ownerName = activePlayerKey === 'player' ? 'Joueur' : 'Adversaire';
+      log.push({ type: 'spell', turn, message: `${ownerName} utilise ${spellOrSkillCaster.name} sur ${target.name}.` });
+    
       let targetCard = { ...target };
-
+    
+      // Apply skill/spell effect
       switch (spellOrSkillCaster.skill?.type) {
         case 'damage':
           targetCard.health = (targetCard.health || 0) - (spellOrSkillCaster.skill.value || 0);
@@ -874,35 +895,46 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           log.push({ type: 'buff', turn, message: `${targetCard.name} gagne +${spellOrSkillCaster.skill.value} en attaque.` });
           break;
         case 'buff_armor':
-           targetCard.buffs.push({ type: 'armor', value: spellOrSkillCaster.skill.value || 0, duration: spellOrSkillCaster.skill.duration || Infinity, source: 'spell' });
-           log.push({ type: 'buff', turn, message: `${targetCard.name} gagne +${spellOrSkillCaster.skill.value} en armure.` });
-           break;
+          targetCard.buffs.push({ type: 'armor', value: spellOrSkillCaster.skill.value || 0, duration: spellOrSkillCaster.skill.duration || Infinity, source: 'spell' });
+          log.push({ type: 'buff', turn, message: `${targetCard.name} gagne +${spellOrSkillCaster.skill.value} en armure.` });
+          break;
         case 'heal':
-           targetCard.health = Math.min(targetCard.initialHealth || 0, (targetCard.health || 0) + (spellOrSkillCaster.skill.value || 0));
-           log.push({ type: 'heal', turn, message: `${spellOrSkillCaster.name} soigne ${targetCard.name} de ${spellOrSkillCaster.skill.value} PV.` });
-           break;
+          targetCard.health = Math.min(targetCard.initialHealth || 0, (targetCard.health || 0) + (spellOrSkillCaster.skill.value || 0));
+          log.push({ type: 'heal', turn, message: `${spellOrSkillCaster.name} soigne ${targetCard.name} de ${spellOrSkillCaster.skill.value} PV.` });
+          break;
       }
-      
+    
+      // Update the target card on the correct battlefield
       if (targetOwner === 'player') {
         player.battlefield = player.battlefield.map(c => c.id === targetId ? targetCard : c);
       } else {
         opponent.battlefield = opponent.battlefield.map(c => c.id === targetId ? targetCard : c);
       }
-      
-      // If it was a card from hand, move it to graveyard
-      if(state.player.hand.find(c => c.id === spellOrSkillCaster.id) === undefined) { // skill from creature
-        const casterIndex = player.battlefield.findIndex(c => c.id === spellOrSkillCaster.id);
-        if(casterIndex > -1) {
-            let casterCard = {...player.battlefield[casterIndex]};
-            casterCard.tapped = true;
-            casterCard.skill = casterCard.skill ? {...casterCard.skill, used: true} : undefined;
-            casterCard.skillJustUsed = true;
-            player.battlefield[casterIndex] = casterCard;
+    
+      // Mark skill as used and tap the creature if it was a creature skill
+      const isFromCreature = stateWithClearedFeedback[activePlayerKey].battlefield.some(c => c.id === spellOrSkillCaster.id);
+      if (isFromCreature) {
+        const activePlayerBattlefield = activePlayerKey === 'player' ? player.battlefield : opponent.battlefield;
+        const casterIndex = activePlayerBattlefield.findIndex(c => c.id === spellOrSkillCaster.id);
+        if (casterIndex > -1) {
+          let casterCard = { ...activePlayerBattlefield[casterIndex] };
+          casterCard.tapped = true;
+          casterCard.skill = casterCard.skill ? { ...casterCard.skill, used: true } : undefined;
+          casterCard.skillJustUsed = true;
+          if (activePlayerKey === 'player') {
+              player.battlefield[casterIndex] = casterCard;
+          } else {
+              opponent.battlefield[casterIndex] = casterCard;
+          }
         }
-      } else { // spell from hand
-        player.graveyard = [...player.graveyard, spellOrSkillCaster];
+      } else { // It was a spell from hand, move to graveyard
+        if (activePlayerKey === 'player') {
+            player.graveyard = [...player.graveyard, spellOrSkillCaster];
+        } else {
+            opponent.graveyard = [...opponent.graveyard, spellOrSkillCaster];
+        }
       }
-
+    
       const updateField = (p: Player, owner: string): Player => {
         let graveyard = [...p.graveyard];
         const remainingCreatures = p.battlefield.filter(c => {
@@ -915,10 +947,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         });
         return { ...p, battlefield: remainingCreatures, graveyard };
       };
-      
+    
       opponent = updateField(opponent, "Adversaire");
       player = updateField(player, "Joueur");
-
+    
       return {
         ...stateWithClearedFeedback,
         opponent,
