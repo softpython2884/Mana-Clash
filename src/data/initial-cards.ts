@@ -3,12 +3,8 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 import type { Card, CardType, BiomeType } from '@/lib/types';
 
 const getImage = (id: string) => {
-  const img = PlaceHolderImages.find((p) => p.id === id);
-  // Temporarily disable image requirement
-  if (!img) {
-    return { id: 'placeholder', description: 'Placeholder', imageUrl: 'https://placehold.co/300x400', imageHint: 'placeholder' };
-  }
-  return img;
+  // Not using images for now
+  return { id: 'placeholder', description: 'Placeholder', imageUrl: 'https://placehold.co/300x400', imageHint: 'placeholder' };
 };
 
 const createCard = (
@@ -67,7 +63,6 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
   createCard('desert_warrior', 'Guerrier du Désert', 'Creature', 3, "Endurci par le soleil, il frappe rapidement.", { attack: 4, health: 2, armor: 1, preferredBiome: 'Desert', rarity: 'Rare', element: 'Fire' }),
   createCard('ice_guardian', 'Gardien de Glace', 'Creature', 4, "Une statue de glace animée qui protège les terres gelées.", { attack: 2, health: 5, armor: 3, preferredBiome: 'Ice', rarity: 'Rare', element: 'Water' }),
 
-
   // Creatures - Epic
   createCard('dragon', 'Jeune Dragon', 'Creature', 5, "Un souffle de feu dévastateur.", { attack: 5, health: 4, armor: 3, criticalHitChance: 20, preferredBiome: 'Volcano', rarity: 'Epic', element: 'Fire' }),
   createCard('golem', 'Golem de Pierre', 'Creature', 6, "Une masse de roche animée, lente mais résistante.", { attack: 3, health: 8, armor: 4, criticalHitChance: 0, preferredBiome: 'Mountain', taunt: true, rarity: 'Epic', element: 'Earth' }),
@@ -98,6 +93,9 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
   createCard('forest_land', 'Forêt', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),
   createCard('mountain_land', 'Montagne', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),
   createCard('swamp_land', 'Marais', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),
+  createCard('desert_land', 'Désert', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),
+  createCard('ice_land', 'Glace', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),
+  createCard('plains_land', 'Plaine', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),
 
   // Spells
   createCard('berserk_rage', "Rage du Berserker", 'Spell', 1, "Donne +3 en attaque à une créature pour 1 tour.", { skill: { type: 'buff_attack', value: 3, duration: 1, target: 'friendly_creature', used: false }}),
@@ -110,12 +108,24 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
 
 
   // Potions
-  createCard('health_potion', 'Potion de soin', 'Potion', 2, "Vous regagnez 5 points de vie."),
-  createCard('mana_potion', 'Potion de mana', 'Potion', 0, "Vous gagnez 2 points de mana pour ce tour."),
+  createCard('health_potion', 'Potion de Soin', 'Potion', 2, "Vous regagnez 5 points de vie."),
+  createCard('mana_potion', 'Potion de Mana', 'Potion', 0, "Vous gagnez 2 points de mana pour ce tour."),
+  createCard('strength_potion', 'Potion de Force', 'Potion', 1, "Donne +2 en attaque à une créature pour ce tour.", { skill: { type: 'buff_attack', value: 2, duration: 1, target: 'friendly_creature', used: false }}),
+  createCard('endurance_potion', 'Potion d’Endurance', 'Potion', 1, "Donne +2 en armure à une créature pour ce tour.", { skill: { type: 'buff_armor', value: 2, duration: 1, target: 'friendly_creature', used: false }}),
+  createCard('speed_potion', 'Potion de Vitesse', 'Potion', 1, "Piochez une carte.", { skill: { type: 'draw', used: false }}),
+  createCard('concentration_potion', 'Potion de Concentration', 'Potion', 2, "Vos sorts coûtent 1 de moins ce tour-ci."), // Needs specific reducer logic
+  createCard('shadow_potion', 'Potion d’Ombre', 'Potion', 3, "Détruit une créature avec 3 PV ou moins.", { skill: { type: 'damage', value: 99, target: 'opponent_creature', used: false }}), // Needs check
+  createCard('fire_potion', 'Potion de Feu', 'Potion', 2, "Inflige 2 dégâts à toutes les créatures adverses.", { skill: { type: 'damage', value: 2, target: 'opponent_creature', used: false }}), // Needs AoE logic
+  createCard('resurrection_potion', 'Potion de Résurrection', 'Potion', 4, "Ramène une créature aléatoire de votre cimetière sur le champ de bataille.", { skill: { type: 'resurrect', used: false }}),
 
   // Enchantments
   createCard('strength_enchantment', 'Enchantement de Force', 'Enchantment', 3, "Donne +1 en attaque à une créature de façon permanente.", { skill: { type: 'buff_attack', value: 1, duration: 99, target: 'friendly_creature', used: false }}),
   createCard('kings_blessing', "Bénédiction des Rois", 'Enchantment', 4, "Donne +2/+2 à une créature de façon permanente.", { skill: { type: 'buff_attack_and_armor', attack: 2, armor: 2, duration: 99, target: 'friendly_creature', used: false }}),
+  createCard('fire_aura', "Aura de Feu", 'Enchantment', 3, "+1 attaque à toutes vos créatures de type Feu.", { element: 'Fire' }), // Needs reducer logic
+  createCard('ice_shield', "Bouclier de Glace", 'Enchantment', 3, "+1 armure à toutes vos créatures de type Eau.", { element: 'Water' }), // Needs reducer logic
+  createCard('forest_heart', "Cœur de la Forêt", 'Enchantment', 3, "Vos créatures de type Terre gagnent +1 PV.", { element: 'Earth' }), // Needs reducer logic
+  createCard('divine_light', "Lumière Divine", 'Enchantment', 4, "Vos créatures de type Lumière se soignent de 1 PV à la fin de votre tour.", { element: 'Light' }), // Needs reducer logic
+  createCard('shadow_link', "Lien des Ombres", 'Enchantment', 4, "Vos créatures de type Ombre ont Vol de vie.", { element: 'Shadow' }), // Needs reducer logic
 
   // Artifacts
   createCard('defense_totem', 'Totem de Défense', 'Artifact', 4, "Donne +1 d'armure à toutes vos créatures alliées. Dure 3 tours.", { skill: { type: 'global_buff_armor', value: 1, duration: 3, used: false }, duration: 3 }),
@@ -216,9 +226,12 @@ export const createDeck = (): Card[] => {
   addCards('defense_totem', 1);
   
   // Lands & Biomes
-  addCards('forest_land', 4);
-  addCards('mountain_land', 4);
-  addCards('swamp_land', 4);
+  addCards('forest_land', 2);
+  addCards('mountain_land', 2);
+  addCards('swamp_land', 2);
+  addCards('desert_land', 1);
+  addCards('ice_land', 1);
+  addCards('plains_land', 2);
 
   addCards('forest_biome', 1);
   addCards('ice_biome', 1);
@@ -232,5 +245,3 @@ export const createDeck = (): Card[] => {
 
   return deck.slice(0, 70); // 70 card deck
 };
-
-    

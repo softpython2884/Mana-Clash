@@ -3,7 +3,7 @@ import type { ImagePlaceholder } from './placeholder-images';
 
 export type CardType = 'Creature' | 'Land' | 'Spell' | 'Artifact' | 'Biome' | 'Enchantment' | 'Potion' | 'SpecialSummon' | 'Trap' | 'Ritual';
 export type GamePhase = 'main' | 'combat' | 'targeting' | 'spell_targeting' | 'post_mulligan' | 'end' | 'game-over';
-export type BiomeType = 'Forest' | 'Mountain' | 'Swamp' | 'Desert' | 'Ice' | 'Volcano' | 'Sanctuary';
+export type BiomeType = 'Forest' | 'Mountain' | 'Swamp' | 'Desert' | 'Ice' | 'Volcano' | 'Sanctuary' | 'Plains';
 
 export type SkillType = 
   | 'taunt' 
@@ -22,6 +22,7 @@ export type SkillType =
   | 'summon'
   | 'damage'
   | 'damage_and_heal'
+  | 'resurrect'
   | 'sacrifice';
 
 export type SkillTarget = 'self' | 'friendly_creature' | 'any_creature' | 'player' | 'opponent_creature';
