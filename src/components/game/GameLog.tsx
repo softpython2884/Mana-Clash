@@ -55,13 +55,14 @@ export default function GameLog({ log }: GameLogProps) {
                 <CardTitle className="text-center font-headline text-lg">Journal de jeu</CardTitle>
             </CardHeader>
             <CardContent className="flex-grow overflow-hidden">
-                <ScrollArea className="h-full pr-4 hide-scrollbar">
+                <ScrollArea className="h-full pr-4">
                     <div className="flex flex-col gap-2">
                         {log.slice().reverse().map((entry, i) => {
                             const Icon = logIcons[entry.type] || Info;
                             const colorClass = logColors[entry.type] || 'text-gray-400';
+                            const targetClass = entry.target === 'player' ? 'border-l-2 border-primary pl-3' : 'border-l-2 border-transparent pl-3';
                             return (
-                                <div key={i} className={cn("flex items-start gap-2 text-sm p-2 rounded-md bg-black/20", colorClass)}>
+                                <div key={i} className={cn("flex items-start gap-2 text-sm p-2 rounded-md bg-black/20", colorClass, targetClass)}>
                                     <Icon className="w-4 h-4 mt-0.5 shrink-0" />
                                     <p className="flex-grow">
                                         <span className='font-mono text-xs mr-2 opacity-60'>[T{entry.turn}]</span>

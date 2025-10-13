@@ -115,6 +115,7 @@ export interface LogEntry {
   type: LogType;
   turn: number;
   message: string;
+  target?: 'player' | 'opponent';
 }
 
 
