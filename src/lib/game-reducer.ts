@@ -14,7 +14,7 @@ export type GameAction =
   | { type: 'SELECT_CARD'; cardId: string }
   | { type: 'SELECT_ATTACKER'; cardId: string }
   | { type: 'SELECT_DEFENDER'; cardId: string | 'opponent' }
-  | { type 'DECLARE_ATTACK' }
+  | { type: 'DECLARE_ATTACK' }
   | { type: 'CAST_SPELL_ON_TARGET'; targetId: string }
   | { type: 'PASS_TURN' }
   | { type: 'MEDITATE' }
@@ -24,7 +24,8 @@ export type GameAction =
   | { type: 'CHANGE_PHASE', phase: GamePhase }
   | { type: 'ACTIVATE_SKILL', cardId: string, targetId?: string }
   | { type: 'END_COMBAT_ANIMATION' }
-  | { type: 'CLEAN_BATTLEFIELD' };
+  | { type: 'CLEAN_BATTLEFIELD' }
+  | { type: 'PAUSE_GAME' };
 
 const drawCardsWithBiomeAffinity = (player: Player, count: number, activeBiome: Card | null): { player: Player, drawnCard?: Card } => {
     let newDeck = [...player.deck];
@@ -194,7 +195,7 @@ const resolveDamage = (attacker: Card, defender: Card | Player, log: GameState['
         }
     }
 
-    if (newAttacker.skill?.type === 'lifesteal') {
+    if (newAttッカー.skill?.type === 'lifesteal') {
         const healedAmount = Math.ceil(damageDealt / 2);
         newAttackerOwner.hp = Math.min(20, newAttackerOwner.hp + healedAmount);
         newLog.push({ type: 'heal', turn, message: `Vol de vie: ${newAttacker.name} soigne son propriétaire de ${healedAmount} PV.` });
