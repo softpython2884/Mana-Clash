@@ -195,7 +195,7 @@ const resolveDamage = (attacker: Card, defender: Card | Player, log: GameState['
         }
     }
 
-    if (newAttッカー.skill?.type === 'lifesteal') {
+    if (newAttacker.skill?.type === 'lifesteal') {
         const healedAmount = Math.ceil(damageDealt / 2);
         newAttackerOwner.hp = Math.min(20, newAttackerOwner.hp + healedAmount);
         newLog.push({ type: 'heal', turn, message: `Vol de vie: ${newAttacker.name} soigne son propriétaire de ${healedAmount} PV.` });
@@ -1152,10 +1152,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
 
       const nextTurnNumber = nextPlayerKey === 'player' ? stateWithClearedFlags.turn + 1 : stateWithClearedFlags.turn;
-      const { player: nextPlayerState, log: drawLog } = gameReducer({...stateWithClearedFlags, [currentPlayerKey]: currentPlayer, log: currentLog }, { type: 'DRAW_CARD', player: nextPlayerKey, count: 1 });
       
-      let nextPlayer = nextPlayerState[nextPlayerKey];
-      
+      const intermediateState = {...stateWithClearedFlags, [currentPlayerKey]: currentPlayer, log: currentLog };
+      const { [nextPlayerKey]: drawnPlayer, log: drawLog } = gameReducer(intermediateState, { type: 'DRAW_CARD', player: nextPlayerKey, count: 1 });
+
+      let nextPlayer = {...drawnPlayer};
       nextPlayer.maxMana = Math.min(10, nextPlayer.maxMana + 1);
       nextPlayer.mana = nextPlayer.maxMana;
       
