@@ -12,17 +12,15 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import GameLog from './GameLog';
 
 export default function GameBoard() {
-  const [state, dispatch] = useReducer(gameReducer, getInitialState());
+  const [state, dispatch] = useReducer(gameReducer, undefined, getInitialState);
   const [isClient, setIsClient] = useState(false);
   const [leavingCards, setLeavingCards] = useState<string[]>([]);
   const [attackingCards, setAttackingCards] = useState<{ attackerId: string, defenderId: string | 'opponent' } | null>(null);
 
   useEffect(() => {
     setIsClient(true);
-    if (state.gameId === 0) {
-        dispatch({ type: 'INITIALIZE_GAME' });
-    }
-  }, [state.gameId]);
+    dispatch({ type: 'INITIALIZE_GAME' });
+  }, []);
 
   useEffect(() => {
     if (state.combatAnimation) {
@@ -197,7 +195,7 @@ export default function GameBoard() {
     )
   }), [opponent.battlefield, phase, selectedAttackerId, selectedDefenderId, opponentHasTaunt, spellBeingCast, attackerCard, leavingCards, attackingCards]);
 
-  if (!isClient) {
+  if (!isClient || state.gameId === 0) {
     // Basic loading skeleton
     return (
       <div className="w-full h-full flex p-4 gap-4 max-w-7xl mx-auto animate-pulse">
