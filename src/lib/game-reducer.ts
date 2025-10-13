@@ -202,14 +202,37 @@ const opponentAI = (state: GameState): GameState => {
       }
   }
 
-  // 2. Play Creatures/Artifacts in a loop
+  // 2. Play Creatures to establish board presence
   let playedCardInLoop = true;
   while(playedCardInLoop) {
       playedCardInLoop = false;
-      const currentCreatureCount = opponent.battlefield.filter((c: Card) => c.type === 'Creature' || c.type === 'Artifact').length;
-      if (currentCreatureCount >= MAX_BATTLEFIELD_SIZE) {
-          break; // Battlefield is full
+      const currentCreatureCount = opponent.battlefield.filter((c: Card) => c.type === 'Creature').length;
+      
+      // Objective: have at least 2 creatures if possible
+      if (currentCreatureCount < 2 && opponent.hand.length > 0 && opponent.battlefield.length < MAX_BATTLEFIELD_SIZE) {
+          const playableCreatures = opponent.hand
+              .filter((c: Card) => c.type === 'Creature' && c.manaCost <= opponent.mana)
+              .sort((a: Card, b: Card) => a.manaCost - b.manaCost); // Prioritize cheaper creatures to fill the board
+
+          if (playableCreatures.length > 0) {
+              const cardToPlay = playableCreatures[0];
+              log.push({ type: 'play', turn: tempState.turn, message: `Adversaire joue ${cardToPlay.name}.` });
+              let newCardOnField = { ...cardToPlay, summoningSickness: true, canAttack: false, buffs: [] };
+              opponent.battlefield = [...opponent.battlefield, newCardOnField];
+              opponent.hand = opponent.hand.filter((c: Card) => c.id !== cardToPlay.id);
+              opponent.mana -= cardToPlay.manaCost;
+              
+              opponent.battlefield = applyBiomeBuffs(opponent.battlefield, tempState.activeBiome);
+              playedCardInLoop = true; // A card was played, so we try again to meet the objective
+          }
       }
+  }
+  
+  // 3. Play other valuable cards (Artifacts, expensive creatures)
+  let playedValuableCard = true;
+  while(playedValuableCard) {
+      playedValuableCard = false;
+      if (opponent.battlefield.length >= MAX_BATTLEFIELD_SIZE) break;
 
       const playableCards = opponent.hand
           .filter((c: Card) => (c.type === 'Creature' || c.type === 'Artifact') && c.manaCost <= opponent.mana)
@@ -224,7 +247,7 @@ const opponentAI = (state: GameState): GameState => {
           opponent.mana -= cardToPlay.manaCost;
           
           opponent.battlefield = applyBiomeBuffs(opponent.battlefield, tempState.activeBiome);
-          playedCardInLoop = true; // A card was played, so we try again
+          playedValuableCard = true; // A card was played, so we try again
       }
   }
 
@@ -258,7 +281,7 @@ const opponentAI = (state: GameState): GameState => {
       }
 
       if (targetId) {
-          if (targetId === 'player' && player.battlefield.filter(c => c.type === 'Creature').length > 0) {
+          if (targetId === 'player' && player.battlefield.filter(c => c.type === 'Creature' && !c.tapped).length > 0) {
               let defenderToAttack = player.battlefield.filter(c => c.type === 'Creature').sort((a,b) => (b.attack || 0) - (a.attack || 0))[0];
               targetId = defenderToAttack.id;
           }
@@ -359,22 +382,21 @@ const resolvePlayerCombat = (state: GameState): GameState => {
 
         // --- Perform Combat ---
         const combatResult = resolveDamage(newAttacker, newDefender, finalLog, turn, finalPlayer);
+        newAttacker = combatResult.attacker;
+        newDefender = combatResult.defender;
+        finalPlayer = combatResult.owner;
+        finalLog = combatResult.log;
+
         
         // --- Riposte (Retaliation) ---
-        if ((combatResult.defender.health || 0) > 0) {
-            finalLog.push({ type: 'combat', turn: turn, message: `${combatResult.defender.name} riposte !` });
-            let riposteResult = resolveDamage(combatResult.defender, combatResult.attacker, combatResult.log, turn, finalOpponent);
+        if ((newDefender.health || 0) > 0) {
+            finalLog.push({ type: 'combat', turn: turn, message: `${newDefender.name} riposte !` });
+            let riposteResult = resolveDamage(newDefender, newAttacker, finalLog, turn, finalOpponent);
             newAttacker = riposteResult.defender;
             newDefender = riposteResult.attacker;
             finalOpponent = riposteResult.owner;
             finalLog = riposteResult.log;
-        } else {
-            finalLog.push({ type: 'combat', turn: turn, message: `${combatResult.defender.name} est détruit avant de pouvoir riposter.` });
-            newAttacker = combatResult.attacker;
-            newDefender = combatResult.defender;
-            finalLog = combatResult.log;
         }
-        finalPlayer = combatResult.owner;
 
 
         // --- Update battlefield from copies ---
@@ -484,7 +506,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         let playerToUpdate = {...stateWithClearedFeedback[playerKey]};
         const updatedPlayer = drawCards(playerToUpdate, count);
         let log = [...stateWithClearedFeedback.log];
-        if (updatedPlayer.hand.length === playerToUpdate.hand.length) {
+        if (updatedPlayer.hand.length === playerToUpdate.hand.length && count > 0) {
           log.push({ type: 'info', turn: stateWithClearedFeedback.turn, message: `${playerKey === 'player' ? "Votre" : "Sa"} main est pleine, la carte est défaussée.`});
         }
         return {
@@ -819,6 +841,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const nextPlayerKey = currentPlayerKey === 'player' ? 'opponent' : 'player';
       
       let currentPlayer = {...stateWithClearedFeedback[currentPlayerKey]};
+      let currentLog = [...stateWithClearedFeedback.log];
 
       // Handle "Meditate" action before passing the turn
       if (state.phase === 'main' && (state.log.at(-1)?.message.includes('méditer') || action.type === 'MEDITATE')) {
@@ -827,7 +850,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           const cardFromGraveyard = currentPlayer.graveyard[randomIndex];
           currentPlayer.hand.push(cardFromGraveyard);
           currentPlayer.graveyard.splice(randomIndex, 1);
-          stateWithClearedFeedback.log.push({type: 'draw', turn: stateWithClearedFeedback.turn, message: `${currentPlayerKey === 'player' ? 'Joueur' : 'Adversaire'} récupère ${cardFromGraveyard.name} du cimetière.`})
+          currentLog.push({type: 'draw', turn: stateWithClearedFeedback.turn, message: `${currentPlayerKey === 'player' ? 'Joueur' : 'Adversaire'} récupère ${cardFromGraveyard.name} du cimetière.`})
         }
       }
 
@@ -882,7 +905,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
 
       const nextTurnNumber = nextPlayerKey === 'player' ? stateWithClearedFeedback.turn + 1 : stateWithClearedFeedback.turn;
-      const drawState = gameReducer(stateWithClearedFeedback, { type: 'DRAW_CARD', player: nextPlayerKey, count: 1 });
+      const drawState = gameReducer({...stateWithClearedFeedback, [currentPlayerKey]: currentPlayer, log: currentLog }, { type: 'DRAW_CARD', player: nextPlayerKey, count: 1 });
       let nextPlayerState = drawState[nextPlayerKey];
       
       nextPlayerState.maxMana = Math.min(10, nextPlayerState.maxMana + 1);
