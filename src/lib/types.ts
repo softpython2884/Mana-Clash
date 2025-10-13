@@ -126,6 +126,5 @@ export interface GameState {
   selectedAttackerId: string | null;
   selectedDefenderId: string | null;
   spellBeingCast: Card | null; // For spells or skills that require a target
+  combatAnimation: { attackerId: string, defenderId: string | 'opponent' } | null;
 }
-
-    

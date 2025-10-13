@@ -22,7 +22,9 @@ export type GameAction =
   | { type: 'EXECUTE_OPPONENT_TURN' }
   | { type: 'LOG_MESSAGE'; log: LogEntry }
   | { type: 'CHANGE_PHASE', phase: GamePhase }
-  | { type: 'ACTIVATE_SKILL', cardId: string, targetId?: string };
+  | { type: 'ACTIVATE_SKILL', cardId: string, targetId?: string }
+  | { type: 'END_COMBAT_ANIMATION' }
+  | { type: 'CLEAN_BATTLEFIELD' };
 
 const drawCards = (player: Player, count: number): Player => {
   const cardsToDrawCount = Math.max(0, MAX_HAND_SIZE - player.hand.length);
@@ -95,6 +97,7 @@ export const getInitialState = (): GameState => {
     selectedAttackerId: null,
     selectedDefenderId: null,
     spellBeingCast: null,
+    combatAnimation: null,
   };
   
   return initialState;
@@ -126,17 +129,17 @@ const shuffleAndDeal = (): Omit<GameState, 'gameId'> => {
         selectedAttackerId: null,
         selectedDefenderId: null,
         spellBeingCast: null,
+        combatAnimation: null,
     }
 }
 
-const resolveDamage = (attacker: Card, defender: Card, log: GameState['log'], turn: number, owner: Player): { attacker: Card, defender: Card, owner: Player, log: GameState['log']} => {
+const resolveDamage = (attacker: Card, defender: Card | Player, log: GameState['log'], turn: number, attackerOwner: Player): { attacker: Card, defender: Card | Player, attackerOwner: Player, log: GameState['log']} => {
     const newLog = [...log];
     const newAttacker = {...attacker};
-    const newDefender = {...defender};
-    const newOwner = {...owner};
+    let newDefender = {...defender};
+    const newAttackerOwner = {...attackerOwner};
 
     const totalAttack = (newAttacker.attack || 0) + (newAttacker.buffs?.filter(b => b.type === 'attack').reduce((acc, b) => acc + b.value, 0) || 0);
-    const totalArmor = (newDefender.armor || 0) + (newDefender.buffs?.filter(b => b.type === 'armor').reduce((acc, b) => acc + b.value, 0) || 0);
     const totalCritChance = (newAttacker.criticalHitChance || 0) + (newAttacker.buffs?.filter(b => b.type === 'crit').reduce((acc, b) => acc + b.value, 0) || 0);
 
     const isCritical = Math.random() * 100 < totalCritChance;
@@ -144,32 +147,39 @@ const resolveDamage = (attacker: Card, defender: Card, log: GameState['log'], tu
     
     newLog.push({ type: 'combat', turn, message: `${newAttacker.name} attaque avec ${damageDealt} points de dégâts.` });
 
-    if (isCritical) {
-        newLog.push({ type: 'combat', turn, message: `💥 Coup critique ! L'armure de ${newDefender.name} est ignorée.` });
-        newDefender.health = (newDefender.health || 0) - damageDealt;
-        newLog.push({ type: 'damage', turn, message: `${newDefender.name} subit ${damageDealt} dégâts directs. PV restants: ${newDefender.health}` });
-    } else {
-        const damageAfterArmor = Math.max(0, damageDealt - totalArmor);
-        const absorbedDamage = damageDealt - damageAfterArmor;
+    if ('battlefield' in newDefender) { // It's a player
+        newDefender.hp -= damageDealt;
+        newLog.push({ type: 'damage', turn, message: `${newDefender.id === 'player' ? 'Joueur' : 'Adversaire'} subit ${damageDealt} dégâts. PV restants: ${newDefender.hp}` });
+    } else { // It's a card
+        const totalArmor = (newDefender.armor || 0) + (newDefender.buffs?.filter(b => b.type === 'armor').reduce((acc, b) => acc + b.value, 0) || 0);
 
-        if (absorbedDamage > 0) {
-            newDefender.armor = Math.max(0, totalArmor - damageDealt);
-            newLog.push({ type: 'combat', turn, message: `${newDefender.name} absorbe ${absorbedDamage} dégâts. Armure restante: ${newDefender.armor}` });
-        }
-        
-        if (damageAfterArmor > 0) {
-            newDefender.health = (newDefender.health || 0) - damageAfterArmor;
-            newLog.push({ type: 'damage', turn, message: `${newDefender.name} subit ${damageAfterArmor} dégâts. PV restants: ${newDefender.health}` });
+        if (isCritical) {
+            newLog.push({ type: 'combat', turn, message: `💥 Coup critique ! L'armure de ${newDefender.name} est ignorée.` });
+            newDefender.health = (newDefender.health || 0) - damageDealt;
+            newLog.push({ type: 'damage', turn, message: `${newDefender.name} subit ${damageDealt} dégâts directs. PV restants: ${newDefender.health}` });
+        } else {
+            const damageAfterArmor = Math.max(0, damageDealt - totalArmor);
+            const absorbedDamage = damageDealt - damageAfterArmor;
+
+            if (absorbedDamage > 0) {
+                newDefender.armor = Math.max(0, totalArmor - damageDealt);
+                newLog.push({ type: 'combat', turn, message: `${newDefender.name} absorbe ${absorbedDamage} dégâts. Armure restante: ${newDefender.armor}` });
+            }
+            
+            if (damageAfterArmor > 0) {
+                newDefender.health = (newDefender.health || 0) - damageAfterArmor;
+                newLog.push({ type: 'damage', turn, message: `${newDefender.name} subit ${damageAfterArmor} dégâts. PV restants: ${newDefender.health}` });
+            }
         }
     }
 
     if (newAttacker.skill?.type === 'lifesteal') {
         const healedAmount = Math.ceil(damageDealt / 2);
-        newOwner.hp = Math.min(20, newOwner.hp + healedAmount);
+        newAttackerOwner.hp = Math.min(20, newAttackerOwner.hp + healedAmount);
         newLog.push({ type: 'heal', turn, message: `Vol de vie: ${newAttacker.name} soigne son propriétaire de ${healedAmount} PV.` });
     }
 
-    return { attacker: newAttacker, defender: newDefender, owner: newOwner, log: newLog };
+    return { attacker: newAttacker, defender: newDefender, attackerOwner: newAttackerOwner, log: newLog };
 };
 
 
@@ -295,12 +305,15 @@ const opponentAI = (state: GameState): GameState => {
 
           let defenderCard = player.battlefield.find((c: Card) => c.id === targetId);
           let newAttacker = { ...attackerCard }; // Work with a copy
+          
+          tempState.combatAnimation = { attackerId: newAttacker.id, defenderId: targetId };
 
           if (targetId === 'player') {
-            log.push({ type: 'combat', turn: tempState.turn, message: `Adversaire: ${newAttacker.name} attaque le joueur directement.` });
-            const totalAttack = (newAttacker.attack || 0) + (newAttacker.buffs?.filter(b => b.type === 'attack').reduce((acc, b) => acc + b.value, 0) || 0);
-            player.hp -= totalAttack;
-            log.push({ type: 'damage', turn: tempState.turn, message: `Joueur subit ${totalAttack} dégâts. PV restants: ${player.hp}.` });
+            const combatResult = resolveDamage(newAttacker, player, log, tempState.turn, opponent);
+            player = combatResult.defender as Player;
+            opponent = combatResult.attackerOwner;
+            log = combatResult.log;
+
           } else if (defenderCard) {
             let newDefender = { ...defenderCard }; // Work with a copy
             log.push({ type: 'combat', turn: tempState.turn, message: `Adversaire: ${newAttacker.name} attaque ${newDefender.name}.` });
@@ -308,19 +321,19 @@ const opponentAI = (state: GameState): GameState => {
             const combatResult = resolveDamage(newAttacker, newDefender, log, tempState.turn, opponent);
             
             opponent.battlefield = opponent.battlefield.map(c => c.id === newAttacker.id ? combatResult.attacker : c);
-            player.battlefield = player.battlefield.map(c => c.id === newDefender.id ? combatResult.defender : c);
-            opponent = combatResult.owner;
+            player.battlefield = player.battlefield.map(c => c.id === newDefender.id ? combatResult.defender as Card : c);
+            opponent = combatResult.attackerOwner;
             log = combatResult.log;
 
             // Check for riposte only if defender survives
             const finalDefenderState = player.battlefield.find(c => c.id === newDefender.id);
             if (finalDefenderState && (finalDefenderState.health || 0) > 0) {
                log.push({ type: 'combat', turn, message: `${finalDefenderState.name} riposte !` });
-               const riposteResult = resolveDamage(finalDefenderState, newAttacker, log, tempState.turn, player);
+               const riposteResult = resolveDamage(finalDefenderState, combatResult.attacker, log, tempState.turn, player);
                
-               opponent.battlefield = opponent.battlefield.map(c => c.id === newAttacker.id ? riposteResult.defender : c);
+               opponent.battlefield = opponent.battlefield.map(c => c.id === newAttacker.id ? riposteResult.defender as Card : c);
                player.battlefield = player.battlefield.map(c => c.id === finalDefenderState.id ? riposteResult.attacker : c);
-               player = riposteResult.owner;
+               player = riposteResult.attackerOwner as Player;
                log = riposteResult.log;
             }
           }
@@ -328,22 +341,6 @@ const opponentAI = (state: GameState): GameState => {
           opponent.battlefield = opponent.battlefield.map(c => c.id === attacker.id ? {...c, tapped: true, canAttack: false} : c);
       }
   });
-
-    const updateField = (p: Player, owner: string): Player => {
-        const graveyard = [...p.graveyard];
-        const remainingCreatures = p.battlefield.filter(c => {
-            if ((c.health || 0) <= 0) {
-                log.push({ type: 'destroy', turn: tempState.turn, message: `${c.name} (${owner}) est détruit.` });
-                graveyard.push({...c, health: c.initialHealth, buffs: []});
-                return false;
-            }
-            return true;
-        });
-        return {...p, battlefield: remainingCreatures, graveyard};
-    };
-
-    player = updateField(player, "Joueur");
-    opponent = updateField(opponent, "Adversaire");
 
     if (player.hp <= 0) {
         tempState.winner = 'opponent';
@@ -372,12 +369,13 @@ const resolvePlayerCombat = (state: GameState): GameState => {
     let finalLog = [...log];
     let finalPlayer = { ...player };
     let finalOpponent = { ...opponent };
+    let combatAnimation = { attackerId: attackerCard.id, defenderId: selectedDefenderId };
 
     if (selectedDefenderId === 'opponent') {
-        finalLog.push({ type: 'combat', turn: turn, message: `Joueur: ${attackerCard.name} attaque l'adversaire directement !` });
-        const totalAttack = (attackerCard.attack || 0) + (attackerCard.buffs?.filter(b => b.type === 'attack').reduce((acc, b) => acc + b.value, 0) || 0);
-        finalOpponent.hp -= totalAttack;
-        finalLog.push({ type: 'damage', turn: turn, message: `Adversaire subit ${totalAttack} dégâts. PV restants: ${finalOpponent.hp}.` });
+        const combatResult = resolveDamage(attackerCard, finalOpponent, finalLog, turn, finalPlayer);
+        finalOpponent = combatResult.defender as Player;
+        finalPlayer = combatResult.attackerOwner;
+        finalLog = combatResult.log;
     } else {
         const defenderCard = opponent.battlefield.find((c: Card) => c.id === selectedDefenderId);
         if (!defenderCard) return state;
@@ -390,7 +388,7 @@ const resolvePlayerCombat = (state: GameState): GameState => {
         // --- Perform Combat ---
         const combatResult = resolveDamage(newAttacker, newDefender, finalLog, turn, finalPlayer);
         newAttacker = combatResult.attacker;
-        newDefender = combatResult.defender;
+        newDefender = combatResult.defender as Card;
         finalPlayer = combatResult.owner;
         finalLog = combatResult.log;
 
@@ -399,7 +397,7 @@ const resolvePlayerCombat = (state: GameState): GameState => {
         if ((newDefender.health || 0) > 0) {
             finalLog.push({ type: 'combat', turn: turn, message: `${newDefender.name} riposte !` });
             let riposteResult = resolveDamage(newDefender, newAttacker, finalLog, turn, finalOpponent);
-            newAttacker = riposteResult.defender;
+            newAttacker = riposteResult.defender as Card;
             newDefender = riposteResult.attacker;
             finalOpponent = riposteResult.owner;
             finalLog = riposteResult.log;
@@ -418,23 +416,6 @@ const resolvePlayerCombat = (state: GameState): GameState => {
         }
         return c;
     });
-
-    // --- Clean up dead cards ---
-    const cleanBattlefield = (p: Player, ownerName: string) => {
-        const graveyard = [...p.graveyard];
-        const battlefield = p.battlefield.filter(c => {
-            if ((c.health || 0) <= 0) {
-                finalLog.push({ type: 'destroy', turn: turn, message: `${c.name} (${ownerName}) est détruit.` });
-                graveyard.push({ ...c, health: c.initialHealth, buffs: [] });
-                return false;
-            }
-            return true;
-        });
-        return { ...p, battlefield, graveyard };
-    };
-
-    finalPlayer = cleanBattlefield(finalPlayer, "Joueur");
-    finalOpponent = cleanBattlefield(finalOpponent, "Adversaire");
     
     // --- Check for winner ---
     let winner;
@@ -455,6 +436,7 @@ const resolvePlayerCombat = (state: GameState): GameState => {
       phase: winner ? 'game-over' : 'combat',
       selectedAttackerId: null,
       selectedDefenderId: null,
+      combatAnimation,
     };
 }
 
@@ -574,6 +556,32 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         player,
       };
     }
+    
+    case 'END_COMBAT_ANIMATION': {
+        return {
+            ...state,
+            combatAnimation: null
+        }
+    }
+
+    case 'CLEAN_BATTLEFIELD': {
+        const clean = (p: Player): Player => {
+            const graveyard = [...p.graveyard];
+            const battlefield = p.battlefield.filter(c => {
+                if ((c.health || 0) <= 0) {
+                    graveyard.push({ ...c, health: c.initialHealth, buffs: [] });
+                    return false;
+                }
+                return true;
+            });
+            return { ...p, battlefield, graveyard };
+        };
+
+        const player = clean(state.player);
+        const opponent = clean(state.opponent);
+        return { ...state, player, opponent };
+    }
+
 
     case 'DRAW_CARD': {
         const { player: playerKey, count } = action;
@@ -1195,5 +1203,3 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return stateWithClearedFlags;
   }
 }
-
-    

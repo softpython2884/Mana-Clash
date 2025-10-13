@@ -125,7 +125,22 @@ export default {
             '60%': { transform: 'translate3d(-10px, 0, 0) scale(1)', opacity: '1' },
             '80%': { transform: 'translate3d(10px, 0, 0) scale(0.9)', opacity: '1' },
             '100%': { transform: 'translate3d(0, 0, 0) scale(0.5)', opacity: '0' },
-        }
+        },
+        'drop-in': {
+            'from': { transform: 'translateY(-40px) scale(1.1)', opacity: '0' },
+            'to': { transform: 'translateY(0) scale(1)', opacity: '1' },
+        },
+        'shake-quick': {
+            '0%, 100%': { transform: 'translateX(0)' },
+            '20%, 60%': { transform: 'translateX(-3px)' },
+            '40%, 80%': { transform: 'translateX(3px)' },
+        },
+        'flash-out': {
+            '0%': { transform: 'scale(1)', opacity: '1' },
+            '25%': { transform: 'scale(1.05)', opacity: '0.5' },
+            '50%': { transform: 'scale(1.1)', opacity: '1', filter: 'brightness(2)' },
+            '100%': { transform: 'scale(0.5)', opacity: '0', filter: 'brightness(1)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -135,10 +150,11 @@ export default {
         'flash': 'flash 0.5s ease-in-out',
         'fade-in': 'fade-in 0.3s ease-out',
         'fade-out-shake': 'fade-out-shake 0.5s ease-in-out forwards',
+        'drop-in': 'drop-in 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards',
+        'shake-quick': 'shake-quick 0.5s cubic-bezier(.36,.07,.19,.97) both',
+        'flash-out': 'flash-out 1s ease-out forwards',
       },
     },
   },
   plugins: [require('tailwindcss-animate')],
 } satisfies Config;
-
-    

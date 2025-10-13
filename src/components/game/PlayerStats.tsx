@@ -12,9 +12,10 @@ interface PlayerStatsProps {
   isTargetable?: boolean;
   isTargeted?: boolean;
   onClick?: () => void;
+  isBeingAttacked?: boolean;
 }
 
-export default function PlayerStats({ hp, mana, maxMana, isOpponent = false, isTargetable = false, isTargeted = false, onClick }: PlayerStatsProps) {
+export default function PlayerStats({ hp, mana, maxMana, isOpponent = false, isTargetable = false, isTargeted = false, onClick, isBeingAttacked = false }: PlayerStatsProps) {
   return (
     <div
       onClick={onClick}
@@ -22,7 +23,8 @@ export default function PlayerStats({ hp, mana, maxMana, isOpponent = false, isT
         "relative flex gap-4 items-center p-2 rounded-xl bg-card/50 backdrop-blur-sm transition-all shadow-lg",
         isOpponent ? 'flex-row-reverse' : '',
         isTargetable && 'cursor-pointer ring-2 ring-yellow-400',
-        isTargeted && 'ring-2 ring-red-500'
+        isTargeted && 'ring-2 ring-red-500',
+        isBeingAttacked && 'animate-shake-quick'
       )}
     >
       <div className="flex items-center gap-2 text-lg font-bold text-[hsl(var(--hp))]">

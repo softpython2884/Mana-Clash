@@ -15,6 +15,7 @@ export default function GameBoard() {
   const [state, dispatch] = useReducer(gameReducer, getInitialState());
   const [isClient, setIsClient] = useState(false);
   const [leavingCards, setLeavingCards] = useState<string[]>([]);
+  const [attackingCards, setAttackingCards] = useState<{ attackerId: string, defenderId: string | 'opponent' } | null>(null);
 
   useEffect(() => {
     setIsClient(true);
@@ -24,20 +25,31 @@ export default function GameBoard() {
   }, [state.gameId]);
 
   useEffect(() => {
-    // When cards are removed from the battlefield, add them to the leaving list
-    const currentIds = new Set([...state.player.battlefield.map(c => c.id), ...state.opponent.battlefield.map(c => c.id)]);
-    const previousIds = new Set(leavingCards);
-    
-    // Find cards that are in leavingCards but not on the battlefield anymore
-    leavingCards.forEach(id => {
-      if (!currentIds.has(id)) {
-        // Card is truly gone, remove it from leaving list after animation
-        setTimeout(() => {
-          setLeavingCards(prev => prev.filter(cardId => cardId !== id));
-        }, 500); // Corresponds to animation duration
-      }
-    });
+    if (state.combatAnimation) {
+      setAttackingCards(state.combatAnimation);
+      const timer = setTimeout(() => {
+        setAttackingCards(null);
+        dispatch({ type: 'END_COMBAT_ANIMATION' });
+      }, 500); // Duration of the shake animation
+      return () => clearTimeout(timer);
+    }
+  }, [state.combatAnimation]);
 
+
+  useEffect(() => {
+    const playerDeadCards = state.player.battlefield.filter(c => c.health <= 0).map(c => c.id);
+    const opponentDeadCards = state.opponent.battlefield.filter(c => c.health <= 0).map(c => c.id);
+    const allDeadCards = [...playerDeadCards, ...opponentDeadCards];
+    
+    if (allDeadCards.length > 0) {
+        setLeavingCards(prev => [...prev, ...allDeadCards.filter(id => !prev.includes(id))]);
+
+        // Clean up after animation
+        setTimeout(() => {
+            dispatch({ type: 'CLEAN_BATTLEFIELD' });
+            setLeavingCards(prev => prev.filter(id => !allDeadCards.includes(id)));
+        }, 1000); // Animation duration
+    }
   }, [state.player.battlefield, state.opponent.battlefield]);
 
 
@@ -95,10 +107,6 @@ export default function GameBoard() {
 
   const handleDeclareAttack = () => {
     if (activePlayer !== 'player' || phase !== 'targeting' || !selectedAttackerId || !selectedDefenderId) return;
-    const attacker = player.battlefield.find(c => c.id === selectedAttackerId);
-    if(attacker) {
-      setLeavingCards(prev => [...prev, attacker.id]);
-    }
     dispatch({ type: 'DECLARE_ATTACK' });
   };
   
@@ -108,7 +116,7 @@ export default function GameBoard() {
   }
   
   const handleRedraw = () => {
-    if (activePlayer !== 'player' || phase !== 'main' || turn !== 1 || player.hasRedrawn) return;
+    if (activePlayer !== 'player' || turn !== 1 || player.hasRedrawn) return;
     dispatch({ type: 'REDRAW_HAND' });
   }
 
@@ -144,9 +152,10 @@ export default function GameBoard() {
           showSkill={card.id === selectedCardId && !!card.skill && !card.skill.onCooldown && !card.summoningSickness && !card.tapped}
           isTargetable={phase === 'spell_targeting' && (spellBeingCast?.skill?.target === 'friendly_creature' || spellBeingCast?.skill?.target === 'any_creature')}
           isEntering={card.isEntering}
-          isLeaving={leavingCards.includes(card.id) && card.health <= 0}
+          isLeaving={leavingCards.includes(card.id)}
+          isBeingAttacked={attackingCards?.defenderId === card.id}
       />
-  )), [player.battlefield, phase, selectedAttackerId, selectedCardId, spellBeingCast, leavingCards]);
+  )), [player.battlefield, phase, selectedAttackerId, selectedCardId, spellBeingCast, leavingCards, attackingCards]);
 
   const opponentHasTaunt = opponent.battlefield.some(c => c.taunt && !c.tapped);
   const opponentHasCreatures = opponent.battlefield.filter(c => c.type === 'Creature').length > 0;
@@ -182,10 +191,11 @@ export default function GameBoard() {
             if (isTargetableForSpell) handleSelectSpellTarget(card.id);
           }}
           isEntering={card.isEntering}
-          isLeaving={leavingCards.includes(card.id) && card.health <= 0}
+          isLeaving={leavingCards.includes(card.id)}
+          isBeingAttacked={attackingCards?.defenderId === card.id}
         />
     )
-  }), [opponent.battlefield, phase, selectedAttackerId, selectedDefenderId, opponentHasTaunt, spellBeingCast, attackerCard, leavingCards]);
+  }), [opponent.battlefield, phase, selectedAttackerId, selectedDefenderId, opponentHasTaunt, spellBeingCast, attackerCard, leavingCards, attackingCards]);
 
   if (!isClient) {
     // Basic loading skeleton
@@ -238,6 +248,7 @@ export default function GameBoard() {
               isTargetable={canTargetOpponentDirectly}
               isTargeted={selectedDefenderId === 'opponent'}
               onClick={() => handleSelectDefender('opponent')}
+              isBeingAttacked={attackingCards?.defenderId === 'opponent'}
           />
           <div className="flex flex-col sm:flex-row gap-2">
               <UICard className="w-20 h-28 sm:w-24 sm:h-32 flex flex-col items-center justify-center bg-secondary/20 rounded-xl backdrop-blur-sm">
@@ -249,7 +260,7 @@ export default function GameBoard() {
               </div>
           </div>
         </div>
-        <div className="min-h-[184px] sm:min-h-[224px] md:min-h-[268px] bg-black/20 rounded-xl p-2 flex items-center justify-center gap-2 backdrop-blur-sm shadow-inner overflow-x-hidden">
+        <div className="min-h-[184px] sm:min-h-[224px] md:min-h-[268px] bg-black/20 rounded-xl p-2 flex items-center justify-center gap-2 backdrop-blur-sm shadow-inner overflow-x-hidden transition-all duration-300">
           {MemoizedOpponentBattlefield}
         </div>
 
@@ -311,11 +322,11 @@ export default function GameBoard() {
         </div>
 
         {/* Player Area */}
-        <div className="min-h-[184px] sm:min-h-[224px] md:min-h-[268px] bg-black/20 rounded-xl p-2 flex items-center justify-center gap-2 backdrop-blur-sm shadow-inner overflow-x-hidden">
+        <div className="min-h-[184px] sm:min-h-[224px] md:min-h-[268px] bg-black/20 rounded-xl p-2 flex items-center justify-center gap-2 backdrop-blur-sm shadow-inner overflow-x-hidden transition-all duration-300">
           {MemoizedPlayerBattlefield}
         </div>
         <div className="flex justify-between items-end">
-          <PlayerStats hp={player.hp} mana={player.mana} maxMana={player.maxMana} />
+          <PlayerStats hp={player.hp} mana={player.mana} maxMana={player.maxMana} isBeingAttacked={attackingCards?.defenderId === 'player'} />
           <div className="flex gap-2 items-end">
               <div className="flex justify-center -space-x-12 sm:-space-x-20">{MemoizedPlayerHand}</div>
               <div className="flex flex-col sm:flex-row gap-2">

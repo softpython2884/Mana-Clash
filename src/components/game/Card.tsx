@@ -20,6 +20,7 @@ interface GameCardProps {
   showSkill?: boolean; // Show the skill icon
   isEntering?: boolean; // To animate card entry
   isLeaving?: boolean; // To animate card leaving
+  isBeingAttacked?: boolean;
 }
 
 const biomeIcon: Record<BiomeType, React.ElementType> = {
@@ -56,7 +57,7 @@ const biomeColor: Record<BiomeType, string> = {
 };
 
 
-export default function GameCard({ card, isPlayable = false, onClick, onSkillClick, inHand = false, isActiveBiome = false, isAttacking = false, isTargeted = false, isTargetable = false, isLethal = false, showSkill = false, isEntering = false, isLeaving = false }: GameCardProps) {
+export default function GameCard({ card, isPlayable = false, onClick, onSkillClick, inHand = false, isActiveBiome = false, isAttacking = false, isTargeted = false, isTargetable = false, isLethal = false, showSkill = false, isEntering = false, isLeaving = false, isBeingAttacked = false }: GameCardProps) {
   const { name, manaCost, description, attack, health, armor, type, tapped, canAttack, criticalHitChance, preferredBiome, biome, taunt, buffs, duration, skillJustUsed } = card;
 
   const [showSkillFeedback, setShowSkillFeedback] = useState(false);
@@ -95,8 +96,9 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
         inHand && "hover:-translate-y-6 hover:z-10",
         tapped && 'transform rotate-12 scale-95 opacity-70',
         isActiveBiome && 'ring-4 ring-white',
-        isEntering && 'animate-boing',
-        isLeaving && 'animate-fade-out-shake'
+        isEntering && 'animate-drop-in',
+        isLeaving && 'animate-flash-out',
+        isBeingAttacked && 'animate-shake-quick'
       )}
       onClick={onClick}
     >
@@ -215,5 +217,3 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
     </div>
   );
 }
-
-    
