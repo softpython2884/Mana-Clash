@@ -8,9 +8,8 @@ import GameOverDialog from './GameOverDialog';
 import { Button } from '@/components/ui/button';
 import { Swords, RotateCcw, ScrollText } from 'lucide-react';
 import { Card as UICard, CardContent } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { cn } from '@/lib/utils';
+import GameLog from './GameLog';
 
 export default function GameBoard() {
   const [state, dispatch] = useReducer(gameReducer, getInitialState());
@@ -153,12 +152,15 @@ export default function GameBoard() {
   if (!isClient) {
     // Basic loading skeleton
     return (
-      <div className="w-full h-full flex flex-col p-4 gap-4 max-w-7xl mx-auto animate-pulse">
-        <div className="h-24 md:h-32 bg-gray-800 rounded-xl"></div>
-        <div className="min-h-[18rem] bg-gray-800 rounded-xl"></div>
-        <div className="h-16 bg-gray-800 rounded-xl"></div>
-        <div className="min-h-[18rem] bg-gray-800 rounded-xl"></div>
-        <div className="h-24 md:h-32 bg-gray-800 rounded-xl"></div>
+      <div className="w-full h-full flex p-4 gap-4 max-w-7xl mx-auto animate-pulse">
+        <div className="flex-grow">
+          <div className="h-24 md:h-32 bg-gray-800 rounded-xl"></div>
+          <div className="min-h-[18rem] bg-gray-800 rounded-xl mt-4"></div>
+          <div className="h-16 bg-gray-800 rounded-xl mt-4"></div>
+          <div className="min-h-[18rem] bg-gray-800 rounded-xl mt-4"></div>
+          <div className="h-24 md:h-32 bg-gray-800 rounded-xl mt-4"></div>
+        </div>
+        <div className="w-80 h-full bg-gray-800 rounded-xl"></div>
       </div>
     );
   }
@@ -174,85 +176,112 @@ export default function GameBoard() {
         case 'targeting':
             return 'Choisissez une cible';
         case 'spell_targeting':
-            return `Ciblez une créature ennemie pour ${spellBeingCast?.name}`;
+            return `Ciblez une créature pour ${spellBeingCast?.name}`;
         default:
             return '';
     }
   }
   return (
-    <div className="w-full h-full flex flex-col p-2 sm:p-4 gap-2 sm:gap-4 max-w-7xl mx-auto">
-      <GameOverDialog winner={winner} onRestart={() => dispatch({ type: 'RESTART_GAME' })} />
+    <div className="w-full h-full flex p-2 sm:p-4 gap-2 sm:gap-4 max-w-[100rem] mx-auto">
+      <div className="flex-grow flex flex-col gap-2 sm:gap-4">
+        <GameOverDialog winner={winner} onRestart={() => dispatch({ type: 'RESTART_GAME' })} />
 
-      {/* Opponent Area */}
-      <div className="flex justify-between items-start">
-        <PlayerStats 
-            hp={opponent.hp} 
-            mana={opponent.mana} 
-            maxMana={opponent.maxMana} 
-            isOpponent 
-            isTargetable={canTargetOpponentDirectly}
-            isTargeted={selectedDefenderId === 'opponent'}
-            onClick={() => handleSelectDefender('opponent')}
-        />
-        <div className="flex flex-col sm:flex-row gap-2">
-            <UICard className="w-20 h-28 sm:w-24 sm:h-32 flex flex-col items-center justify-center bg-secondary/20 rounded-xl backdrop-blur-sm">
-                <p className="font-bold text-sm sm:text-base">Pioche</p>
-                <p>{opponent.deck.length}</p>
-            </UICard>
-            <div className="hidden sm:flex flex-wrap-reverse gap-1 justify-end w-96 h-32">
-                {Array(opponent.hand.length).fill(0).map((_, i) => <div key={i} className="w-20 h-28 bg-primary rounded-xl shadow-md"/>)}
+        {/* Opponent Area */}
+        <div className="flex justify-between items-start">
+          <PlayerStats 
+              hp={opponent.hp} 
+              mana={opponent.mana} 
+              maxMana={opponent.maxMana} 
+              isOpponent 
+              isTargetable={canTargetOpponentDirectly}
+              isTargeted={selectedDefenderId === 'opponent'}
+              onClick={() => handleSelectDefender('opponent')}
+          />
+          <div className="flex flex-col sm:flex-row gap-2">
+              <UICard className="w-20 h-28 sm:w-24 sm:h-32 flex flex-col items-center justify-center bg-secondary/20 rounded-xl backdrop-blur-sm">
+                  <p className="font-bold text-sm sm:text-base">Pioche</p>
+                  <p>{opponent.deck.length}</p>
+              </UICard>
+              <div className="hidden sm:flex flex-wrap-reverse gap-1 justify-end w-96 h-32">
+                  {Array(opponent.hand.length).fill(0).map((_, i) => <div key={i} className="w-20 h-28 bg-primary rounded-xl shadow-md"/>)}
+              </div>
+          </div>
+        </div>
+        <div className="min-h-[184px] sm:min-h-[224px] md:min-h-[268px] bg-black/20 rounded-xl p-2 flex items-center justify-center gap-2 backdrop-blur-sm shadow-inner overflow-x-auto">
+          {MemoizedOpponentBattlefield}
+        </div>
+
+
+        {/* Mid-section */}
+        <div className="flex justify-between items-center my-2 gap-4">
+            <Button onClick={() => dispatch({ type: 'RESTART_GAME' })} variant="outline" size="icon" className="hidden sm:inline-flex"><RotateCcw/></Button>
+            <div className="flex items-center gap-4">
+              {activeBiome && <GameCard card={activeBiome} isActiveBiome />}
+              <div className="flex flex-col items-center gap-2">
+                  <p className="font-headline text-lg sm:text-xl">{getPhaseDescription()}</p>
+                  {phase === 'main' && activePlayer === 'player' && (
+                    <div className="flex gap-2">
+                        <Button onClick={handlePhaseAction} disabled={winner !== undefined || !canAttack} className="w-32 sm:w-48">
+                            Combat
+                            <Swords className="ml-2"/>
+                        </Button>
+                        <Button onClick={handlePassTurn} disabled={winner !== undefined} className="w-32 sm:w-48">
+                            Fin du tour
+                        </Button>
+                    </div>
+                  )}
+                  {(phase === 'combat' || phase === 'targeting') && activePlayer === 'player' && (
+                    <div className="flex gap-2">
+                        <Button onClick={handleDeclareAttack} disabled={!selectedAttackerId || !selectedDefenderId} className="w-32 sm:w-48 bg-red-600 hover:bg-red-700">
+                          Attaquer
+                          <Swords className="ml-2 hidden sm:inline-flex"/>
+                        </Button>
+                        <Button onClick={() => dispatch({ type: 'CHANGE_PHASE', phase: 'main' })} variant="outline" disabled={winner !== undefined} className="w-32 sm:w-48">
+                            Annuler
+                        </Button>
+                    </div>
+                  )}
+                  {phase === 'spell_targeting' && activePlayer === 'player' && (
+                    <div className="flex gap-2">
+                        <Button onClick={() => dispatch({ type: 'CHANGE_PHASE', phase: 'main' })} variant="outline" disabled={winner !== undefined} className="w-32 sm:w-48">
+                            Annuler
+                        </Button>
+                    </div>
+                  )}
+                  {activePlayer === 'opponent' && (
+                      <p className="text-sm text-muted-foreground animate-pulse">L'adversaire réfléchit...</p>
+                  )}
+              </div>
             </div>
         </div>
-      </div>
-      <div className="min-h-[184px] sm:min-h-[224px] md:min-h-[268px] bg-black/20 rounded-xl p-2 flex items-center justify-center gap-2 backdrop-blur-sm shadow-inner overflow-x-auto">
-         {MemoizedOpponentBattlefield}
-      </div>
 
-
-      {/* Mid-section */}
-      <div className="flex justify-between items-center my-2 gap-4">
-          <Button onClick={() => dispatch({ type: 'RESTART_GAME' })} variant="outline" size="icon" className="hidden sm:inline-flex"><RotateCcw/></Button>
-          <div className="flex items-center gap-4">
-            {activeBiome && <GameCard card={activeBiome} isActiveBiome />}
-            <div className="flex flex-col items-center gap-2">
-                <p className="font-headline text-lg sm:text-xl">{getPhaseDescription()}</p>
-                {phase === 'main' && activePlayer === 'player' && (
-                  <div className="flex gap-2">
-                      <Button onClick={handlePhaseAction} disabled={winner !== undefined || !canAttack} className="w-32 sm:w-48">
-                          Combat
-                          <Swords className="ml-2"/>
-                      </Button>
-                      <Button onClick={handlePassTurn} disabled={winner !== undefined} className="w-32 sm:w-48">
-                          Fin du tour
-                      </Button>
-                  </div>
-                )}
-                {(phase === 'combat' || phase === 'targeting') && activePlayer === 'player' && (
-                  <div className="flex gap-2">
-                      <Button onClick={handleDeclareAttack} disabled={!selectedAttackerId || !selectedDefenderId} className="w-32 sm:w-48 bg-red-600 hover:bg-red-700">
-                         Attaquer
-                         <Swords className="ml-2 hidden sm:inline-flex"/>
-                      </Button>
-                       <Button onClick={() => dispatch({ type: 'CHANGE_PHASE', phase: 'main' })} variant="outline" disabled={winner !== undefined} className="w-32 sm:w-48">
-                          Annuler
-                      </Button>
-                  </div>
-                )}
-                 {phase === 'spell_targeting' && activePlayer === 'player' && (
-                  <div className="flex gap-2">
-                       <Button onClick={() => dispatch({ type: 'CHANGE_PHASE', phase: 'main' })} variant="outline" disabled={winner !== undefined} className="w-32 sm:w-48">
-                          Annuler
-                      </Button>
-                  </div>
-                )}
-                 {activePlayer === 'opponent' && (
-                    <p className="text-sm text-muted-foreground animate-pulse">L'adversaire réfléchit...</p>
-                )}
-            </div>
+        {/* Player Area */}
+        <div className="min-h-[184px] sm:min-h-[224px] md:min-h-[268px] bg-black/20 rounded-xl p-2 flex items-center justify-center gap-2 backdrop-blur-sm shadow-inner overflow-x-auto">
+          {MemoizedPlayerBattlefield}
+        </div>
+        <div className="flex justify-between items-end">
+          <PlayerStats hp={player.hp} mana={player.mana} maxMana={player.maxMana} />
+          <div className="flex gap-2 items-end">
+              <div className="flex justify-center -space-x-12 sm:-space-x-20">{MemoizedPlayerHand}</div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <UICard className="w-20 h-28 sm:w-24 sm:h-32 flex flex-col items-center justify-center bg-secondary/20 rounded-xl backdrop-blur-sm">
+                    <p className="font-bold text-sm sm:text-base">Pioche</p>
+                    <p>{player.deck.length}</p>
+                </UICard>
+                <UICard className="w-20 h-28 sm:w-24 sm:h-32 flex flex-col items-center justify-center bg-black/40 text-white rounded-xl backdrop-blur-sm">
+                    <p className="font-bold text-sm sm:text-base">Cimetière</p>
+                    <p>{player.graveyard.length}</p>
+                </UICard>
+              </div>
           </div>
-          <Sheet>
+        </div>
+      </div>
+      <div className="w-80 hidden lg:block">
+        <GameLog log={log} />
+      </div>
+       <Sheet>
             <SheetTrigger asChild>
-                <Button variant="outline" size="icon" className="hidden sm:inline-flex">
+                <Button variant="outline" size="icon" className="lg:hidden fixed bottom-4 right-4 z-50">
                     <ScrollText />
                 </Button>
             </SheetTrigger>
@@ -260,42 +289,9 @@ export default function GameBoard() {
                 <SheetHeader>
                     <SheetTitle>Journal de jeu</SheetTitle>
                 </SheetHeader>
-                <ScrollArea className="h-full mt-4 pr-4">
-                    {log.slice().reverse().map((l, i) => (
-                        <p key={i} className={cn("text-sm text-muted-foreground border-b border-border/50 py-1",
-                          l.message.includes('subit') && 'text-red-400',
-                          l.message.includes('détruit') && 'text-red-600 font-bold',
-                          l.message.includes('soigne') && 'text-green-400',
-                          l.message.includes('Joue') && 'font-semibold'
-                        )}>
-                          <span className='font-mono text-xs mr-2'>[T{l.turn}]</span>{l.message}
-                        </p>
-                    ))}
-                </ScrollArea>
+                <GameLog log={log} />
             </SheetContent>
-          </Sheet>
-      </div>
-
-      {/* Player Area */}
-      <div className="min-h-[184px] sm:min-h-[224px] md:min-h-[268px] bg-black/20 rounded-xl p-2 flex items-center justify-center gap-2 backdrop-blur-sm shadow-inner overflow-x-auto">
-         {MemoizedPlayerBattlefield}
-      </div>
-      <div className="flex justify-between items-end">
-        <PlayerStats hp={player.hp} mana={player.mana} maxMana={player.maxMana} />
-        <div className="flex gap-2 items-end">
-            <div className="flex justify-center -space-x-12 sm:-space-x-20">{MemoizedPlayerHand}</div>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <UICard className="w-20 h-28 sm:w-24 sm:h-32 flex flex-col items-center justify-center bg-secondary/20 rounded-xl backdrop-blur-sm">
-                  <p className="font-bold text-sm sm:text-base">Pioche</p>
-                  <p>{player.deck.length}</p>
-              </UICard>
-              <UICard className="w-20 h-28 sm:w-24 sm:h-32 flex flex-col items-center justify-center bg-black/40 text-white rounded-xl backdrop-blur-sm">
-                  <p className="font-bold text-sm sm:text-base">Cimetière</p>
-                  <p>{player.graveyard.length}</p>
-              </UICard>
-            </div>
-        </div>
-      </div>
+        </Sheet>
     </div>
   );
 }

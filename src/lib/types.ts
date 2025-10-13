@@ -79,6 +79,30 @@ export interface Player {
   graveyard: Card[];
   biomeChanges: number;
 }
+export type LogType = 
+    | 'game_start'
+    | 'game_over'
+    | 'phase'
+    | 'play'
+    | 'draw'
+    | 'combat'
+    | 'damage'
+    | 'heal'
+    | 'buff'
+    | 'debuff'
+    | 'destroy'
+    | 'skill'
+    | 'spell'
+    | 'mana'
+    | 'biome'
+    | 'info';
+
+export interface LogEntry {
+  type: LogType;
+  turn: number;
+  message: string;
+}
+
 
 export interface GameState {
   gameId: number;
@@ -88,7 +112,7 @@ export interface GameState {
   winner?: 'player' | 'opponent';
   player: Player;
   opponent: Player;
-  log: { turn: number; message: string }[];
+  log: LogEntry[];
   isThinking: boolean;
   activeBiome: Card | null;
   selectedCardId: string | null;
