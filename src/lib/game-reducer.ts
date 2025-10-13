@@ -788,32 +788,42 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case 'INITIALIZE_GAME': {
         const initialState = shuffleAndDeal(state);
-        const player = {
-            ...initialState.player,
-            maxMana: 1,
-            mana: 1,
-        };
-        return {
+        let player = { ...initialState.player };
+        
+        player.maxMana = 1;
+        player.mana = 1;
+        
+        const newState = {
             ...state,
             ...initialState,
             gameId: Date.now(),
             player,
         };
+        
+        return {
+            ...newState,
+            log: [...newState.log, { type: 'phase', turn: 1, message: "Début du tour de Joueur."}]
+        }
     }
 
     case 'RESTART_GAME': {
-      const initialState = shuffleAndDeal(state);
-       const player = {
-            ...initialState.player,
-            maxMana: 1,
-            mana: 1,
+        const initialState = shuffleAndDeal(state);
+        let player = { ...initialState.player };
+        
+        player.maxMana = 1;
+        player.mana = 1;
+        
+        const newState = {
+            ...state,
+            ...initialState,
+            gameId: Date.now(),
+            player,
         };
-      return {
-        ...state,
-        ...initialState,
-        gameId: Date.now(),
-        player,
-      };
+
+        return {
+            ...newState,
+            log: [...newState.log, { type: 'phase', turn: 1, message: "Début du tour de Joueur."}]
+        }
     }
     
     case 'END_COMBAT_ANIMATION': {
