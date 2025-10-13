@@ -71,6 +71,7 @@ export interface Card {
   buffs: Buff[];
   duration?: number; // For artifacts
   skillJustUsed?: boolean; // For visual feedback
+  isEntering?: boolean; // For spawn animation
 }
 
 export interface Player {

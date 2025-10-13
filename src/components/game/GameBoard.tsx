@@ -14,6 +14,7 @@ import GameLog from './GameLog';
 export default function GameBoard() {
   const [state, dispatch] = useReducer(gameReducer, getInitialState());
   const [isClient, setIsClient] = useState(false);
+  const [leavingCards, setLeavingCards] = useState<string[]>([]);
 
   useEffect(() => {
     setIsClient(true);
@@ -21,6 +22,24 @@ export default function GameBoard() {
         dispatch({ type: 'INITIALIZE_GAME' });
     }
   }, [state.gameId]);
+
+  useEffect(() => {
+    // When cards are removed from the battlefield, add them to the leaving list
+    const currentIds = new Set([...state.player.battlefield.map(c => c.id), ...state.opponent.battlefield.map(c => c.id)]);
+    const previousIds = new Set(leavingCards);
+    
+    // Find cards that are in leavingCards but not on the battlefield anymore
+    leavingCards.forEach(id => {
+      if (!currentIds.has(id)) {
+        // Card is truly gone, remove it from leaving list after animation
+        setTimeout(() => {
+          setLeavingCards(prev => prev.filter(cardId => cardId !== id));
+        }, 500); // Corresponds to animation duration
+      }
+    });
+
+  }, [state.player.battlefield, state.opponent.battlefield]);
+
 
   const { gameId, turn, activePlayer, phase, player, opponent, winner, log, isThinking, activeBiome, selectedAttackerId, selectedDefenderId, selectedCardId, spellBeingCast } = state;
   
@@ -76,6 +95,10 @@ export default function GameBoard() {
 
   const handleDeclareAttack = () => {
     if (activePlayer !== 'player' || phase !== 'targeting' || !selectedAttackerId || !selectedDefenderId) return;
+    const attacker = player.battlefield.find(c => c.id === selectedAttackerId);
+    if(attacker) {
+      setLeavingCards(prev => [...prev, attacker.id]);
+    }
     dispatch({ type: 'DECLARE_ATTACK' });
   };
   
@@ -120,8 +143,10 @@ export default function GameBoard() {
           onSkillClick={() => handleActivateSkill(card.id)}
           showSkill={card.id === selectedCardId && !!card.skill && !card.skill.onCooldown && !card.summoningSickness && !card.tapped}
           isTargetable={phase === 'spell_targeting' && (spellBeingCast?.skill?.target === 'friendly_creature' || spellBeingCast?.skill?.target === 'any_creature')}
+          isEntering={card.isEntering}
+          isLeaving={leavingCards.includes(card.id) && card.health <= 0}
       />
-  )), [player.battlefield, phase, selectedAttackerId, selectedCardId, spellBeingCast]);
+  )), [player.battlefield, phase, selectedAttackerId, selectedCardId, spellBeingCast, leavingCards]);
 
   const opponentHasTaunt = opponent.battlefield.some(c => c.taunt && !c.tapped);
   const opponentHasCreatures = opponent.battlefield.filter(c => c.type === 'Creature').length > 0;
@@ -156,9 +181,11 @@ export default function GameBoard() {
             if (isTargetableForAttack) handleSelectDefender(card.id);
             if (isTargetableForSpell) handleSelectSpellTarget(card.id);
           }}
+          isEntering={card.isEntering}
+          isLeaving={leavingCards.includes(card.id) && card.health <= 0}
         />
     )
-  }), [opponent.battlefield, phase, selectedAttackerId, selectedDefenderId, opponentHasTaunt, spellBeingCast, attackerCard]);
+  }), [opponent.battlefield, phase, selectedAttackerId, selectedDefenderId, opponentHasTaunt, spellBeingCast, attackerCard, leavingCards]);
 
   if (!isClient) {
     // Basic loading skeleton
@@ -191,7 +218,7 @@ export default function GameBoard() {
         case 'spell_targeting':
             return `Ciblez une créature pour ${spellBeingCast?.name}`;
         case 'post_mulligan':
-            return 'Jouez une carte';
+            return 'Jouez une carte pour terminer votre tour.';
         default:
             return '';
     }
