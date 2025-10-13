@@ -481,6 +481,14 @@ const resolvePlayerCombat = (state: GameState): GameState => {
         return c;
     });
     
+    // --- Check for more attackers ---
+    const hasMoreAttackers = finalPlayer.battlefield.some(c => c.canAttack && !c.tapped);
+    let nextPhase: GamePhase = 'combat';
+    if (!hasMoreAttackers) {
+        nextPhase = 'main';
+    }
+
+
     // --- Check for winner ---
     let winner;
     if (finalOpponent.hp <= 0) {
@@ -497,7 +505,7 @@ const resolvePlayerCombat = (state: GameState): GameState => {
       player: finalPlayer,
       opponent: finalOpponent,
       winner,
-      phase: winner ? 'game-over' : 'combat',
+      phase: winner ? 'game-over' : nextPhase,
       selectedAttackerId: null,
       selectedDefenderId: null,
       combatAnimation,
