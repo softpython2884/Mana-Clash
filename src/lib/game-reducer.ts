@@ -232,7 +232,6 @@ const opponentAI = (state: GameState): GameState => {
     return gameReducer(tempState, { type: 'MEDITATE' });
   }
 
-
   // 1. Play Land if possible
   const landPlayedThisTurn = opponent.battlefield.some((c: Card) => c.type === 'Land' && c.summoningSickness);
   if (!landPlayedThisTurn) {
@@ -243,8 +242,37 @@ const opponentAI = (state: GameState): GameState => {
           opponent.hand = opponent.hand.filter((c: Card) => c.id !== landInHand.id);
           opponent.maxMana += 1;
           opponent.mana = opponent.maxMana;
+          tempState.opponent = opponent;
+          log = [...tempState.log, log[log.length-1]];
       }
   }
+
+  // 1.5. Survival: Use healing if low on health
+  if (opponent.hp <= 10) {
+      const healthPotion = opponent.hand.find(c => c.id.startsWith('health_potion') && c.manaCost <= opponent.mana);
+      if (healthPotion) {
+          const playAction = { type: 'PLAY_CARD' as const, cardId: healthPotion.id };
+          const newState = gameReducer(tempState, playAction);
+          tempState = newState;
+          opponent = newState.opponent;
+          log = newState.log;
+      }
+  }
+  
+  // Use Cleric to heal damaged creatures
+  const clerics = opponent.battlefield.filter(c => c.id.startsWith('cleric') && c.skill && !c.skill.onCooldown && !c.tapped && !c.summoningSickness);
+  const damagedAllies = opponent.battlefield.filter(c => c.type === 'Creature' && c.health < c.initialHealth);
+
+  if (clerics.length > 0 && damagedAllies.length > 0) {
+      const cleric = clerics[0];
+      const target = damagedAllies.sort((a,b) => (a.health / a.initialHealth) - (b.health / b.initialHealth))[0]; // heal the most damaged
+      const skillAction = { type: 'ACTIVATE_SKILL' as const, cardId: cleric.id, targetId: target.id };
+      const newState = gameReducer(tempState, skillAction);
+      tempState = newState;
+      opponent = newState.opponent;
+      log = newState.log;
+  }
+
 
   // 2. Play Creatures to establish board presence
   let playedCardInLoop = true;
@@ -652,23 +680,29 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'ACTIVATE_SKILL': {
-        if (stateWithClearedFlags.activePlayer !== 'player' || stateWithClearedFlags.phase !== 'main') return stateWithClearedFlags;
-        
-        const card = stateWithClearedFlags.player.battlefield.find((c: Card) => c.id === action.cardId);
+        if (stateWithClearedFlags.phase !== 'main') return stateWithClearedFlags;
+        const activePlayerKey = stateWithClearedFlags.activePlayer;
+        const card = stateWithClearedFlags[activePlayerKey].battlefield.find((c: Card) => c.id === action.cardId);
+
         if (!card || !card.skill || card.skill.used || card.summoningSickness || card.tapped || card.skill.onCooldown) return stateWithClearedFlags;
         
         // If skill requires a target, change phase to spell_targeting
         if (card.skill.target && card.skill.target !== 'self' && card.skill.target !== 'player') {
-            return {
-                ...stateWithClearedFlags,
-                phase: 'spell_targeting',
-                spellBeingCast: card, // Using this to hold the skill-caster
-                selectedCardId: action.cardId // Keep the caster selected
-            };
+            if (activePlayerKey === 'player') {
+                return {
+                    ...stateWithClearedFlags,
+                    phase: 'spell_targeting',
+                    spellBeingCast: card, // Using this to hold the skill-caster
+                    selectedCardId: action.cardId // Keep the caster selected
+                };
+            } else { // AI targeting logic
+                if (!action.targetId) return stateWithClearedFlags; // AI must provide a target
+                 return gameReducer(stateWithClearedFlags, { type: 'CAST_SPELL_ON_TARGET', targetId: action.targetId });
+            }
         }
 
         // --- Logic for skills that don't need a target ---
-        let player = { ...stateWithClearedFlags.player };
+        let player = { ...stateWithClearedFlags[activePlayerKey] };
         let log = [...stateWithClearedFlags.log];
         const cardIndex = player.battlefield.findIndex((c: Card) => c.id === action.cardId);
         let cardToUpdate = { ...player.battlefield[cardIndex] };
@@ -701,7 +735,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         
         return { 
             ...stateWithClearedFlags,
-            player,
+            [activePlayerKey]: player,
             log: logEntry ? [...log, logEntry] : log,
             selectedCardId: null,
         };
@@ -1155,9 +1189,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       
       const intermediateState = {...stateWithClearedFlags, [currentPlayerKey]: currentPlayer, log: currentLog };
       
-      let { [nextPlayerKey]: drawnPlayer } = gameReducer(intermediateState, { type: 'DRAW_CARD', player: nextPlayerKey, count: 1 });
-
-      let nextPlayer = {...drawnPlayer};
+      let nextPlayer = { ...intermediateState[nextPlayerKey] };
+      const { player: drawnPlayer } = drawCardsWithBiomeAffinity(nextPlayer, 1, state.activeBiome);
+      nextPlayer = drawnPlayer;
+      
       nextPlayer.maxMana = Math.min(10, nextPlayer.maxMana + 1);
       nextPlayer.mana = nextPlayer.maxMana;
       
