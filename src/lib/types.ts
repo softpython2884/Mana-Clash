@@ -3,7 +3,7 @@ import type { ImagePlaceholder } from './placeholder-images';
 
 export type CardType = 'Creature' | 'Land' | 'Spell' | 'Artifact' | 'Biome' | 'Enchantment' | 'Potion' | 'SpecialSummon' | 'Trap' | 'Ritual';
 export type GamePhase = 'main' | 'combat' | 'targeting' | 'spell_targeting' | 'post_mulligan' | 'end' | 'game-over';
-export type BiomeType = 'Forest' | 'Mountain' | 'Swamp' | 'Desert' | 'Ice' | 'Volcano' | 'Sanctuary' | 'Plains';
+export type BiomeType = 'Forest' | 'Mountain' | 'Swamp' | 'Desert' | 'Ice' | 'Volcano' | 'Sanctuary' | 'Plains' | 'Cavern' | 'River' | 'Ruins' | 'Void' | 'Sky';
 
 export type SkillType = 
   | 'taunt' 
