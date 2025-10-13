@@ -119,44 +119,45 @@ export const createDeck = (): Card[] => {
   };
 
   // Player/Opponent Deck Composition
-  addCards('goblin', 2);
-  addCards('elf', 2);
-  addCards('elemental_fire', 1);
-  addCards('elemental_water', 1);
-  addCards('elemental_earth', 2);
+  addCards('goblin', 3);
+  addCards('elf', 3);
+  addCards('elemental_fire', 2);
+  addCards('elemental_water', 2);
+  addCards('elemental_earth', 3);
 
-  addCards('knight', 1);
-  addCards('cleric', 1);
-  addCards('sage', 1);
-  addCards('vampire', 1);
-  addCards('fallen_shaman', 1);
-  addCards('knowledge_priest', 2);
+  addCards('knight', 2);
+  addCards('cleric', 2);
+  addCards('sage', 2);
+  addCards('vampire', 2);
+  addCards('fallen_shaman', 2);
+  addCards('knowledge_priest', 3);
   
   addCards('golem', 1);
   addCards('griffon', 1);
+  addCards('dragon', 1);
   
   addCards('hydra', 1);
   
-  addCards('health_potion', 1);
-  addCards('mana_potion', 1);
-  addCards('berserk_rage', 1);
-  addCards('stoneskin', 1);
-  addCards('lightning_bolt', 1);
-  addCards('frostbolt', 2);
-  addCards('shadow_bolt', 1);
-  addCards('healing_light', 1);
-  addCards('giant_growth', 1);
+  addCards('health_potion', 2);
+  addCards('mana_potion', 2);
+  addCards('berserk_rage', 2);
+  addCards('stoneskin', 2);
+  addCards('lightning_bolt', 2);
+  addCards('frostbolt', 3);
+  addCards('shadow_bolt', 2);
+  addCards('healing_light', 2);
+  addCards('giant_growth', 2);
 
-  addCards('strength_enchantment', 1);
+  addCards('strength_enchantment', 2);
   addCards('kings_blessing', 1);
   addCards('defense_totem', 1);
   
-  addCards('forest_land', 3);
-  addCards('mountain_land', 3);
-  addCards('swamp_land', 3);
+  addCards('forest_land', 5);
+  addCards('mountain_land', 5);
+  addCards('swamp_land', 5);
 
-  addCards('forest_biome', 1);
-  addCards('ice_biome', 1);
+  addCards('forest_biome', 2);
+  addCards('ice_biome', 2);
 
 
   // Shuffle deck
@@ -165,5 +166,5 @@ export const createDeck = (): Card[] => {
     [deck[i], deck[j]] = [deck[j], deck[i]];
   }
 
-  return deck.slice(0, 40); // 40 card deck
+  return deck.slice(0, 70); // 70 card deck
 };
