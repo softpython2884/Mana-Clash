@@ -661,6 +661,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         
         cardToUpdate.skill.used = true;
         cardToUpdate.tapped = true;
+        if (cardToUpdate.skill.cooldown) {
+            cardToUpdate.skill.onCooldown = true;
+            cardToUpdate.skill.currentCooldown = cardToUpdate.skill.cooldown;
+        }
         cardToUpdate.skillJustUsed = true; // For visual feedback
 
         player.battlefield[cardIndex] = cardToUpdate;
@@ -854,7 +858,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const activePlayerKey = stateWithClearedFeedback.activePlayer;
     
       let player = { ...stateWithClearedFeedback.player };
-      let opponent = { ...stateWithClearedFeedback.opponent };
+      let opponent = { ...stateWithClearedfeedback.opponent };
       let log = [...stateWithClearedFeedback.log];
       const turn = stateWithClearedFeedback.turn;
     
@@ -942,7 +946,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         if (casterIndex > -1) {
           let casterCard = { ...activePlayerBattlefield[casterIndex] };
           casterCard.tapped = true;
-          casterCard.skill = casterCard.skill ? { ...casterCard.skill, used: true, onCooldown: true } : undefined;
+          if (casterCard.skill) {
+             casterCard.skill.used = true;
+             if (casterCard.skill.cooldown) {
+                casterCard.skill.onCooldown = true;
+                casterCard.skill.currentCooldown = casterCard.skill.cooldown;
+             }
+          }
           casterCard.skillJustUsed = true;
           if (activePlayerKey === 'player') {
               player.battlefield[casterIndex] = casterCard;
@@ -1007,7 +1017,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const activePlayerKey = state.activePlayer;
       let player = { ...state[activePlayerKey] };
       
-      if (state.turn !== 1) return state;
+      if (state.turn !== 1 || player.hasRedrawn) return state;
 
       // Shuffle hand back into deck
       player.deck.push(...player.hand);
@@ -1059,6 +1069,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         let newCard = {...c};
         if (c.type === 'Creature') {
           newCard.buffs = c.buffs.map((b: Buff) => ({ ...b, duration: b.duration - 1 })).filter((b: Buff) => b.duration > 0 || b.source === 'biome' || b.duration === Infinity);
+        
+          if (newCard.skill?.onCooldown) {
+            newCard.skill.currentCooldown = (newCard.skill.currentCooldown || 0) - 1;
+            if (newCard.skill.currentCooldown <= 0) {
+              newCard.skill.onCooldown = false;
+            }
+          }
         }
         if (c.type === 'Artifact') {
             newCard.duration = (c.duration || 0) - 1;
@@ -1178,3 +1195,5 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return stateWithClearedFeedback;
   }
 }
+
+    

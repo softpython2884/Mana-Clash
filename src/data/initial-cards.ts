@@ -35,15 +35,15 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
   createCard('elf', 'Elfe Archer', 'Creature', 2, "Tire des flèches précises.", { attack: 3, health: 1, armor: 1, criticalHitChance: 15, preferredBiome: 'Forest', rarity: 'Common', element: 'Earth' }),
   
   // Creatures - Rare
-  createCard('knight', 'Chevalier Vaillant', 'Creature', 3, "Compétence: Peut forcer un adversaire à l'attaquer.", { attack: 2, health: 2, armor: 3, criticalHitChance: 5, preferredBiome: 'Sanctuary', skill: { type: 'taunt', used: false }, rarity: 'Rare', element: 'Light' }),
+  createCard('knight', 'Chevalier Vaillant', 'Creature', 3, "Compétence: Peut forcer un adversaire à l'attaquer.", { attack: 2, health: 2, armor: 3, criticalHitChance: 5, preferredBiome: 'Sanctuary', skill: { type: 'taunt', used: false, cooldown: 3 }, rarity: 'Rare', element: 'Light' }),
   createCard('wizard', 'Sorcier Érudit', 'Creature', 4, "Maîtrise les arcanes.", { attack: 4, health: 3, armor: 0, criticalHitChance: 10, preferredBiome: 'Ice', rarity: 'Rare', element: 'Water' }),
-  createCard('cleric', 'Clerc du Sanctuaire', 'Creature', 2, 'Compétence: Soigne 3 PV à une créature.', { attack: 1, health: 3, armor: 1, preferredBiome: 'Sanctuary', skill: { type: 'heal', value: 3, target: 'any_creature', used: false }, rarity: 'Rare', element: 'Light' }),
+  createCard('cleric', 'Clerc du Sanctuaire', 'Creature', 2, 'Compétence: Soigne 3 PV à une créature.', { attack: 1, health: 3, armor: 1, preferredBiome: 'Sanctuary', skill: { type: 'heal', value: 3, target: 'any_creature', used: false, cooldown: 2 }, rarity: 'Rare', element: 'Light' }),
   createCard('vampire', 'Vampire Maudit', 'Creature', 4, 'Vol de vie (se soigne de la moitié des dégâts infligés).', { attack: 4, health: 3, armor: 1, preferredBiome: 'Swamp', skill: { type: 'lifesteal', used: false }, rarity: 'Rare', element: 'Shadow' }),
-  createCard('sage', 'Sage Oublié', 'Creature', 3, 'Compétence: Piochez une carte.', { attack: 2, health: 2, armor: 0, skill: { type: 'draw', used: false }, rarity: 'Rare', element: 'Neutral' }),
+  createCard('sage', 'Sage Oublié', 'Creature', 3, 'Compétence: Piochez une carte.', { attack: 2, health: 2, armor: 0, skill: { type: 'draw', used: false, cooldown: 4 }, rarity: 'Rare', element: 'Neutral' }),
   createCard('elemental_fire', 'Élémentaire de Feu', 'Creature', 3, "Incinère ses ennemis.", { attack: 4, health: 2, armor: 0, criticalHitChance: 15, preferredBiome: 'Volcano', rarity: 'Rare', element: 'Fire' }),
   createCard('elemental_water', 'Élémentaire d\'Eau', 'Creature', 3, "Vague déferlante.", { attack: 2, health: 4, armor: 1, criticalHitChance: 5, preferredBiome: 'Ice', rarity: 'Rare', element: 'Water' }),
   createCard('elemental_earth', 'Élémentaire de Terre', 'Creature', 3, "Mur de pierre vivant.", { attack: 1, health: 5, armor: 2, criticalHitChance: 0, preferredBiome: 'Forest', rarity: 'Rare', element: 'Earth' }),
-  createCard('fallen_shaman', 'Chaman Déchu', 'Creature', 2, "Compétence: Sacrifiez cette créature pour soigner un allié de 75% de ses PV restants.", { attack: 1, health: 3, armor: 0, skill: { type: 'sacrifice', target: 'friendly_creature', used: false }, rarity: 'Rare', element: 'Shadow' }),
+  createCard('fallen_shaman', 'Chaman Déchu', 'Creature', 2, "Compétence: Sacrifiez cette créature pour soigner un allié de 75% de ses PV restants.", { attack: 1, health: 3, armor: 0, skill: { type: 'sacrifice', target: 'friendly_creature', used: false, cooldown: 0 }, rarity: 'Rare', element: 'Shadow' }),
 
 
   // Creatures - Epic
@@ -104,7 +104,7 @@ export const createDeck = (): Card[] => {
             canAttack: false,
             summoningSickness: false,
             taunt: cardTemplate.taunt,
-            skill: cardTemplate.skill ? { ...cardTemplate.skill, used: false } : undefined,
+            skill: cardTemplate.skill ? { ...cardTemplate.skill, used: false, onCooldown: false, currentCooldown: 0 } : undefined,
             buffs: [],
             duration: cardTemplate.duration,
         });
@@ -157,5 +157,7 @@ export const createDeck = (): Card[] => {
 
   return deck.slice(0, 40); // 40 card deck
 };
+
+    
 
     

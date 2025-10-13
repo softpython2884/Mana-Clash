@@ -46,7 +46,7 @@ export default function GameBoard() {
 
     if (phase === 'combat' && card.canAttack && !card.tapped) {
       dispatch({ type: 'SELECT_ATTACKER', cardId });
-    } else if (phase === 'main' || (phase === 'spell_targeting' && spellBeingCast?.skill?.target === 'friendly_creature')) {
+    } else if (phase === 'main' || (phase === 'spell_targeting' && (spellBeingCast?.skill?.target === 'friendly_creature' || spellBeingCast?.skill?.target === 'any_creature'))) {
       dispatch({ type: 'SELECT_CARD', cardId });
     }
   }
@@ -85,7 +85,7 @@ export default function GameBoard() {
   }
   
   const handleRedraw = () => {
-    if (activePlayer !== 'player' || phase !== 'main' || turn !== 1) return;
+    if (activePlayer !== 'player' || phase !== 'main' || turn !== 1 || player.hasRedrawn) return;
     dispatch({ type: 'REDRAW_HAND' });
   }
 
@@ -119,7 +119,7 @@ export default function GameBoard() {
           onClick={() => handleSelectCardOnBattlefield(card.id)}
           onSkillClick={() => handleActivateSkill(card.id)}
           showSkill={card.id === selectedCardId && !!card.skill && !card.skill.onCooldown && !card.summoningSickness && !card.tapped}
-          isTargetable={phase === 'spell_targeting' && spellBeingCast?.skill?.target === 'friendly_creature'}
+          isTargetable={phase === 'spell_targeting' && (spellBeingCast?.skill?.target === 'friendly_creature' || spellBeingCast?.skill?.target === 'any_creature')}
       />
   )), [player.battlefield, phase, selectedAttackerId, selectedCardId, spellBeingCast]);
 
@@ -135,7 +135,7 @@ export default function GameBoard() {
 
   const MemoizedOpponentBattlefield = useMemo(() => opponent.battlefield.map((card) => {
     const isTargetableForAttack = phase === 'targeting' && selectedAttackerId && card.type === 'Creature' && (!opponentHasTaunt || card.taunt);
-    const isTargetableForSpell = phase === 'spell_targeting' && card.type === 'Creature';
+    const isTargetableForSpell = phase === 'spell_targeting' && card.type === 'Creature' && (spellBeingCast?.skill?.target === 'opponent_creature' || spellBeingCast?.skill?.target === 'any_creature');
     
     let isLethal = false;
     if (isTargetableForAttack && attackerCard) {
@@ -178,7 +178,7 @@ export default function GameBoard() {
 
   const canAttack = player.battlefield.some(c => c.canAttack && !c.tapped);
   const canMeditate = player.graveyard.length > 0;
-  const canRedraw = turn === 1;
+  const canRedraw = turn === 1 && !player.hasRedrawn;
 
   const getPhaseDescription = () => {
     switch(phase) {
@@ -323,3 +323,5 @@ export default function GameBoard() {
     </div>
   );
 }
+
+    

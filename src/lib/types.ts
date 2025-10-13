@@ -126,3 +126,5 @@ export interface GameState {
   selectedDefenderId: string | null;
   spellBeingCast: Card | null; // For spells or skills that require a target
 }
+
+    
