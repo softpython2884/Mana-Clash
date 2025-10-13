@@ -25,7 +25,8 @@ export type GameAction =
   | { type: 'ACTIVATE_SKILL', cardId: string, targetId?: string }
   | { type: 'END_COMBAT_ANIMATION' }
   | { type: 'CLEAN_BATTLEFIELD' }
-  | { type: 'PAUSE_GAME' };
+  | { type: 'PAUSE_GAME' }
+  | { type: 'ACTIVATE_FOCUS_DRAW' };
 
 const drawCardsWithBiomeAffinity = (player: Player, count: number, activeBiome: Card | null): { player: Player, drawnCard?: Card } => {
     let newDeck = [...player.deck];
@@ -64,7 +65,7 @@ const drawCardsWithBiomeAffinity = (player: Player, count: number, activeBiome: 
 
 const createInitialPlayer = (id: 'player' | 'opponent'): Player => ({
     id,
-    hp: 20, mana: 0, maxMana: 0, deck: [], hand: [], battlefield: [], graveyard: [], biomeChanges: 2, hasRedrawn: false,
+    hp: 20, mana: 0, maxMana: 0, deck: [], hand: [], battlefield: [], graveyard: [], biomeChanges: 2, hasRedrawn: false, focusDrawNextTurn: false,
 });
 
 const applyBiomeBuffs = (battlefield: Card[], biome: Card | null): Card[] => {
@@ -1195,6 +1196,17 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'ACTIVATE_FOCUS_DRAW': {
+        if (state.activePlayer !== 'player' || state.phase !== 'main' || state.player.hand.length !== 1) {
+            return state;
+        }
+        return {
+            ...state,
+            player: { ...state.player, focusDrawNextTurn: true },
+            log: [...state.log, { type: 'skill', turn: state.turn, message: "Joueur se concentre pour sa prochaine pioche." }]
+        };
+    }
+
     case 'PASS_TURN': {
       if (stateWithClearedFlags.phase === 'game-over') return stateWithClearedFlags;
       
@@ -1277,8 +1289,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const intermediateState = {...stateWithClearedFlags, [currentPlayerKey]: currentPlayer, log: currentLog };
       
       let nextPlayer = { ...intermediateState[nextPlayerKey] };
-      const { player: drawnPlayer } = drawCardsWithBiomeAffinity(nextPlayer, 1, state.activeBiome);
+      const drawCount = nextPlayer.focusDrawNextTurn ? 3 : 1;
+      const { player: drawnPlayer } = drawCardsWithBiomeAffinity(nextPlayer, drawCount, state.activeBiome);
       nextPlayer = drawnPlayer;
+      if (drawCount > 1) {
+          nextPlayer.focusDrawNextTurn = false;
+          currentLog.push({ type: 'draw', turn: nextTurnNumber, message: `${nextPlayerKey === 'player' ? 'Joueur' : "L'Adversaire"} pioche 3 cartes grâce à sa concentration.`})
+      }
       
       nextPlayer.maxMana = Math.min(10, (nextPlayer.maxMana || 0) + 1);
       nextPlayer.mana = nextPlayer.maxMana;

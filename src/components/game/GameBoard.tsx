@@ -6,10 +6,11 @@ import GameCard from './Card';
 import PlayerStats from './PlayerStats';
 import GameOverDialog from './GameOverDialog';
 import { Button } from '@/components/ui/button';
-import { Swords, RotateCcw, ScrollText, Brain, Replace } from 'lucide-react';
+import { Swords, RotateCcw, ScrollText, Brain, Replace, Sparkles } from 'lucide-react';
 import { Card as UICard, CardContent } from '@/components/ui/card';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import GameLog from './GameLog';
+import { cn } from '@/lib/utils';
 
 export default function GameBoard() {
   const [state, dispatch] = useReducer(gameReducer, undefined, getInitialState);
@@ -118,6 +119,11 @@ export default function GameBoard() {
     dispatch({ type: 'REDRAW_HAND' });
   }
 
+  const handleFocusDraw = () => {
+    if(activePlayer !== 'player' || phase !== 'main' || player.hand.length !== 1) return;
+    dispatch({ type: 'ACTIVATE_FOCUS_DRAW' });
+  }
+
   const handlePassTurn = () => {
     if (activePlayer !== 'player') return;
     if (phase === 'targeting' || phase === 'spell_targeting') return; 
@@ -214,6 +220,7 @@ export default function GameBoard() {
   const canAttack = player.battlefield.some(c => c.canAttack && !c.tapped);
   const canMeditate = player.graveyard.length > 0;
   const canRedraw = player.hand.length > 0;
+  const canFocusDraw = activePlayer === 'player' && phase === 'main' && player.hand.length === 1;
 
   const getPhaseDescription = () => {
     switch(phase) {
@@ -326,9 +333,20 @@ export default function GameBoard() {
           <div className="flex gap-2 items-end">
               <div className="flex justify-center -space-x-12 sm:-space-x-20">{MemoizedPlayerHand}</div>
               <div className="flex flex-col sm:flex-row gap-2">
-                <UICard className="w-20 h-28 sm:w-24 sm:h-32 flex flex-col items-center justify-center bg-secondary/20 rounded-xl backdrop-blur-sm">
+                <UICard 
+                  onClick={handleFocusDraw}
+                  className={cn(
+                    "w-20 h-28 sm:w-24 sm:h-32 flex flex-col items-center justify-center bg-secondary/20 rounded-xl backdrop-blur-sm relative",
+                    canFocusDraw && "cursor-pointer ring-2 ring-yellow-400 hover:ring-yellow-300"
+                  )}
+                >
                     <p className="font-bold text-sm sm:text-base">Pioche</p>
                     <p>{player.deck.length}</p>
+                    {player.focusDrawNextTurn && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-xl">
+                        <Sparkles className="w-10 h-10 text-yellow-400 animate-pulse" />
+                      </div>
+                    )}
                 </UICard>
                 <UICard className="w-20 h-28 sm:w-24 sm:h-32 flex flex-col items-center justify-center bg-black/40 text-white rounded-xl backdrop-blur-sm">
                     <p className="font-bold text-sm sm:text-base">Cimetière</p>

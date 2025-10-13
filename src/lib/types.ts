@@ -91,6 +91,7 @@ export interface Player {
   graveyard: Card[];
   biomeChanges: number;
   hasRedrawn: boolean; // Mulligan flag for the game
+  focusDrawNextTurn: boolean;
 }
 export type LogType = 
     | 'game_start'
