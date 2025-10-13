@@ -2,7 +2,7 @@
 import type { GameState, Card, Player, GamePhase, Buff, LogEntry } from './types';
 import { createDeck } from '@/data/initial-cards';
 
-const MAX_HAND_SIZE = 5;
+const MAX_HAND_SIZE = 7;
 const MAX_BATTLEFIELD_SIZE = 6;
 
 export type GameAction =
@@ -159,8 +159,8 @@ const shuffleAndDeal = (state: GameState): Omit<GameState, 'gameId'> => {
     };
     const activeBiome = defaultBiomeCard;
 
-    player = drawCardsWithBiomeAffinity(player, 5, activeBiome).player;
-    opponent = drawCardsWithBiomeAffinity(opponent, 5, activeBiome).player;
+    player = drawCardsWithBiomeAffinity(player, 7, activeBiome).player;
+    opponent = drawCardsWithBiomeAffinity(opponent, 7, activeBiome).player;
     
     return {
         turn: 1,
