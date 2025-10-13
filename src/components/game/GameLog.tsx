@@ -57,7 +57,7 @@ export default function GameLog({ log }: GameLogProps) {
                 <CardTitle className="text-center font-headline text-lg">Journal de jeu</CardTitle>
             </CardHeader>
             <CardContent className="flex-grow overflow-hidden">
-                <ScrollArea className="h-full pr-4">
+                <ScrollArea className="h-full pr-4" scrollBarClassName="w-2.5 border-l border-l-transparent p-[1px] hidden" thumbClassName="relative flex-1 rounded-full bg-border hidden">
                     <div className="flex flex-col gap-2">
                         {displayedLog.slice().reverse().map((entry, i) => {
                             const Icon = logIcons[entry.type] || Info;

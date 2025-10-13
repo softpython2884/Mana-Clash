@@ -309,112 +309,162 @@ const opponentAI = (state: GameState): GameState => {
     }
     return false;
   };
+  
+  let actionsTaken = 0;
+  const MAX_ACTIONS_PER_TURN = 10; // To prevent infinite loops
 
-  // 1. Play Land if possible
-  const landPlayedThisTurn = opponent.battlefield.some(c => c.type === 'Land' && c.summoningSickness);
-  if (!landPlayedThisTurn) {
-    const landInHand = opponent.hand.find(c => c.type === 'Land');
-    if (landInHand) {
-      applyAction({ type: 'PLAY_CARD', cardId: landInHand.id });
-    }
-  }
+  while (actionsTaken < MAX_ACTIONS_PER_TURN) {
+    let actionFound = false;
 
-  // 2. Survival & Healing (HIGHEST PRIORITY)
-  if (opponent.hp <= 10) {
-    // Use health potion from hand
-    const healthPotion = opponent.hand.find(c => c.id.startsWith('health_potion') && c.manaCost <= opponent.mana);
-    if (healthPotion) {
-      if(applyAction({ type: 'PLAY_CARD', cardId: healthPotion.id })) {
-         // Potion used, re-evaluate state
+    // 1. Play Land if possible
+    const landPlayedThisTurn = opponent.battlefield.some(c => c.type === 'Land' && c.summoningSickness);
+    if (!landPlayedThisTurn) {
+      const landInHand = opponent.hand.find(c => c.type === 'Land');
+      if (landInHand) {
+        if(applyAction({ type: 'PLAY_CARD', cardId: landInHand.id })) {
+            actionFound = true;
+            actionsTaken++;
+            continue; // Re-evaluate state after a significant action
+        }
       }
+    }
+
+    // 2. Survival & Healing (HIGHEST PRIORITY)
+    if (opponent.hp <= 10) {
+      // Use health potion from hand
+      const healthPotion = opponent.hand.find(c => c.id.startsWith('health_potion') && c.manaCost <= opponent.mana);
+      if (healthPotion) {
+        if(applyAction({ type: 'PLAY_CARD', cardId: healthPotion.id })) {
+           actionFound = true;
+           actionsTaken++;
+           continue;
+        }
+      }
+      
+      const mostDamagedValuableCreature = [...opponent.battlefield]
+        .filter(c => c.type === 'Creature' && c.health < c.initialHealth)
+        .sort((a,b) => (b.attack + b.armor) - (a.attack + a.armor))[0];
+
+      // Use healing light from hand
+      const healingLight = opponent.hand.find(c => c.id.startsWith('healing_light') && c.manaCost <= opponent.mana);
+      if(healingLight && mostDamagedValuableCreature) {
+          if(applyAction({ type: 'PLAY_CARD', cardId: healingLight.id })) {
+              if(applyAction({ type: 'CAST_SPELL_ON_TARGET', targetId: mostDamagedValuableCreature.id })) {
+                actionFound = true;
+                actionsTaken++;
+                continue;
+              }
+          }
+      }
+
+      // Use Cleric to heal the most damaged ally
+      const clerics = opponent.battlefield.filter(c => c.id.startsWith('cleric') && c.skill && !c.skill.onCooldown && !c.tapped && !c.summoningSickness);
+      if (clerics.length > 0 && mostDamagedValuableCreature) {
+        if(applyAction({ type: 'ACTIVATE_SKILL', cardId: clerics[0].id, targetId: mostDamagedValuableCreature.id })) {
+            actionFound = true;
+            actionsTaken++;
+            continue;
+        }
+      }
+    }
+
+    // 3. Use Mana Potion if it allows playing a better card this turn
+    const manaPotion = opponent.hand.find(c => c.id.startsWith('mana_potion') && c.manaCost <= opponent.mana);
+    if (manaPotion) {
+      const potentialMana = opponent.mana - manaPotion.manaCost + 2;
+      const powerfulCard = opponent.hand.find(c => c.type === 'Creature' && c.manaCost > opponent.mana && c.manaCost <= potentialMana);
+      if (powerfulCard) {
+        if(applyAction({ type: 'PLAY_CARD', cardId: manaPotion.id })) {
+            actionFound = true;
+            actionsTaken++;
+            continue;
+        }
+      }
+    }
+
+    // 4. Use spells and skills strategically
+    // Offensive spells to remove high-threat targets
+    const damageSpells = opponent.hand.filter(c => c.type === 'Spell' && (c.skill?.type === 'damage' || c.skill?.type === 'damage_and_heal') && c.manaCost <= opponent.mana);
+    if (damageSpells.length > 0) {
+        const killableTargets = player.battlefield.filter(t => t.type === 'Creature' && damageSpells.some(spell => (t.health || 0) <= (spell.skill?.value || 0)));
+        if (killableTargets.length > 0) {
+            const bestTarget = killableTargets.sort((a, b) => (b.attack || 0) - (a.attack || 0))[0];
+            const bestSpell = damageSpells.find(spell => (bestTarget.health || 0) <= (spell.skill?.value || 0));
+            if (bestSpell) {
+                if(applyAction({ type: 'PLAY_CARD', cardId: bestSpell.id })) {
+                   if(applyAction({ type: 'CAST_SPELL_ON_TARGET', targetId: bestTarget.id })) {
+                       actionFound = true;
+                       actionsTaken++;
+                       continue;
+                   }
+                }
+            }
+        }
     }
     
-    // Use healing light from hand
-    const healingLight = opponent.hand.find(c => c.id.startsWith('healing_light') && c.manaCost <= opponent.mana);
-    const mostDamagedCreature = [...opponent.battlefield].filter(c => c.type === 'Creature' && c.health < c.initialHealth).sort((a,b) => (a.health/a.initialHealth) - (b.health/b.initialHealth))[0];
-    if(healingLight && mostDamagedCreature) {
-        if(applyAction({ type: 'PLAY_CARD', cardId: healingLight.id })) {
-            applyAction({ type: 'CAST_SPELL_ON_TARGET', targetId: mostDamagedCreature.id });
+    // Buff spells before combat
+    const buffSpells = opponent.hand.filter(c => c.type === 'Spell' && (c.skill?.type === 'buff_attack' || c.skill?.type === 'buff_attack_and_armor' || c.skill?.type === 'buff_armor') && c.manaCost <= opponent.mana);
+    if (buffSpells.length > 0) {
+        const attackers = opponent.battlefield.filter(c => c.type === 'Creature' && !c.tapped && !c.summoningSickness);
+        if (attackers.length > 0) {
+            const bestTarget = attackers.sort((a,b) => (b.attack || 0) - (a.attack || 0))[0];
+            if(applyAction({ type: 'PLAY_CARD', cardId: buffSpells[0].id })) {
+                if(applyAction({ type: 'CAST_SPELL_ON_TARGET', targetId: bestTarget.id })) {
+                    actionFound = true;
+                    actionsTaken++;
+                    continue;
+                }
+            }
         }
     }
 
-    // Use Cleric to heal the most damaged ally
-    const clerics = opponent.battlefield.filter(c => c.id.startsWith('cleric') && c.skill && !c.skill.onCooldown && !c.tapped && !c.summoningSickness);
-    if (clerics.length > 0 && mostDamagedCreature) {
-      const cleric = clerics[0];
-      applyAction({ type: 'ACTIVATE_SKILL', cardId: cleric.id, targetId: mostDamagedCreature.id });
+    // Use creature skills
+    const activatableSkills = opponent.battlefield.filter(c => c.skill && !c.skill.onCooldown && !c.tapped && !c.summoningSickness);
+    for (const card of activatableSkills) {
+        if (card.skill?.type === 'draw') {
+            if (opponent.hand.length < MAX_HAND_SIZE) {
+                if(applyAction({ type: 'ACTIVATE_SKILL', cardId: card.id })) {
+                    actionFound = true;
+                    break;
+                }
+            }
+        } else if (card.skill?.type === 'taunt') {
+            if (!card.taunt) {
+                 if(applyAction({ type: 'ACTIVATE_SKILL', cardId: card.id })) {
+                    actionFound = true;
+                    break;
+                 }
+            }
+        } else if (card.skill?.type === 'sacrifice') {
+          const valuableAllies = opponent.battlefield.filter(c => c.id !== card.id && c.type === 'Creature' && c.health < c.initialHealth / 2 && (c.attack || 0) > 3);
+          if (valuableAllies.length > 0) {
+            if(applyAction({type: 'ACTIVATE_SKILL', cardId: card.id, targetId: valuableAllies[0].id})) {
+                actionFound = true;
+                break;
+            }
+          }
+        }
     }
-  }
+     if(actionFound) { actionsTaken++; continue; }
 
-  // 3. Use Mana Potion if it allows playing a better card
-  const manaPotion = opponent.hand.find(c => c.id.startsWith('mana_potion') && c.manaCost <= opponent.mana);
-  if (manaPotion) {
-    const potentialMana = opponent.mana - manaPotion.manaCost + 2;
-    const powerfulCard = opponent.hand.find(c => c.type === 'Creature' && c.manaCost > opponent.mana && c.manaCost <= potentialMana);
-    if (powerfulCard) {
-      applyAction({ type: 'PLAY_CARD', cardId: manaPotion.id });
-    }
-  }
+    // 5. Play creatures/artifacts/enchantments to establish board presence
+    if (opponent.battlefield.length < MAX_BATTLEFIELD_SIZE) {
+      const playableCards = opponent.hand
+        .filter(c => (c.type === 'Creature' || c.type === 'Artifact' || c.type === 'Enchantment') && c.manaCost <= opponent.mana)
+        .sort((a, b) => b.manaCost - a.manaCost); 
 
-  // 4. Use spells and skills strategically
-  // Offensive spells
-  const damageSpells = opponent.hand.filter(c => c.type === 'Spell' && (c.skill?.type === 'damage' || c.skill?.type === 'damage_and_heal') && c.manaCost <= opponent.mana);
-  for (const spell of damageSpells) {
-      const killableTargets = player.battlefield.filter(t => t.type === 'Creature' && (t.health || 0) <= (spell.skill?.value || 0));
-      if (killableTargets.length > 0) {
-          const bestTarget = killableTargets.sort((a, b) => (b.attack || 0) - (a.attack || 0))[0];
-          if(applyAction({ type: 'PLAY_CARD', cardId: spell.id })) {
-             applyAction({ type: 'CAST_SPELL_ON_TARGET', targetId: bestTarget.id });
-          }
-      }
-  }
-  
-  // Buff spells before combat
-  const buffSpells = opponent.hand.filter(c => c.type === 'Spell' && (c.skill?.type === 'buff_attack' || c.skill?.type === 'buff_attack_and_armor' || c.skill?.type === 'buff_armor') && c.manaCost <= opponent.mana);
-  for (const spell of buffSpells) {
-      const attackers = opponent.battlefield.filter(c => c.type === 'Creature' && !c.tapped && !c.summoningSickness);
-      if (attackers.length > 0) {
-          const bestTarget = attackers.sort((a,b) => (b.attack || 0) - (a.attack || 0))[0];
-           if(applyAction({ type: 'PLAY_CARD', cardId: spell.id })) {
-               applyAction({ type: 'CAST_SPELL_ON_TARGET', targetId: bestTarget.id });
-           }
-      }
-  }
-
-  // Use creature skills
-  const activatableSkills = opponent.battlefield.filter(c => c.skill && !c.skill.onCooldown && !c.tapped && !c.summoningSickness);
-  for (const card of activatableSkills) {
-      if (card.skill?.type === 'draw') {
-          if (opponent.hand.length < MAX_HAND_SIZE) {
-              applyAction({ type: 'ACTIVATE_SKILL', cardId: card.id });
-          }
-      } else if (card.skill?.type === 'taunt') {
-          if (!card.taunt) {
-              applyAction({ type: 'ACTIVATE_SKILL', cardId: card.id });
-          }
-      } else if (card.skill?.type === 'sacrifice') {
-        const valuableAllies = opponent.battlefield.filter(c => c.id !== card.id && c.type === 'Creature' && c.health < c.initialHealth / 2 && (c.attack || 0) > 3);
-        if (valuableAllies.length > 0) {
-          const target = valuableAllies[0];
-          applyAction({type: 'ACTIVATE_SKILL', cardId: card.id, targetId: target.id});
+      if (playableCards.length > 0) {
+        if(applyAction({ type: 'PLAY_CARD', cardId: playableCards[0].id })) {
+          actionFound = true;
+          actionsTaken++;
+          continue;
         }
       }
-  }
+    }
 
-  // 5. Play creatures/artifacts/enchantments to establish board presence
-  let playedCard = true;
-  while(playedCard) {
-    playedCard = false;
-    if (opponent.battlefield.length >= MAX_BATTLEFIELD_SIZE) break;
-
-    const playableCards = opponent.hand
-      .filter(c => (c.type === 'Creature' || c.type === 'Artifact' || c.type === 'Enchantment') && c.manaCost <= opponent.mana)
-      .sort((a, b) => b.manaCost - a.manaCost); 
-
-    if (playableCards.length > 0) {
-      if(applyAction({ type: 'PLAY_CARD', cardId: playableCards[0].id })) {
-        playedCard = true;
-      }
+    // If no action was found in this loop, break to avoid infinite loop
+    if (!actionFound) {
+      break;
     }
   }
   
@@ -433,7 +483,7 @@ const opponentAI = (state: GameState): GameState => {
   const playerTauntCreatures = combatPlayer.battlefield.filter((c: Card) => c.taunt && !c.tapped);
 
   if (attackers.length > 0) {
-    combatLog.push({ type: 'phase', turn: combatState.turn, message: `Adversaire passe en phase de combat.` });
+    combatLog.push({ type: 'phase', turn: combatState.turn, message: `Adversaire passe en phase de combat.`, target: 'opponent' });
   }
 
   for (const attacker of attackers) {
@@ -507,11 +557,11 @@ const opponentAI = (state: GameState): GameState => {
   if (combatPlayer.hp <= 0) {
       combatState.winner = 'opponent';
       combatState.phase = 'game-over';
-      combatLog.push({ type: 'game_over', turn: combatState.turn, message: "Le joueur a été vaincu."})
+      combatLog.push({ type: 'game_over', turn: combatState.turn, message: "Le joueur a été vaincu.", target: 'player' })
   } else if (combatOpponent.hp <= 0) {
       combatState.winner = 'player';
       combatState.phase = 'game-over';
-      combatLog.push({ type: 'game_over', turn: combatState.turn, message: "L'adversaire a été vaincu."})
+      combatLog.push({ type: 'game_over', turn: combatState.turn, message: "L'adversaire a été vaincu.", target: 'opponent' })
   }
 
   return combatState;
@@ -553,7 +603,7 @@ const resolvePlayerCombat = (state: GameState): GameState => {
         
         // --- Riposte (Retaliation) ---
         if ((newDefender.health || 0) > 0) {
-            finalLog.push({ type: 'combat', turn: turn, message: `${newDefender.name} riposte !`, target: 'player' });
+            finalLog.push({ type: 'combat', turn: turn, message: `${newDefender.name} riposte !`, target: 'opponent' });
             let riposteResult = resolveDamage(newDefender, newAttacker, finalLog, turn, finalOpponent);
             newAttacker = riposteResult.defender as Card;
             newDefender = riposteResult.attacker;
@@ -587,10 +637,10 @@ const resolvePlayerCombat = (state: GameState): GameState => {
     let winner;
     if (finalOpponent.hp <= 0) {
         winner = 'player';
-        finalLog.push({ type: 'game_over', turn: turn, message: "L'adversaire a été vaincu."})
+        finalLog.push({ type: 'game_over', turn: turn, message: "L'adversaire a été vaincu.", target: 'player'})
     } else if (finalPlayer.hp <= 0) {
         winner = 'opponent';
-        finalLog.push({ type: 'game_over', turn: turn, message: "Le joueur a été vaincu."})
+        finalLog.push({ type: 'game_over', turn: turn, message: "Le joueur a été vaincu.", target: 'opponent'})
     }
 
     return {
@@ -740,9 +790,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'CLEAN_BATTLEFIELD': {
-        const clean = (p: Player, ownerKey: 'player' | 'opponent'): Player => {
+        const clean = (p: Player, ownerKey: 'player' | 'opponent'): { player: Player, log: LogEntry[] } => {
             const graveyard = [...p.graveyard];
-            let log = [...state.log];
+            let log = [] as LogEntry[];
             const battlefield = p.battlefield.filter(c => {
                 if ((c.health || 0) <= 0) {
                     graveyard.push({ ...c, health: c.initialHealth, buffs: [] });
@@ -751,13 +801,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
                 }
                 return true;
             });
-            state.log = log;
-            return { ...p, battlefield, graveyard };
+            return { player: { ...p, battlefield, graveyard }, log };
         };
 
-        const player = clean(state.player, 'player');
-        const opponent = clean(state.opponent, 'opponent');
-        return { ...state, player, opponent };
+        const { player, log: playerLog } = clean(state.player, 'player');
+        const { player: opponent, log: opponentLog } = clean(state.opponent, 'opponent');
+        
+        return { ...state, player, opponent, log: [...state.log, ...playerLog, ...opponentLog] };
     }
 
 
@@ -1191,8 +1241,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         }
       }
     
-      const updateField = (p: Player, ownerKey: 'player' | 'opponent'): Player => {
+      const updateField = (p: Player, ownerKey: 'player' | 'opponent'): { player: Player, log: LogEntry[] } => {
         let graveyard = [...p.graveyard];
+        let log: LogEntry[] = [];
         const remainingCreatures = p.battlefield.filter(c => {
           if ((c.health || 0) <= 0) {
             log.push({ type: 'destroy', turn, message: `${c.name} est détruit.`, target: ownerKey });
@@ -1201,11 +1252,16 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           }
           return true;
         });
-        return { ...p, battlefield: remainingCreatures, graveyard };
+        return { player: { ...p, battlefield: remainingCreatures, graveyard }, log };
       };
     
-      opponent = updateField(opponent, "opponent");
-      player = updateField(player, "player");
+      const { player: updatedOpponent, log: opponentLog } = updateField(opponent, "opponent");
+      opponent = updatedOpponent;
+      log.push(...opponentLog);
+      
+      const { player: updatedPlayer, log: playerLog } = updateField(player, "player");
+      player = updatedPlayer;
+      log.push(...playerLog);
     
       return {
         ...stateWithClearedFlags,
@@ -1293,6 +1349,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           currentPlayer.graveyard.splice(randomIndex, 1);
           currentLog.push({type: 'draw', turn: stateWithClearedFlags.turn, message: `${currentPlayerKey === 'player' ? 'Joueur' : 'Adversaire'} récupère ${cardFromGraveyard.name} du cimetière.`, target: currentPlayerKey})
         }
+      }
+
+      // AI auto-focus draw
+      if (currentPlayerKey === 'opponent' && currentPlayer.hand.length <= 2) {
+          currentPlayer.focusDrawNextTurn = true;
+          currentLog.push({ type: 'skill', turn: stateWithClearedFlags.turn, message: "L'adversaire se concentre pour sa prochaine pioche.", target: 'opponent' });
       }
 
       let artifactsToRemove: string[] = [];
