@@ -532,7 +532,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       };
 
     case 'SELECT_CARD': {
-        if (stateWithClearedFeedback.activePlayer !== 'player' || stateWithClearedFeedback.phase !== 'main') return stateWithClearedFeedback;
+        if (stateWithClearedFeedback.activePlayer !== 'player' || (stateWithClearedFeedback.phase !== 'main' && stateWithClearedFeedback.phase !== 'spell_targeting')) return stateWithClearedFeedback;
+        
+        // If we are in spell_targeting, this click is for CAST_SPELL_ON_TARGET
+        if (stateWithClearedFeedback.phase === 'spell_targeting' && stateWithClearedFeedback.spellBeingCast?.skill?.target === 'friendly_creature') {
+            return gameReducer(stateWithClearedFeedback, { type: 'CAST_SPELL_ON_TARGET', targetId: action.cardId });
+        }
+
         if (stateWithClearedFeedback.selectedCardId && stateWithClearedFeedback.selectedCardId === action.cardId) {
             return { ...stateWithClearedFeedback, selectedCardId: null }; // Deselect
         } else {
@@ -542,56 +548,54 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'ACTIVATE_SKILL': {
         if (stateWithClearedFeedback.activePlayer !== 'player' || stateWithClearedFeedback.phase !== 'main') return stateWithClearedFeedback;
-        let player = {...stateWithClearedFeedback.player};
-        let log = [...stateWithClearedFeedback.log];
-        const cardIndex = player.battlefield.findIndex((c:Card) => c.id === action.cardId);
-        if (cardIndex === -1) return stateWithClearedFeedback;
+        
+        const card = stateWithClearedFeedback.player.battlefield.find((c: Card) => c.id === action.cardId);
+        if (!card || !card.skill || card.skill.used || card.summoningSickness || card.tapped) return stateWithClearedFeedback;
+        
+        // If skill requires a target, change phase to spell_targeting
+        if (card.skill.target && card.skill.target !== 'self') {
+            return {
+                ...stateWithClearedFeedback,
+                phase: 'spell_targeting',
+                spellBeingCast: card, // Using this to hold the skill-caster
+                selectedCardId: action.cardId // Keep the caster selected
+            };
+        }
 
-        let card = {...player.battlefield[cardIndex]};
-        if (!card.skill || card.skill.used || card.summoningSickness || card.tapped) return stateWithClearedFeedback;
+        // --- Logic for skills that don't need a target ---
+        let player = { ...stateWithClearedFeedback.player };
+        let log = [...stateWithClearedFeedback.log];
+        const cardIndex = player.battlefield.findIndex((c: Card) => c.id === action.cardId);
+        let cardToUpdate = { ...player.battlefield[cardIndex] };
         
         let logEntry: LogEntry | null = null;
-
-        switch(card.skill.type) {
+        
+        switch(cardToUpdate.skill?.type) {
             case 'taunt':
-                card.taunt = true;
-                logEntry = { type: 'skill', turn: stateWithClearedFeedback.turn, message: `Joueur active la compétence Provocation de ${card.name}!` };
-                break;
-            case 'heal':
-                if(action.targetId) {
-                    const targetIndex = player.battlefield.findIndex((c:Card) => c.id === action.targetId);
-                    if (targetIndex > -1) {
-                        const targetCard = {...player.battlefield[targetIndex]};
-                        targetCard.health = Math.min(targetCard.initialHealth || 0, (targetCard.health || 0) + (card.skill.value || 0));
-                        player.battlefield[targetIndex] = targetCard;
-                        logEntry = { type: 'heal', turn: stateWithClearedFeedback.turn, message: `${card.name} soigne ${targetCard.name} de ${card.skill.value} PV.` };
-                    }
-                } else {
-                  // For now, let's assume self-heal if no target
-                  card.health = Math.min(card.initialHealth || 0, (card.health || 0) + (card.skill.value || 0));
-                  logEntry = { type: 'heal', turn: stateWithClearedFeedback.turn, message: `${card.name} se soigne de ${card.skill.value} PV.` };
-                }
+                cardToUpdate.taunt = true;
+                logEntry = { type: 'skill', turn: stateWithClearedFeedback.turn, message: `Joueur active la compétence Provocation de ${cardToUpdate.name}!` };
                 break;
             case 'draw':
                 const drawnState = gameReducer(stateWithClearedFeedback, { type: 'DRAW_CARD', player: 'player', count: 1 });
                 player = drawnState.player;
                 log = drawnState.log;
-                logEntry = { type: 'draw', turn: stateWithClearedFeedback.turn, message: `${card.name} fait piocher une carte.` };
+                logEntry = { type: 'draw', turn: stateWithClearedFeedback.turn, message: `${cardToUpdate.name} fait piocher une carte.` };
                 break;
             default:
                 return stateWithClearedFeedback;
         }
         
-        card.skill.used = true;
-        card.tapped = true;
-        card.skillJustUsed = true; // For visual feedback
+        cardToUpdate.skill.used = true;
+        cardToUpdate.tapped = true;
+        cardToUpdate.skillJustUsed = true; // For visual feedback
 
-        player.battlefield[cardIndex] = card;
+        player.battlefield[cardIndex] = cardToUpdate;
+        
         return { 
             ...stateWithClearedFeedback,
             player,
             log: logEntry ? [...log, logEntry] : log,
-            selectedCardId: null, // Deselect card after using skill
+            selectedCardId: null,
         };
     }
 
@@ -601,7 +605,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
                  return { ...stateWithClearedFeedback, log: [...stateWithClearedFeedback.log, { type: 'info', turn: stateWithClearedFeedback.turn, message: "Aucune créature ne peut attaquer."}] };
              }
               else if (action.phase === 'main') {
-                return { ...stateWithClearedFeedback, phase: 'main', selectedAttackerId: null, selectedDefenderId: null, selectedCardId: null };
+                return { ...stateWithClearedFeedback, phase: 'main', selectedAttackerId: null, selectedDefenderId: null, selectedCardId: null, spellBeingCast: null };
             } else {
                 return { ...stateWithClearedFeedback, phase: action.phase, log: [...stateWithClearedFeedback.log, { type: 'phase', turn: stateWithClearedFeedback.turn, message: `Phase de ${action.phase}.`}] };
             }
@@ -694,7 +698,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             tempNewState.log.push({ type: 'buff', turn: state.turn, message: `${card.name} donne +${card.skill.value} armure à toutes les créatures.` });
         }
       } else if (card.type === 'Spell' || card.type === 'Enchantment' || card.type === 'Potion') {
-        if (card.skill?.target === 'opponent_creature') {
+        if (card.skill?.target) {
             return {
                 ...tempNewState,
                 player: newPlayerState,
@@ -708,21 +712,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         } else if (card.id.startsWith('mana_potion')) {
             newPlayerState.mana = newPlayerState.mana + 2;
             tempNewState.log.push({ type: 'mana', turn: state.turn, message: `Joueur gagne 2 mana.` });
-        } else if (card.skill?.target === 'friendly_creature' && tempNewState.selectedCardId) {
-            const targetIndex = newPlayerState.battlefield.findIndex((c: Card) => c.id === tempNewState.selectedCardId);
-            if (targetIndex > -1) {
-                const targetCard = {...newPlayerState.battlefield[targetIndex]};
-                let newBuffs = [...targetCard.buffs];
-                if (card.skill.type === 'buff_attack') {
-                    newBuffs.push({ type: 'attack', value: card.skill.value || 0, duration: card.skill.duration || 0, source: 'spell' });
-                }
-                if (card.skill.type === 'buff_armor') {
-                    newBuffs.push({ type: 'armor', value: card.skill.value || 0, duration: card.skill.duration || 0, source: 'spell' });
-                }
-                targetCard.buffs = newBuffs;
-                newPlayerState.battlefield[targetIndex] = targetCard;
-                tempNewState.log.push({ type: 'spell', turn: state.turn, message: `${card.name} est lancé sur ${targetCard.name}.` });
-            }
         }
         newPlayerState.graveyard = [...newPlayerState.graveyard, card];
       }
@@ -782,26 +771,69 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (stateWithClearedFeedback.phase !== 'spell_targeting' || !stateWithClearedFeedback.spellBeingCast || stateWithClearedFeedback.activePlayer !== 'player') return stateWithClearedFeedback;
 
       const { targetId } = action;
-      const spell = stateWithClearedFeedback.spellBeingCast;
+      const spellOrSkillCaster = stateWithClearedFeedback.spellBeingCast;
+      let player = { ...stateWithClearedFeedback.player };
       let opponent = { ...stateWithClearedFeedback.opponent };
       let log = [...stateWithClearedFeedback.log];
       const turn = stateWithClearedFeedback.turn;
 
-      const targetIndex = opponent.battlefield.findIndex(c => c.id === targetId);
-      if (targetIndex === -1) {
-        return { ...stateWithClearedFeedback, phase: 'main', spellBeingCast: null }; // Invalid target
+      let target: Card | undefined;
+      let targetOwner: 'player' | 'opponent' | undefined;
+
+      if (spellOrSkillCaster.skill?.target === 'opponent_creature') {
+        target = opponent.battlefield.find(c => c.id === targetId);
+        targetOwner = 'opponent';
+      } else if (spellOrSkillCaster.skill?.target === 'friendly_creature' || spellOrSkillCaster.skill?.target === 'any_creature') {
+        target = player.battlefield.find(c => c.id === targetId);
+        targetOwner = 'player';
+      }
+      
+      if (!target || !targetOwner) {
+        return { ...stateWithClearedFeedback, phase: 'main', spellBeingCast: null, selectedCardId: null }; // Invalid target
       }
 
-      let targetCard = { ...opponent.battlefield[targetIndex] };
+      log.push({ type: 'spell', turn, message: `Joueur utilise ${spellOrSkillCaster.name} sur ${target.name}.` });
+      
+      let targetCard = { ...target };
 
-      log.push({ type: 'spell', turn, message: `${stateWithClearedFeedback.player.id} lance ${spell.name} sur ${targetCard.name}.` });
-
-      if (spell.skill?.type === 'damage') {
-        targetCard.health = (targetCard.health || 0) - (spell.skill.value || 0);
-        log.push({ type: 'damage', turn, message: `${targetCard.name} subit ${spell.skill.value} dégâts. PV restants: ${targetCard.health}` });
+      switch (spellOrSkillCaster.skill?.type) {
+        case 'damage':
+          targetCard.health = (targetCard.health || 0) - (spellOrSkillCaster.skill.value || 0);
+          log.push({ type: 'damage', turn, message: `${targetCard.name} subit ${spellOrSkillCaster.skill.value} dégâts. PV restants: ${targetCard.health}` });
+          break;
+        case 'buff_attack':
+          targetCard.buffs.push({ type: 'attack', value: spellOrSkillCaster.skill.value || 0, duration: spellOrSkillCaster.skill.duration || Infinity, source: 'spell' });
+          log.push({ type: 'buff', turn, message: `${targetCard.name} gagne +${spellOrSkillCaster.skill.value} en attaque.` });
+          break;
+        case 'buff_armor':
+           targetCard.buffs.push({ type: 'armor', value: spellOrSkillCaster.skill.value || 0, duration: spellOrSkillCaster.skill.duration || Infinity, source: 'spell' });
+           log.push({ type: 'buff', turn, message: `${targetCard.name} gagne +${spellOrSkillCaster.skill.value} en armure.` });
+           break;
+        case 'heal':
+           targetCard.health = Math.min(targetCard.initialHealth || 0, (targetCard.health || 0) + (spellOrSkillCaster.skill.value || 0));
+           log.push({ type: 'heal', turn, message: `${spellOrSkillCaster.name} soigne ${targetCard.name} de ${spellOrSkillCaster.skill.value} PV.` });
+           break;
       }
-
-      opponent.battlefield[targetIndex] = targetCard;
+      
+      if (targetOwner === 'player') {
+        player.battlefield = player.battlefield.map(c => c.id === targetId ? targetCard : c);
+      } else {
+        opponent.battlefield = opponent.battlefield.map(c => c.id === targetId ? targetCard : c);
+      }
+      
+      // If it was a card from hand, move it to graveyard
+      if(state.player.hand.find(c => c.id === spellOrSkillCaster.id) === undefined) { // skill from creature
+        const casterIndex = player.battlefield.findIndex(c => c.id === spellOrSkillCaster.id);
+        if(casterIndex > -1) {
+            let casterCard = {...player.battlefield[casterIndex]};
+            casterCard.tapped = true;
+            casterCard.skill = casterCard.skill ? {...casterCard.skill, used: true} : undefined;
+            casterCard.skillJustUsed = true;
+            player.battlefield[casterIndex] = casterCard;
+        }
+      } else { // spell from hand
+        player.graveyard = [...player.graveyard, spellOrSkillCaster];
+      }
 
       const updateField = (p: Player, owner: string): Player => {
         let graveyard = [...p.graveyard];
@@ -815,11 +847,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         });
         return { ...p, battlefield: remainingCreatures, graveyard };
       };
-
+      
       opponent = updateField(opponent, "Adversaire");
-
-      let player = { ...stateWithClearedFeedback.player };
-      player.graveyard = [...player.graveyard, spell];
+      player = updateField(player, "Joueur");
 
       return {
         ...stateWithClearedFeedback,
@@ -828,6 +858,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         log,
         phase: 'main',
         spellBeingCast: null,
+        selectedCardId: null
       };
     }
 
@@ -982,12 +1013,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         const playableCards = finalStateFromAI.opponent.hand.filter(c => c.manaCost <= finalStateFromAI.opponent.mana && c.type !== 'Spell');
         if (playableCards.length > 0) {
             const cardToPlay = playableCards.sort((a, b) => b.manaCost - a.manaCost)[0];
+             // The reducer will handle the PASS_TURN automatically after the card is played in 'post_mulligan' phase
             const stateAfterPlay = gameReducer(finalStateFromAI, {type: 'PLAY_CARD', cardId: cardToPlay.id});
             return {
               ...stateAfterPlay,
               isThinking: false
             }
         }
+        // If no card can be played, pass the turn
         return gameReducer({...finalStateFromAI, isThinking: false }, {type: 'PASS_TURN'});
       }
       
