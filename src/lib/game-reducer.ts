@@ -181,7 +181,6 @@ const opponentAI = (state: GameState): GameState => {
   if (opponent.biomeChanges > 0) {
       const biomeCardInHand = opponent.hand.find((c: Card) => c.type === 'Biome' && c.biome !== tempState.activeBiome?.biome);
       if (biomeCardInHand) {
-        // AI wants to change biome, dispatching the action and letting the reducer handle it.
         return gameReducer(tempState, { type: 'CHANGE_BIOME', cardId: biomeCardInHand.id, player: 'opponent' });
       }
   }
@@ -218,7 +217,6 @@ const opponentAI = (state: GameState): GameState => {
           opponent.hand = opponent.hand.filter((c: Card) => c.id !== cardToPlay.id);
           opponent.mana -= cardToPlay.manaCost;
 
-          // Re-apply biome buffs for the new card
           opponent.battlefield = applyBiomeBuffs(opponent.battlefield, tempState.activeBiome);
       } else {
           playedCard = false;
@@ -230,56 +228,62 @@ const opponentAI = (state: GameState): GameState => {
   
   attackers.forEach((attacker: Card) => {
       let targetId: string | 'player' | null = null;
-      let targetPlayerCard: Card | undefined = undefined;
       
       if(playerTauntCreatures.length > 0) {
-          targetPlayerCard = playerTauntCreatures.sort((a,b) => (a.health || 0) - (b.health || 0))[0];
-          targetId = targetPlayerCard.id;
+          targetId = playerTauntCreatures.sort((a,b) => (a.health || 0) - (b.health || 0))[0].id;
       } else {
         let potentialBlockers = player.battlefield.filter((c: Card) => c.type === 'Creature' && !c.tapped);
         if (potentialBlockers.length > 0) {
            let killableTarget = potentialBlockers.find(p => (p.health || 0) <= (attacker.attack || 0));
            if(killableTarget) {
-               targetPlayerCard = killableTarget;
+               targetId = killableTarget.id;
            } else {
-               targetPlayerCard = potentialBlockers.sort((a,b) => (b.attack || 0) - (a.attack || 0))[0];
+               targetId = potentialBlockers.sort((a,b) => (b.attack || 0) - (a.attack || 0))[0].id;
            }
-           targetId = targetPlayerCard.id;
         } else {
           targetId = 'player';
         }
       }
 
       if (targetId) {
-          const attackerInBattlefield = opponent.battlefield.find((c: Card) => c.id === attacker.id);
-          if (!attackerInBattlefield) return;
+          let attackerCard = opponent.battlefield.find((c: Card) => c.id === attacker.id);
+          if (!attackerCard) return;
 
           if (targetId === 'player') {
-            log.push({ turn: tempState.turn, message: `Adversaire: ${attacker.name} attaque le joueur directement.` });
-            const totalAttack = (attacker.attack || 0) + (attacker.buffs?.filter(b => b.type === 'attack').reduce((acc, b) => acc + b.value, 0) || 0);
+            log.push({ turn: tempState.turn, message: `Adversaire: ${attackerCard.name} attaque le joueur directement.` });
+            const totalAttack = (attackerCard.attack || 0) + (attackerCard.buffs?.filter(b => b.type === 'attack').reduce((acc, b) => acc + b.value, 0) || 0);
             player.hp -= totalAttack;
             log.push({ turn: tempState.turn, message: `Joueur subit ${totalAttack} dégâts. PV restants: ${player.hp}.` });
-          } else if(targetPlayerCard) {
-            const defenderInPlayerField = player.battlefield.find((c: Card) => c.id === targetPlayerCard!.id);
-            if (!defenderInPlayerField) return;
+          } else {
+            let defenderCard = player.battlefield.find((c: Card) => c.id === targetId);
+            if (!defenderCard) return;
 
-            log.push({ turn: tempState.turn, message: `Adversaire: ${attacker.name} attaque ${defenderInPlayerField.name}.` });
+            log.push({ turn: tempState.turn, message: `Adversaire: ${attackerCard.name} attaque ${defenderCard.name}.` });
             
-            const defenderHealthBefore = defenderInPlayerField.health || 0;
-            const combatResult = resolveDamage(attackerInBattlefield, defenderInPlayerField, log, tempState.turn, opponent);
+            const initialDefenderHealth = defenderCard.health || 0;
+            let combatResult = resolveDamage(attackerCard, defenderCard, log, tempState.turn, opponent);
+            let updatedAttacker = combatResult.attacker;
+            let updatedDefender = combatResult.defender;
+            opponent = combatResult.owner;
             log = combatResult.log;
-            
-            if((combatResult.defender.health || 0) > 0 && (combatResult.defender.health || 0) < defenderHealthBefore) {
-               log.push({ turn, message: `${defenderInPlayerField.name} riposte !` });
-               const riposteResult = resolveDamage(combatResult.defender, combatResult.attacker, log, tempState.turn, player);
+
+            if((updatedDefender.health || 0) > 0 && (updatedDefender.health || 0) < initialDefenderHealth) {
+               log.push({ turn, message: `${updatedDefender.name} riposte !` });
+               const riposteResult = resolveDamage(updatedDefender, updatedAttacker, log, tempState.turn, player);
+               updatedAttacker = riposteResult.defender;
+               updatedDefender = riposteResult.attacker;
+               player = riposteResult.owner;
                log = riposteResult.log;
-            } else if ((combatResult.defender.health || 0) <= 0) {
-               log.push({ turn, message: `${defenderInPlayerField.name} est détruit avant de pouvoir riposter.` });
+            } else if ((updatedDefender.health || 0) <= 0) {
+               log.push({ turn, message: `${defenderCard.name} est détruit avant de pouvoir riposter.` });
             }
+
+            opponent.battlefield = opponent.battlefield.map(c => c.id === updatedAttacker.id ? updatedAttacker : c);
+            player.battlefield = player.battlefield.map(c => c.id === updatedDefender.id ? updatedDefender : c);
           }
           
-          attackerInBattlefield.tapped = true;
-          attackerInBattlefield.canAttack = false;
+          attackerCard.tapped = true;
+          attackerCard.canAttack = false;
       }
   });
 
@@ -295,18 +299,22 @@ const opponentAI = (state: GameState): GameState => {
         return {...p, battlefield: remainingCreatures};
     };
 
-    tempState.player = updateField(player, "Joueur");
-    tempState.opponent = updateField(opponent, "Adversaire");
+    player = updateField(player, "Joueur");
+    opponent = updateField(opponent, "Adversaire");
 
-    if (tempState.player.hp <= 0) {
+    if (player.hp <= 0) {
         tempState.winner = 'opponent';
         tempState.phase = 'game-over';
         log.push({ turn: tempState.turn, message: "Le joueur a été vaincu."})
-    } else if (tempState.opponent.hp <= 0) {
+    } else if (opponent.hp <= 0) {
         tempState.winner = 'player';
         tempState.phase = 'game-over';
         log.push({ turn: tempState.turn, message: "L'adversaire a été vaincu."})
     }
+
+  tempState.player = player;
+  tempState.opponent = opponent;
+  tempState.log = log;
 
   return tempState;
 };
