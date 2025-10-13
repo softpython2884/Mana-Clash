@@ -2,8 +2,9 @@
 import type { Card as CardType, BiomeType } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Swords, Shield, Heart, Zap, Mountain, Trees, Snowflake, Flame, Sun, ShieldQuestion, X, BrainCircuit, Sparkles, PlusCircle, Timer, Skull } from 'lucide-react';
+import { Swords, Shield, Heart, Zap, Mountain, Trees, Snowflake, Flame, Sun, ShieldQuestion, X, BrainCircuit, Sparkles, PlusCircle, Timer, Skull, Hand } from 'lucide-react';
 import { Badge } from '../ui/badge';
+import { useEffect, useState } from 'react';
 
 interface GameCardProps {
   card: CardType;
@@ -30,6 +31,14 @@ const biomeIcon: Record<BiomeType, React.ElementType> = {
     Swamp: BrainCircuit 
 };
 
+const skillIcon: Record<string, React.ElementType> = {
+    taunt: ShieldQuestion,
+    heal: PlusCircle,
+    lifesteal: Heart,
+    draw: Sparkles,
+};
+
+
 const biomeColor: Record<BiomeType, string> = {
     Forest: 'border-biome-forest',
     Mountain: 'border-gray-500',
@@ -42,9 +51,23 @@ const biomeColor: Record<BiomeType, string> = {
 
 
 export default function GameCard({ card, isPlayable = false, onClick, onSkillClick, inHand = false, isActiveBiome = false, isAttacking = false, isTargeted = false, isTargetable = false, isLethal = false, showSkill = false, isEntering = false }: GameCardProps) {
-  const { name, manaCost, description, attack, health, armor, type, tapped, canAttack, criticalHitChance, preferredBiome, biome, taunt, buffs, duration } = card;
+  const { name, manaCost, description, attack, health, armor, type, tapped, canAttack, criticalHitChance, preferredBiome, biome, taunt, buffs, duration, skillJustUsed } = card;
+
+  const [showSkillFeedback, setShowSkillFeedback] = useState(false);
+
+  useEffect(() => {
+    if (skillJustUsed) {
+      setShowSkillFeedback(true);
+      const timer = setTimeout(() => {
+        setShowSkillFeedback(false);
+      }, 1000); // Show feedback for 1 second
+      return () => clearTimeout(timer);
+    }
+  }, [skillJustUsed, card.id]);
 
   const Icon = preferredBiome ? biomeIcon[preferredBiome] : null;
+  const SkillIcon = card.skill ? skillIcon[card.skill.type] : null;
+
   const borderClass = biome ? biomeColor[biome] : '';
 
   const handleSkillClick = (e: React.MouseEvent) => {
@@ -103,6 +126,11 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
                 {isLethal ? <Skull className="w-10 h-10 sm:w-16 sm:h-16 text-white" /> : <X className="w-10 h-10 sm:w-16 sm:h-16 text-white" />}
               </div>
             )}
+             {showSkillFeedback && SkillIcon && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-xl animate-fade-in">
+                    <SkillIcon className="w-1/2 h-1/2 text-yellow-400 animate-boing"/>
+                </div>
+            )}
             <div className="absolute top-14 sm:top-16 left-1 sm:left-2 flex flex-col gap-1">
               {buffs?.map((buff, i) => (
                 <Badge key={i} variant="secondary" className={cn(
@@ -160,13 +188,10 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
                 <Icon size={18} className="text-white/70"/>
             </div>
           )}
-          {showSkill && card.skill && (
+          {showSkill && card.skill && SkillIcon && (
             <div className="absolute bottom-1 left-1" onClick={handleSkillClick}>
               <div className='p-1 bg-black/50 rounded-full cursor-pointer hover:bg-black/80 transition-colors'>
-                {card.skill.type === 'taunt' && <ShieldQuestion className='w-5 h-5 sm:w-6 sm:h-6 text-yellow-400'/>}
-                {card.skill.type === 'heal' && <PlusCircle className='w-5 h-5 sm:w-6 sm:h-6 text-green-400'/>}
-                {card.skill.type === 'lifesteal' && <Heart className='w-5 h-5 sm:w-6 sm:h-6 text-red-400'/>}
-                {card.skill.type === 'draw' && <Sparkles className='w-5 h-5 sm:w-6 sm:h-6 text-blue-400'/>}
+                <SkillIcon className='w-5 h-5 sm:w-6 sm:h-6 text-yellow-400'/>
               </div>
             </div>
           )}
@@ -175,5 +200,3 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
     </div>
   );
 }
-
-    

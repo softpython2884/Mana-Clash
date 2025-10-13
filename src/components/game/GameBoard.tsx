@@ -6,7 +6,7 @@ import GameCard from './Card';
 import PlayerStats from './PlayerStats';
 import GameOverDialog from './GameOverDialog';
 import { Button } from '@/components/ui/button';
-import { Swords, RotateCcw, ScrollText } from 'lucide-react';
+import { Swords, RotateCcw, ScrollText, Brain } from 'lucide-react';
 import { Card as UICard, CardContent } from '@/components/ui/card';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import GameLog from './GameLog';
@@ -78,6 +78,11 @@ export default function GameBoard() {
     if (activePlayer !== 'player' || phase !== 'targeting' || !selectedAttackerId || !selectedDefenderId) return;
     dispatch({ type: 'DECLARE_ATTACK' });
   };
+  
+  const handleMeditate = () => {
+    if (activePlayer !== 'player' || phase !== 'main') return;
+    dispatch({ type: 'MEDITATE' });
+  }
 
   const handlePassTurn = () => {
     if (activePlayer !== 'player') return;
@@ -166,6 +171,7 @@ export default function GameBoard() {
   }
 
   const canAttack = player.battlefield.some(c => c.canAttack && !c.tapped);
+  const canMeditate = player.graveyard.length > 0;
 
   const getPhaseDescription = () => {
     switch(phase) {
@@ -221,11 +227,15 @@ export default function GameBoard() {
                   <p className="font-headline text-lg sm:text-xl">{getPhaseDescription()}</p>
                   {phase === 'main' && activePlayer === 'player' && (
                     <div className="flex gap-2">
-                        <Button onClick={handlePhaseAction} disabled={winner !== undefined || !canAttack} className="w-32 sm:w-48">
+                        <Button onClick={handlePhaseAction} disabled={winner !== undefined || !canAttack} className="w-28 sm:w-36">
                             Combat
                             <Swords className="ml-2"/>
                         </Button>
-                        <Button onClick={handlePassTurn} disabled={winner !== undefined} className="w-32 sm:w-48">
+                         <Button onClick={handleMeditate} disabled={winner !== undefined || !canMeditate} variant="secondary" className="w-28 sm:w-36">
+                            Méditer
+                            <Brain className="ml-2"/>
+                        </Button>
+                        <Button onClick={handlePassTurn} disabled={winner !== undefined} className="w-28 sm:w-36">
                             Fin du tour
                         </Button>
                     </div>
@@ -295,5 +305,3 @@ export default function GameBoard() {
     </div>
   );
 }
-
-    

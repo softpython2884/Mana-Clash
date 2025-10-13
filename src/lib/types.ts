@@ -66,6 +66,7 @@ export interface Card {
   skill?: CardSkill;
   buffs: Buff[];
   duration?: number; // For artifacts
+  skillJustUsed?: boolean; // For visual feedback
 }
 
 export interface Player {
