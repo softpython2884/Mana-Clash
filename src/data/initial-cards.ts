@@ -290,20 +290,27 @@ const createPlayerDeck = (): Card[] => {
     };
     
     // Creatures (18)
+    // Common
     add('goblin', 2);
     add('elf', 2);
     add('human_soldier', 2);
     add('wild_wolf', 1);
-    add('cleric', 2);
-    add('knight', 1);
-    add('wizard', 1);
-    add('vampire', 1);
-    add('golem', 1);
-    add('elemental_fire', 1);
-    add('elemental_earth', 1);
-    add('sylvan_archer', 1);
+    add('guard_dog', 1);
     add('barbarian_orc', 1);
-    add('dragon', 1); // Epic
+    add('sylvan_archer', 1);
+    add('desert_lizard', 1);
+    add('ice_fish', 1);
+    add('wandering_monk', 1);
+    // Rare
+    add('knight', 1);
+    add('cleric', 1);
+    // Epic
+    add('golem', 1);
+    // Legendary
+    add('archmage_elements', 1);
+    add('vampire', 1);
+    add('elemental_fire', 1);
+
 
     // Spells (6)
     add('berserk_rage', 1);
@@ -313,32 +320,34 @@ const createPlayerDeck = (): Card[] => {
     add('giant_growth', 1);
     add('frostbolt', 1);
 
-    // Artifacts (5)
+    // Artifacts (6)
     add('defense_totem', 1);
     add('scepter_of_knowledge', 1);
     add('war_hammer', 1);
     add('orb_of_ice', 1);
     add('amulet_of_resistance', 1);
+    add('ring_of_fire', 1);
 
-    // Enchantments (3)
+    // Enchantments (4)
     add('strength_enchantment', 1);
     add('kings_blessing', 1);
     add('fire_aura', 1);
+    add('ice_shield', 1);
 
-    // Potions (3)
+    // Potions (4)
     add('health_potion', 1);
     add('mana_potion', 1);
     add('speed_potion', 1);
+    add('endurance_potion', 1);
 
-    // Lands (5)
+    // Lands (4)
     add('forest_land', 2);
     add('mountain_land', 2);
-    add('plains_land', 1);
 
     // Biomes (3)
     add('forest_biome', 1);
-    add('volcano_biome', 1);
-    add('sanctuary_biome', 1);
+    add('mountain_biome', 1);
+    add('swamp_biome', 1);
 
     return shuffleDeck(deck);
 }
