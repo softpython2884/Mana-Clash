@@ -48,7 +48,7 @@ export interface Buff {
     type: 'attack' | 'armor' | 'crit';
     value: number;
     duration: number; // in turns. Infinity for permanent
-    source: 'spell' | 'artifact' | 'biome';
+    source: 'spell' | 'artifact' | 'biome' | 'enchantment';
 }
 
 export interface Card {

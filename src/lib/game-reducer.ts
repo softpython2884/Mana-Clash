@@ -1,9 +1,9 @@
 'use client';
-import type { GameState, Card, Player, GamePhase, Buff, LogEntry } from './types';
-import { createDeck } from '@/data/initial-cards';
+import type { GameState, Card, Player, GamePhase, Buff, LogEntry, ElementType } from './types';
+import { createDeck, allCards } from '@/data/initial-cards';
 
 const MAX_HAND_SIZE = 7;
-const MAX_BATTLEFIELD_SIZE = 6;
+const MAX_BATTLEFIELD_SIZE = 7;
 
 export type GameAction =
   | { type: 'INITIALIZE_GAME' }
@@ -67,6 +67,51 @@ const createInitialPlayer = (id: 'player' | 'opponent'): Player => ({
     id,
     hp: 20, mana: 0, maxMana: 0, deck: [], hand: [], battlefield: [], graveyard: [], biomeChanges: 2, hasRedrawn: false, focusDrawNextTurn: false,
 });
+
+const applyGlobalEnchantmentEffects = (player: Player): Player => {
+    const enchantments = player.battlefield.filter(c => c.type === 'Enchantment');
+    if (enchantments.length === 0) {
+        // If no enchantments, return a version of the player with enchantment buffs removed
+        return {
+            ...player,
+            battlefield: player.battlefield.map(card => ({
+                ...card,
+                buffs: card.buffs.filter(b => b.source !== 'enchantment')
+            }))
+        };
+    }
+
+    const newBattlefield = player.battlefield.map(card => {
+        if (card.type !== 'Creature') return card;
+
+        let newCard = { ...card };
+        // First, clear existing enchantment buffs to avoid stacking duplicates
+        newCard.buffs = newCard.buffs.filter(b => b.source !== 'enchantment');
+
+        for (const enchantment of enchantments) {
+            if (enchantment.element === newCard.element) {
+                if (enchantment.id.startsWith('fire_aura')) {
+                    newCard.buffs.push({ type: 'attack', value: 1, duration: Infinity, source: 'enchantment' });
+                }
+                if (enchantment.id.startsWith('ice_shield')) {
+                    newCard.buffs.push({ type: 'armor', value: 1, duration: Infinity, source: 'enchantment' });
+                }
+                if (enchantment.id.startsWith('forest_heart')) {
+                    // This is tricky. Let's just grant a buff that we can check elsewhere if needed
+                    // For now, let's represent it as an armor buff for simplicity until we can add health buffs
+                    newCard.buffs.push({ type: 'armor', value: 1, duration: Infinity, source: 'enchantment' });
+                }
+                if (enchantment.id.startsWith('shadow_link') && !newCard.skill) {
+                    newCard.skill = { type: 'lifesteal', used: false };
+                }
+            }
+        }
+        return newCard;
+    });
+
+    return { ...player, battlefield: newBattlefield };
+};
+
 
 const applyBiomeBuffs = (battlefield: Card[], biome: Card | null): Card[] => {
     if (!biome || !biome.biome) return battlefield;
@@ -192,6 +237,11 @@ const resolveDamage = (attacker: Card, defender: Card | Player, log: GameState['
     const isCritical = Math.random() * 100 < totalCritChance;
     let damageDealt = totalAttack;
     
+    if (isCritical) {
+        damageDealt = Math.floor(damageDealt * 1.5);
+        newLog.push({ type: 'combat', turn, message: `💥 Coup critique !` });
+    }
+
     newLog.push({ type: 'combat', turn, message: `${newAttacker.name} attaque avec ${damageDealt} points de dégâts.` });
 
     if ('battlefield' in newDefender) { // It's a player
@@ -202,7 +252,7 @@ const resolveDamage = (attacker: Card, defender: Card | Player, log: GameState['
         const defenderOwnerKey = newDefender.id.includes('player') ? 'player' : 'opponent';
 
         if (isCritical) {
-            newLog.push({ type: 'combat', turn, message: `💥 Coup critique ! L'armure de ${newDefender.name} est ignorée.` });
+            newLog.push({ type: 'combat', turn, message: `L'armure de ${newDefender.name} est ignorée.` });
             newDefender.health = (newDefender.health || 0) - damageDealt;
             newLog.push({ type: 'damage', turn, message: `${newDefender.name} subit ${damageDealt} dégâts directs. PV restants: ${newDefender.health}`, target: defenderOwnerKey });
         } else {
@@ -351,14 +401,14 @@ const opponentAI = (state: GameState): GameState => {
       }
   }
 
-  // 5. Play creatures/artifacts to establish board presence
+  // 5. Play creatures/artifacts/enchantments to establish board presence
   let playedCard = true;
   while(playedCard) {
     playedCard = false;
     if (opponent.battlefield.length >= MAX_BATTLEFIELD_SIZE) break;
 
     const playableCards = opponent.hand
-      .filter(c => (c.type === 'Creature' || c.type === 'Artifact') && c.manaCost <= opponent.mana)
+      .filter(c => (c.type === 'Creature' || c.type === 'Artifact' || c.type === 'Enchantment') && c.manaCost <= opponent.mana)
       .sort((a, b) => b.manaCost - a.manaCost); 
 
     if (playableCards.length > 0) {
@@ -605,7 +655,7 @@ const checkForCombos = (state: GameState): GameState => {
             activePlayerObject.battlefield = activePlayerObject.battlefield.filter(c => !idsToRemove.includes(c.id));
             activePlayerObject.graveyard.push(...componentsToFuse.map(c => ({ ...c, health: c.initialHealth, buffs: [] })));
 
-            const fusionResultTemplate = createDeck('player').find(c => c.id.startsWith(fusion.result));
+            const fusionResultTemplate = allCards.find(c => c.id === fusion.result);
             if (fusionResultTemplate) {
                 const newCard: Card = {
                     ...fusionResultTemplate,
@@ -619,7 +669,7 @@ const checkForCombos = (state: GameState): GameState => {
                     isEntering: true,
                 };
                 activePlayerObject.battlefield.push(newCard);
-                log.push({ type: 'play', turn, message: `L'entité ${newCard.name} est invoquée !` });
+                log.push({ type: 'play', turn, message: `L'entité ${newCard.name} est invoquée !`, target: activePlayerKey });
             }
         }
     }
@@ -690,20 +740,23 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'CLEAN_BATTLEFIELD': {
-        const clean = (p: Player): Player => {
+        const clean = (p: Player, ownerKey: 'player' | 'opponent'): Player => {
             const graveyard = [...p.graveyard];
+            let log = [...state.log];
             const battlefield = p.battlefield.filter(c => {
                 if ((c.health || 0) <= 0) {
                     graveyard.push({ ...c, health: c.initialHealth, buffs: [] });
+                    log.push({ type: 'destroy', turn: state.turn, message: `${c.name} est détruit.`, target: ownerKey });
                     return false;
                 }
                 return true;
             });
+            state.log = log;
             return { ...p, battlefield, graveyard };
         };
 
-        const player = clean(state.player);
-        const opponent = clean(state.opponent);
+        const player = clean(state.player, 'player');
+        const opponent = clean(state.opponent, 'opponent');
         return { ...state, player, opponent };
     }
 
@@ -887,8 +940,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (card.manaCost > player.mana) {
         return { ...state, log: [...state.log, { type: 'info', turn: state.turn, message: "Pas assez de mana." }]};
       }
-      const battlefieldCardCount = player.battlefield.filter((c: Card) => c.type === 'Creature' || c.type === 'Artifact').length;
-      if ((card.type === 'Creature' || card.type === 'Artifact') && battlefieldCardCount >= MAX_BATTLEFIELD_SIZE) {
+      const battlefieldCardCount = player.battlefield.filter((c: Card) => c.type === 'Creature' || c.type === 'Artifact' || c.type === 'Enchantment').length;
+      if ((card.type === 'Creature' || card.type === 'Artifact' || card.type === 'Enchantment') && battlefieldCardCount >= MAX_BATTLEFIELD_SIZE) {
         return { ...state, log: [...state.log, { type: 'info', turn: state.turn, message: "Vous avez trop de cartes sur le terrain." }]};
       }
       if (card.type === 'Biome') {
@@ -908,9 +961,18 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         newPlayerState.battlefield = [...newPlayerState.battlefield, newCardState];
         newPlayerState.maxMana = newPlayerState.maxMana + 1;
         newPlayerState.mana = newPlayerState.mana; // Mana from land is available next turn, but let's give it now
-      } else if (card.type === 'Creature' || card.type === 'Artifact') {
+      } else if (card.type === 'Creature' || card.type === 'Artifact' || card.type === 'Enchantment') {
         newPlayerState.battlefield = [...newPlayerState.battlefield, newCardState];
-        newPlayerState.battlefield = applyBiomeBuffs(newPlayerState.battlefield, tempNewState.activeBiome);
+        
+        let updatedPlayerWithEffects = { ...newPlayerState };
+
+        if (card.type === 'Enchantment') {
+            updatedPlayerWithEffects = applyGlobalEnchantmentEffects(updatedPlayerWithEffects);
+        } else {
+             updatedPlayerWithEffects.battlefield = applyBiomeBuffs(updatedPlayerWithEffects.battlefield, tempNewState.activeBiome);
+        }
+        
+        newPlayerState = updatedPlayerWithEffects;
 
         if (card.type === 'Artifact' && card.skill?.type === 'global_buff_armor') {
             newPlayerState.battlefield = newPlayerState.battlefield.map((c: Card) => {
@@ -921,7 +983,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             });
             tempNewState.log.push({ type: 'buff', turn: state.turn, message: `${card.name} donne +${card.skill.value} armure à toutes les créatures.` });
         }
-      } else if (card.type === 'Spell' || card.type === 'Enchantment' || card.type === 'Potion') {
+      } else if (card.type === 'Spell' || card.type === 'Potion') {
         if (card.skill?.target) {
             return {
                 ...tempNewState,
@@ -946,8 +1008,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         selectedCardId: null,
       };
 
-      if (card.type === 'Creature' || card.type === 'Artifact') {
+      if (card.type === 'Creature' || card.type === 'Artifact' || card.type === 'Enchantment') {
           finalState = checkForCombos(finalState);
+          // Re-apply enchantments in case a fusion happened
+          const playerWithEnchantments = applyGlobalEnchantmentEffects(finalState[activePlayerKey]);
+          finalState = { ...finalState, [activePlayerKey]: playerWithEnchantments };
       }
 
       if (state.phase === 'post_mulligan') {
@@ -1034,7 +1099,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
     
       const ownerName = activePlayerKey === 'player' ? 'Joueur' : 'Adversaire';
-      log.push({ type: 'spell', turn, message: `${ownerName} utilise ${spellOrSkillCaster.name} sur ${target.name}.` });
+      log.push({ type: 'spell', turn, message: `${ownerName} utilise ${spellOrSkillCaster.name} sur ${target.name}.`, target: activePlayerKey });
     
       let targetCard = { ...target };
       let activePlayerObject = activePlayerKey === 'player' ? player : opponent;
@@ -1234,7 +1299,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       let updatedBattlefield = currentPlayer.battlefield.map((c: Card) => {
         let newCard = {...c};
         if (c.type === 'Creature') {
-          newCard.buffs = c.buffs.map((b: Buff) => ({ ...b, duration: b.duration - 1 })).filter((b: Buff) => b.duration > 0 || b.source === 'biome' || b.duration === Infinity);
+          newCard.buffs = c.buffs.map((b: Buff) => ({ ...b, duration: b.duration - 1 })).filter((b: Buff) => b.duration > 0 || b.source === 'biome' || b.duration === Infinity || b.source === 'enchantment');
         
           if (newCard.skill?.onCooldown) {
             newCard.skill.currentCooldown = (newCard.skill.currentCooldown || 0) - 1;
@@ -1273,6 +1338,18 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
               }
               return c;
           });
+      }
+
+      const enchantments = currentPlayer.battlefield.filter(c => c.type === 'Enchantment' && c.id.startsWith('divine_light'));
+      if(enchantments.length > 0) {
+        updatedBattlefield = updatedBattlefield.map((c: Card) => {
+            if (c.type === 'Creature' && c.element === 'Light' && c.health < c.initialHealth) {
+                 const newHealth = Math.min(c.initialHealth!, (c.health || 0) + enchantments.length);
+                 currentLog.push({type: 'heal', turn: stateWithClearedFlags.turn, message: `Lumière Divine soigne ${c.name} de ${enchantments.length} PV.`, target: currentPlayerKey});
+                 return {...c, health: newHealth};
+            }
+            return c;
+        });
       }
 
       currentPlayer.battlefield = updatedBattlefield.map((c: Card) => ({
@@ -1319,7 +1396,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       };
       
       if(artifactsToRemove.length > 0) {
-        finalState.log.push({ type: 'info', turn: finalState.turn, message: `L'effet de ${graveyardAdditions.map(c => c.name).join(', ')} se termine.` });
+        finalState.log.push({ type: 'info', turn: finalState.turn, message: `L'effet de ${graveyardAdditions.map(c => c.name).join(', ')} se termine.`, target: currentPlayerKey });
       }
       
       // We need to call the DRAW_CARD action to get the log message for the single draw
