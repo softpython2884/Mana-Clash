@@ -4,8 +4,9 @@ import type { Card, CardType, BiomeType } from '@/lib/types';
 
 const getImage = (id: string) => {
   const img = PlaceHolderImages.find((p) => p.id === id);
+  // Temporarily disable image requirement
   if (!img) {
-    throw new Error(`Image with id "${id}" not found.`);
+    return { id: 'placeholder', description: 'Placeholder', imageUrl: 'https://placehold.co/300x400', imageHint: 'placeholder' };
   }
   return img;
 };
@@ -61,6 +62,10 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
   createCard('elemental_earth', 'Élémentaire de Terre', 'Creature', 3, "Mur de pierre vivant.", { attack: 1, health: 5, armor: 2, criticalHitChance: 0, preferredBiome: 'Forest', rarity: 'Rare', element: 'Earth' }),
   createCard('fallen_shaman', 'Chaman Déchu', 'Creature', 2, "Compétence: Sacrifiez cette créature pour soigner un allié de 75% de ses PV restants.", { attack: 1, health: 3, armor: 0, skill: { type: 'sacrifice', target: 'friendly_creature', used: false, cooldown: 0 }, rarity: 'Rare', element: 'Shadow' }),
   createCard('knowledge_priest', 'Prêtre du Savoir', 'Creature', 2, 'Compétence: Piochez une carte.', { attack: 1, health: 2, armor: 0, skill: { type: 'draw', used: false, cooldown: 3 }, rarity: 'Rare', element: 'Neutral' }),
+  createCard('shadow_assassin', 'Assassin des Ombres', 'Creature', 4, "Attaque depuis l'ombre avec une précision mortelle.", { attack: 5, health: 2, armor: 0, criticalHitChance: 25, rarity: 'Rare', element: 'Shadow' }),
+  createCard('oak_druid', 'Druide du Chêne', 'Creature', 3, "Protecteur de la forêt, il gagne en force près des siens.", { attack: 2, health: 3, armor: 2, preferredBiome: 'Forest', rarity: 'Rare', element: 'Earth' }),
+  createCard('desert_warrior', 'Guerrier du Désert', 'Creature', 3, "Endurci par le soleil, il frappe rapidement.", { attack: 4, health: 2, armor: 1, preferredBiome: 'Desert', rarity: 'Rare', element: 'Fire' }),
+  createCard('ice_guardian', 'Gardien de Glace', 'Creature', 4, "Une statue de glace animée qui protège les terres gelées.", { attack: 2, health: 5, armor: 3, preferredBiome: 'Ice', rarity: 'Rare', element: 'Water' }),
 
 
   // Creatures - Epic
@@ -153,28 +158,38 @@ export const createDeck = (): Card[] => {
   addCards('barbarian_orc', 2);
   addCards('sylvan_archer', 2);
 
+  // Rares
+  addCards('knight', 1);
+  addCards('wizard', 1);
+  addCards('cleric', 2);
+  addCards('vampire', 1);
+  addCards('sage', 1);
   addCards('elemental_fire', 1);
   addCards('elemental_water', 1);
   addCards('elemental_earth', 2);
-
-  addCards('knight', 1);
-  addCards('cleric', 2);
-  addCards('sage', 1);
-  addCards('vampire', 1);
   addCards('fallen_shaman', 1);
   addCards('knowledge_priest', 2);
+  addCards('shadow_assassin', 1);
+  addCards('oak_druid', 1);
+  addCards('desert_warrior', 1);
+  addCards('ice_guardian', 1);
   
+  // Epics
   addCards('golem', 1);
   addCards('griffon', 1);
   addCards('dragon', 1);
+  addCards('minotaur', 1);
   
+  // Legendaries
   addCards('hydra', 1);
+  addCards('phoenix', 1);
   
+  // Spells, Potions, etc.
   addCards('health_potion', 1);
   addCards('mana_potion', 1);
   addCards('berserk_rage', 1);
   addCards('stoneskin', 1);
-  addCards('lightning_bolt', 1);
+  add_cards('lightning_bolt', 1);
   addCards('frostbolt', 2);
   addCards('shadow_bolt', 1);
   addCards('healing_light', 1);
@@ -184,6 +199,7 @@ export const createDeck = (): Card[] => {
   addCards('kings_blessing', 1);
   addCards('defense_totem', 1);
   
+  // Lands & Biomes
   addCards('forest_land', 4);
   addCards('mountain_land', 4);
   addCards('swamp_land', 4);
