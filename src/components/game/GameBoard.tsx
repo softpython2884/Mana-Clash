@@ -115,7 +115,7 @@ export default function GameBoard() {
   }
   
   const handleRedraw = () => {
-    if (activePlayer !== 'player' || phase !== 'main' || player.hand.length === 0) return;
+    if (activePlayer !== 'player' || phase !== 'main' || player.hand.length === 0 || player.mana < 1) return;
     dispatch({ type: 'REDRAW_HAND' });
   }
 
@@ -219,7 +219,7 @@ export default function GameBoard() {
 
   const canAttack = player.battlefield.some(c => c.canAttack && !c.tapped);
   const canMeditate = player.graveyard.length > 0;
-  const canRedraw = player.hand.length > 0;
+  const canRedraw = player.hand.length > 0 && player.mana >= 1;
   const canFocusDraw = activePlayer === 'player' && phase === 'main' && player.hand.length === 1;
 
   const getPhaseDescription = () => {
@@ -280,7 +280,7 @@ export default function GameBoard() {
                   {phase === 'main' && activePlayer === 'player' && (
                     <div className="flex gap-2">
                         <Button onClick={handleRedraw} disabled={!canRedraw} variant="secondary" className="w-28 sm:w-36">
-                            Changer Main
+                            Changer Main (1)
                             <Replace className="ml-2"/>
                         </Button>
                         <Button onClick={handlePhaseAction} disabled={winner !== undefined || !canAttack} className="w-28 sm:w-36">

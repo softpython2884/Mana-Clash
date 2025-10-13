@@ -1294,10 +1294,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'REDRAW_HAND': {
       const activePlayerKey = state.activePlayer;
       let player = { ...state[activePlayerKey] };
-      
-      if (player.hand.length === 0) return state;
+
+      if (player.hand.length === 0 || player.mana < 1) return state;
 
       const handSizeBeforeRedraw = player.hand.length;
+
+      // Deduct mana
+      player.mana -= 1;
 
       // Shuffle hand back into deck
       player.deck.push(...player.hand);
@@ -1310,7 +1313,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // Draw the same number of cards
       player = drawCardsWithBiomeAffinity(player, handSizeBeforeRedraw, state.activeBiome).player;
 
-      const logMessage: LogEntry = { type: 'draw', turn: state.turn, message: `${activePlayerKey === 'player' ? 'Joueur' : 'Adversaire'} change sa main.`, target: activePlayerKey };
+      const logMessage: LogEntry = { type: 'draw', turn: state.turn, message: `${activePlayerKey === 'player' ? 'Joueur' : 'Adversaire'} change sa main pour 1 mana.`, target: activePlayerKey };
 
       return {
         ...state,
