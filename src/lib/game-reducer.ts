@@ -1120,7 +1120,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (card.type === 'Biome') {
           return gameReducer(state, { type: 'CHANGE_BIOME', cardId: card.id, player: activePlayerKey });
       }
-       if (card.type === 'Enchantment' && !player.battlefield.some(c => c.type === 'Creature')) {
+       if (card.type === 'Enchantment' && card.skill === undefined && !player.battlefield.some(c => c.type === 'Creature')) {
         return { ...state, log: [...state.log, { type: 'info', turn: state.turn, message: "Vous devez avoir une créature pour jouer un enchantement." }]};
       }
       
@@ -1140,7 +1140,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         newPlayerState.maxMana = newPlayerState.maxMana + 1;
         newPlayerState.mana = newPlayerState.mana; // Mana from land is available next turn, but let's give it now
       } else if (card.type === 'Creature' || card.type === 'Artifact' || card.type === 'Enchantment') {
-        newPlayerState.battlefield = [...newPlayerState.battlefield, newCardState];
+        newPlayerState.battlefield.push(newCardState);
         
         let updatedPlayerWithEffects = { ...newPlayerState };
 
@@ -1162,7 +1162,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             tempNewState.log.push({ type: 'buff', turn: state.turn, message: `${card.name} donne +${card.skill.value} armure à toutes les créatures.` });
         }
       } else if (card.type === 'Structure') {
-          newPlayerState.structures = [...newPlayerState.structures, newCardState];
+          newPlayerState.structures.push(newCardState);
       } else if (card.type === 'Spell' || card.type === 'Potion') {
         if (card.skill?.target) {
             return {
@@ -1179,7 +1179,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             newPlayerState.mana = newPlayerState.mana + 2;
             tempNewState.log.push({ type: 'mana', turn: state.turn, message: `${activePlayerKey === 'player' ? 'Joueur' : 'Adversaire'} gagne 2 mana.`, target: activePlayerKey });
         }
-        newPlayerState.graveyard = [...newPlayerState.graveyard, card];
+        newPlayerState.graveyard.push(card);
       }
 
       let finalState: GameState = {
@@ -1374,9 +1374,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       } else { // It was a spell from hand or structure, move to graveyard if it's a spell
         if (spellOrSkillCaster.type === 'Spell' || spellOrSkillCaster.type === 'Potion') {
             if (activePlayerKey === 'player') {
-                player.graveyard = [...player.graveyard, spellOrSkillCaster];
+                player.graveyard.push(spellOrSkillCaster);
             } else {
-                opponent.graveyard = [...opponent.graveyard, spellOrSkillCaster];
+                opponent.graveyard.push(spellOrSkillCaster);
             }
         }
       }

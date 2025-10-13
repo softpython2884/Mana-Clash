@@ -62,7 +62,7 @@ export default function GameLog({ log }: GameLogProps) {
                         {displayedLog.slice().reverse().map((entry, i) => {
                             const Icon = logIcons[entry.type] || Info;
                             const colorClass = logColors[entry.type] || 'text-gray-400';
-                            const targetClass = entry.target === 'player' ? 'border-l-2 border-primary pl-3' : 'border-l-2 border-transparent pl-3';
+                             const targetClass = entry.target === 'player' && (entry.type === 'damage' || entry.type === 'destroy') ? 'border-l-2 border-red-500 pl-3' : entry.target === 'player' ? 'border-l-2 border-primary pl-3' : 'border-l-2 border-transparent pl-3';
                             return (
                                 <div key={i} className={cn("flex items-start gap-2 text-sm p-2 rounded-md bg-black/20", colorClass, targetClass)}>
                                     <Icon className="w-4 h-4 mt-0.5 shrink-0" />
