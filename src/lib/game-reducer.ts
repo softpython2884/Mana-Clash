@@ -454,7 +454,7 @@ const opponentAI = (state: GameState): GameState => {
 
         if (sacrificableCards.length > 0) {
             const cardsToSacrifice = sacrificableCards.slice(0, 2); // Sacrifice up to 2 cards
-            const healthGain = cardsToSacrifice.length * 2;
+            const healthGain = cardsToSacrifice.length * 3;
 
             opponent.hp = Math.min(20, opponent.hp + healthGain);
             opponent.hand = opponent.hand.filter(c => !cardsToSacrifice.find(sac => sac.id === c.id));

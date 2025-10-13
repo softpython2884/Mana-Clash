@@ -17,7 +17,6 @@ interface GameCardProps {
   isTargeted?: boolean;  // Card is selected as a defender target
   isTargetable?: boolean; // Card can be targeted by an attacker
   isLethal?: boolean; // If the current targeted attack would be lethal
-  showSkill?: boolean; // Show the skill icon
   isEntering?: boolean; // To animate card entry
   isLeaving?: boolean; // To animate card leaving
   isBeingAttacked?: boolean;
@@ -58,7 +57,7 @@ const biomeColor: Record<string, string> = {
 };
 
 
-export default function GameCard({ card, isPlayable = false, onClick, onSkillClick, inHand = false, isActiveBiome = false, isAttacking = false, isTargeted = false, isTargetable = false, isLethal = false, showSkill = false, isEntering = false, isLeaving = false, isBeingAttacked = false, isBeingSpellcast = false }: GameCardProps) {
+export default function GameCard({ card, isPlayable = false, onClick, onSkillClick, inHand = false, isActiveBiome = false, isAttacking = false, isTargeted = false, isTargetable = false, isLethal = false, isEntering = false, isLeaving = false, isBeingAttacked = false, isBeingSpellcast = false }: GameCardProps) {
   const { name, manaCost, description, attack, health, armor, type, tapped, canAttack, criticalHitChance, preferredBiome, biome, taunt, buffs, duration, skillJustUsed } = card;
 
   const [showSkillFeedback, setShowSkillFeedback] = useState(false);
@@ -199,7 +198,7 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
                 <Icon size={18} className="text-white/70"/>
             </div>
           )}
-          {showSkill && card.skill && !card.skill.onCooldown && SkillIcon && (
+          {card.skill && !card.skill.onCooldown && !card.tapped && !card.summoningSickness && SkillIcon && (
             <div className="absolute bottom-1 left-1" onClick={handleSkillClick}>
               <div className='p-1 bg-black/50 rounded-full cursor-pointer hover:bg-black/80 transition-colors'>
                 <SkillIcon className='w-5 h-5 sm:w-6 sm:h-6 text-yellow-400'/>

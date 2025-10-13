@@ -165,7 +165,6 @@ export default function GameBoard() {
           isAttacking={card.id === selectedAttackerId || attackingCards?.attackerId === card.id}
           onClick={() => handleSelectCardOnBattlefield(card.id)}
           onSkillClick={() => handleActivateSkill(card.id)}
-          showSkill={card.id === selectedCardId && !!card.skill && !card.skill.onCooldown && !card.summoningSickness && !card.tapped}
           isTargetable={phase === 'spell_targeting' && (spellBeingCast?.skill?.target === 'friendly_creature' || spellBeingCast?.skill?.target === 'any_creature')}
           isEntering={card.isEntering}
           isLeaving={leavingCards.includes(card.id)}
