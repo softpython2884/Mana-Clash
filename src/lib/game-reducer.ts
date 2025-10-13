@@ -316,7 +316,38 @@ const opponentAI = (state: GameState): GameState => {
   while (actionsTaken < MAX_ACTIONS_PER_TURN) {
     let actionFound = false;
 
-    // 1. Play Land if possible
+    // --- PRIORITIES ---
+
+    // 1. SURVIVAL: Heal if HP is low
+    if (opponent.hp <= 10) {
+      const healthPotion = opponent.hand.find(c => c.id.startsWith('health_potion') && c.manaCost <= opponent.mana);
+      if (healthPotion) {
+        if(applyAction({ type: 'PLAY_CARD', cardId: healthPotion.id })) {
+           actionFound = true;
+           actionsTaken++;
+           continue;
+        }
+      }
+    }
+    
+    // 2. BOARD PRESENCE: Play creatures if board is empty
+    const opponentCreaturesOnBoard = opponent.battlefield.filter(c => c.type === 'Creature').length;
+    if (opponentCreaturesOnBoard < 2) {
+        const creaturesInHand = opponent.hand
+            .filter(c => c.type === 'Creature' && c.manaCost <= opponent.mana)
+            .sort((a, b) => b.manaCost - a.manaCost); // Play strongest first
+        if (creaturesInHand.length > 0) {
+            if (applyAction({ type: 'PLAY_CARD', cardId: creaturesInHand[0].id })) {
+                actionFound = true;
+                actionsTaken++;
+                continue;
+            }
+        }
+    }
+
+    // --- STANDARD ACTIONS ---
+
+    // 3. Play Land if possible
     const landPlayedThisTurn = opponent.battlefield.some(c => c.type === 'Land' && c.summoningSickness);
     if (!landPlayedThisTurn) {
       const landInHand = opponent.hand.find(c => c.type === 'Land');
@@ -328,47 +359,8 @@ const opponentAI = (state: GameState): GameState => {
         }
       }
     }
-
-    // 2. Survival & Healing (HIGHEST PRIORITY)
-    if (opponent.hp <= 10) {
-      // Use health potion from hand
-      const healthPotion = opponent.hand.find(c => c.id.startsWith('health_potion') && c.manaCost <= opponent.mana);
-      if (healthPotion) {
-        if(applyAction({ type: 'PLAY_CARD', cardId: healthPotion.id })) {
-           actionFound = true;
-           actionsTaken++;
-           continue;
-        }
-      }
-      
-      const mostDamagedValuableCreature = [...opponent.battlefield]
-        .filter(c => c.type === 'Creature' && c.health < c.initialHealth)
-        .sort((a,b) => (b.attack + b.armor) - (a.attack + a.armor))[0];
-
-      // Use healing light from hand
-      const healingLight = opponent.hand.find(c => c.id.startsWith('healing_light') && c.manaCost <= opponent.mana);
-      if(healingLight && mostDamagedValuableCreature) {
-          if(applyAction({ type: 'PLAY_CARD', cardId: healingLight.id })) {
-              if(applyAction({ type: 'CAST_SPELL_ON_TARGET', targetId: mostDamagedValuableCreature.id })) {
-                actionFound = true;
-                actionsTaken++;
-                continue;
-              }
-          }
-      }
-
-      // Use Cleric to heal the most damaged ally
-      const clerics = opponent.battlefield.filter(c => c.id.startsWith('cleric') && c.skill && !c.skill.onCooldown && !c.tapped && !c.summoningSickness);
-      if (clerics.length > 0 && mostDamagedValuableCreature) {
-        if(applyAction({ type: 'ACTIVATE_SKILL', cardId: clerics[0].id, targetId: mostDamagedValuableCreature.id })) {
-            actionFound = true;
-            actionsTaken++;
-            continue;
-        }
-      }
-    }
-
-    // 3. Use Mana Potion if it allows playing a better card this turn
+    
+    // 4. Use Mana Potion if it allows playing a better card this turn
     const manaPotion = opponent.hand.find(c => c.id.startsWith('mana_potion') && c.manaCost <= opponent.mana);
     if (manaPotion) {
       const potentialMana = opponent.mana - manaPotion.manaCost + 2;
@@ -382,7 +374,7 @@ const opponentAI = (state: GameState): GameState => {
       }
     }
 
-    // 4. Use spells and skills strategically
+    // 5. Use spells and skills strategically
     // Offensive spells to remove high-threat targets
     const damageSpells = opponent.hand.filter(c => c.type === 'Spell' && (c.skill?.type === 'damage' || c.skill?.type === 'damage_and_heal') && c.manaCost <= opponent.mana);
     if (damageSpells.length > 0) {
@@ -447,7 +439,7 @@ const opponentAI = (state: GameState): GameState => {
     }
      if(actionFound) { actionsTaken++; continue; }
 
-    // 5. Play creatures/artifacts/enchantments to establish board presence
+    // 6. Play other cards (creatures/artifacts/enchantments) to establish board presence
     if (opponent.battlefield.length < MAX_BATTLEFIELD_SIZE) {
         const hasCreatures = opponent.battlefield.some(c => c.type === 'Creature');
         const playableCards = opponent.hand
