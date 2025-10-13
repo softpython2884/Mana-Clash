@@ -1066,7 +1066,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         newPlayerState.maxMana = newPlayerState.maxMana + 1;
         newPlayerState.mana = newPlayerState.mana; // Mana from land is available next turn, but let's give it now
       } else if (card.type === 'Creature' || card.type === 'Artifact' || card.type === 'Enchantment') {
-        newPlayerState.battlefield.push(newCardState);
+        newPlayerState.battlefield = [...newPlayerState.battlefield, newCardState];
         
         let updatedPlayerWithEffects = { ...newPlayerState };
 

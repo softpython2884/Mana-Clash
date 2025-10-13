@@ -9,9 +9,10 @@ const getCardTemplate = (id: string): Omit<Card, 'tapped' | 'isAttacking' | 'can
 
 // Helper function to instantiate a card from a template
 const instantiateCard = (template: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summoningSickness'>): Card => {
+    const uniqueId = `${template.id}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     return {
         ...template,
-        id: `${template.id}-${Math.random().toString(36).substring(7)}`,
+        id: uniqueId,
         health: template.initialHealth,
         tapped: false,
         isAttacking: false,
