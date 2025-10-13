@@ -72,7 +72,7 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
     >
       <Card
         className={cn(
-          'w-[150px] h-[210px] md:w-[180px] md:h-[252px] flex flex-col overflow-hidden select-none bg-card-foreground/5 dark:bg-card-foreground/10 backdrop-blur-md rounded-xl transition-all',
+          'w-[120px] h-[168px] sm:w-[150px] sm:h-[210px] md:w-[180px] md:h-[252px] flex flex-col overflow-hidden select-none bg-card-foreground/5 dark:bg-card-foreground/10 backdrop-blur-md rounded-xl transition-all',
           isPlayable && 'cursor-pointer ring-4 ring-primary ring-offset-2 ring-offset-background shadow-lg shadow-primary/50',
           canAttack && !tapped && 'cursor-pointer ring-4 ring-orange-500 ring-offset-2 ring-offset-background shadow-lg shadow-orange-500/50 animate-pulse',
           isAttacking && 'ring-4 ring-red-500 ring-offset-2 ring-offset-background shadow-lg shadow-red-500/50', // Red border for selected attacker
@@ -83,30 +83,30 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
         )}
       >
         <CardHeader className="p-2 flex-shrink-0">
-          <CardTitle className="flex justify-between items-center text-sm md:text-base font-headline truncate">
+          <CardTitle className="flex justify-between items-center text-xs md:text-base font-headline truncate">
             <span className="truncate mr-2 text-card-foreground">{name}</span>
             {manaCost > 0 && (
-                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-[hsl(var(--mana))] text-white text-xs font-bold shrink-0">
+                <div className="flex items-center justify-center w-5 h-5 md:w-6 md:h-6 rounded-full bg-[hsl(var(--mana))] text-white text-xs font-bold shrink-0">
                 {manaCost}
                 </div>
             )}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-2 flex-grow flex flex-col justify-center items-center text-center">
-            <p className="text-xs font-bold text-muted-foreground">{type}</p>
-             <CardDescription className="text-xs leading-tight mt-2 text-card-foreground/80">
+            <p className="text-[10px] sm:text-xs font-bold text-muted-foreground">{type}</p>
+             <CardDescription className="text-[10px] sm:text-xs leading-tight mt-1 sm:mt-2 text-card-foreground/80">
                 {description}
             </CardDescription>
-            {taunt && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-1 text-blue-400 font-bold text-xs bg-black/50 px-2 py-1 rounded-full"><ShieldQuestion size={12}/> PROVOCATION</div>}
+            {taunt && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-1 text-blue-400 font-bold text-[10px] sm:text-xs bg-black/50 px-2 py-1 rounded-full"><ShieldQuestion size={12}/> PROVOCATION</div>}
             {isTargeted && (
               <div className="absolute inset-0 bg-red-800/60 flex items-center justify-center animate-pulse rounded-xl">
-                {isLethal ? <Skull className="w-16 h-16 text-white" /> : <X className="w-16 h-16 text-white" />}
+                {isLethal ? <Skull className="w-10 h-10 sm:w-16 sm:h-16 text-white" /> : <X className="w-10 h-10 sm:w-16 sm:h-16 text-white" />}
               </div>
             )}
-            <div className="absolute top-16 left-2 flex flex-col gap-1">
+            <div className="absolute top-14 sm:top-16 left-1 sm:left-2 flex flex-col gap-1">
               {buffs?.map((buff, i) => (
                 <Badge key={i} variant="secondary" className={cn(
-                  "px-1 py-0 text-xs animate-fade-in",
+                  "px-1 py-0 text-[9px] sm:text-xs animate-fade-in",
                   buff.type === 'attack' ? 'bg-red-500/80' : 'bg-blue-500/80',
                   buff.type === 'crit' && 'bg-yellow-500/80'
                 )}>
@@ -118,51 +118,55 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
               ))}
             </div>
         </CardContent>
-        <CardFooter className="p-2 flex-shrink-0 min-h-[50px] flex flex-col items-start bg-secondary/30">
+        <CardFooter className="p-2 flex-shrink-0 min-h-[40px] sm:min-h-[50px] flex flex-col items-start bg-secondary/30">
           {type === 'Creature' && (
             <div className='w-full'>
                 {totalCritChance > 0 && (
-                    <div className="absolute top-14 right-2 flex items-center gap-1 text-[hsl(var(--debuff))]" title="Chance de coup critique">
-                        <Zap size={14} />
-                        <span>{totalCritChance}%</span>
+                    <div className="absolute top-12 right-1 sm:top-14 sm:right-2 flex items-center gap-1 text-[hsl(var(--debuff))]" title="Chance de coup critique">
+                        <Zap size={12} className="sm:hidden" />
+                        <Zap size={14} className="hidden sm:inline-flex" />
+                        <span className="text-xs">{totalCritChance}%</span>
                     </div>
                 )}
-                <div className="flex justify-around items-center w-full text-sm font-bold">
+                <div className="flex justify-around items-center w-full text-xs sm:text-sm font-bold">
                     <div className="flex items-center gap-1 text-[hsl(var(--hp))]" title="Dégâts">
-                        <Swords size={14} />
+                        <Swords size={12} className="sm:hidden" />
+                        <Swords size={14} className="hidden sm:inline-flex" />
                         <span>{totalAttack}</span>
                     </div>
                     <div className="flex items-center gap-1 text-blue-400" title="Résistance">
-                        <Shield size={14} />
+                        <Shield size={12} className="sm:hidden" />
+                        <Shield size={14} className="hidden sm:inline-flex" />
                         <span>{totalArmor}</span>
                     </div>
                 </div>
                 <div className='w-full px-2 mt-1'>
-                    <div className="w-full bg-red-900 rounded-full h-2.5 dark:bg-red-800 relative">
-                        <div className="bg-red-500 h-2.5 rounded-full" style={{width: `${health ? (health / card.initialHealth!) * 100 : 0}%`}}></div>
-                        <span className='absolute inset-0 text-white text-[10px] font-bold text-center w-full leading-tight'>{health || 0} / {card.initialHealth || 0}</span>
+                    <div className="w-full bg-red-900 rounded-full h-2 sm:h-2.5 dark:bg-red-800 relative">
+                        <div className="bg-red-500 h-2 sm:h-2.5 rounded-full" style={{width: `${health ? (health / card.initialHealth!) * 100 : 0}%`}}></div>
+                        <span className='absolute inset-0 text-white text-[8px] sm:text-[10px] font-bold text-center w-full leading-tight'>{health || 0} / {card.initialHealth || 0}</span>
                     </div>
                 </div>
             </div>
           )}
           {type === 'Artifact' && duration !== undefined && (
-             <div className="flex items-center gap-2 text-lg font-bold text-white">
-                <Timer size={24} />
-                <span>{duration} tours</span>
+             <div className="flex items-center gap-2 text-sm sm:text-lg font-bold text-white">
+                <Timer size={20} className="sm:hidden"/>
+                <Timer size={24} className="hidden sm:inline-flex"/>
+                <span className="text-xs sm:text-base">{duration} tours</span>
             </div>
           )}
           {preferredBiome && Icon && (
-            <div className="absolute top-20 right-2" title={`Biome préféré : ${preferredBiome}`}>
+            <div className="absolute top-16 sm:top-20 right-2" title={`Biome préféré : ${preferredBiome}`}>
                 <Icon size={18} className="text-white/70"/>
             </div>
           )}
           {showSkill && card.skill && (
             <div className="absolute bottom-1 left-1" onClick={handleSkillClick}>
               <div className='p-1 bg-black/50 rounded-full cursor-pointer hover:bg-black/80 transition-colors'>
-                {card.skill.type === 'taunt' && <ShieldQuestion className='w-6 h-6 text-yellow-400'/>}
-                {card.skill.type === 'heal' && <PlusCircle className='w-6 h-6 text-green-400'/>}
-                {card.skill.type === 'lifesteal' && <Heart className='w-6 h-6 text-red-400'/>}
-                {card.skill.type === 'draw' && <Sparkles className='w-6 h-6 text-blue-400'/>}
+                {card.skill.type === 'taunt' && <ShieldQuestion className='w-5 h-5 sm:w-6 sm:h-6 text-yellow-400'/>}
+                {card.skill.type === 'heal' && <PlusCircle className='w-5 h-5 sm:w-6 sm:h-6 text-green-400'/>}
+                {card.skill.type === 'lifesteal' && <Heart className='w-5 h-5 sm:w-6 sm:h-6 text-red-400'/>}
+                {card.skill.type === 'draw' && <Sparkles className='w-5 h-5 sm:w-6 sm:h-6 text-blue-400'/>}
               </div>
             </div>
           )}
