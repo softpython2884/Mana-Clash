@@ -449,7 +449,7 @@ const opponentAI = (state: GameState): GameState => {
 
         if (sacrificableCards.length > 0) {
             const cardsToSacrifice = sacrificableCards.slice(0, 2); // Sacrifice up to 2 cards
-            const healthGain = cardsToSacrifice.length * 3;
+            const healthGain = cardsToSacrifice.length * 2;
 
             opponent.hp = Math.min(20, opponent.hp + healthGain);
             opponent.hand = opponent.hand.filter(c => !cardsToSacrifice.find(sac => sac.id === c.id));
@@ -509,25 +509,34 @@ const opponentAI = (state: GameState): GameState => {
   let combatLog = [...combatState.log];
 
   let attackers = combatOpponent.battlefield.filter((c: Card) => c.type === 'Creature' && c.canAttack && !c.tapped);
-  const playerTauntCreatures = combatPlayer.battlefield.filter((c: Card) => c.taunt && !c.tapped);
-
+  
   if (attackers.length > 0) {
     combatLog.push({ type: 'phase', turn: combatState.turn, message: `Adversaire passe en phase de combat.`, target: 'opponent' });
   }
 
   for (const attacker of attackers) {
+      // Re-fetch the state of the board on each loop, as it might have changed from a previous attack
+      const currentOpponentBattlefield = combatOpponent.battlefield;
+      const currentPlayerBattlefield = combatPlayer.battlefield;
+
+      let attackerCard = currentOpponentBattlefield.find(c => c.id === attacker.id);
+
+      // The attacker might have been destroyed in a riposte from a previous combat in the same turn
+      if (!attackerCard || attackerCard.tapped) {
+          continue;
+      }
+
       let targetId: string | 'opponent' | null = null;
-      let attackerCard = combatOpponent.battlefield.find(c => c.id === attacker.id);
-      if (!attackerCard) continue;
+      const playerTauntCreatures = currentPlayerBattlefield.filter((c: Card) => c.taunt && !c.tapped);
 
       if(playerTauntCreatures.length > 0) {
           targetId = playerTauntCreatures.sort((a,b) => (a.health || 0) - (b.health || 0))[0].id;
       } else {
-        const potentialBlockers = combatPlayer.battlefield.filter(c => c.type === 'Creature' && !c.tapped);
+        const potentialBlockers = currentPlayerBattlefield.filter(c => c.type === 'Creature' && !c.tapped);
         const totalAttack = (attackerCard.attack || 0) + (attackerCard.buffs?.filter(b => b.type === 'attack').reduce((acc, b) => acc + b.value, 0) || 0);
 
         // Can I kill something?
-        const killableTargets = potentialBlockers.filter(p => (p.health || 0) <= totalAttack - (p.armor || 0));
+        const killableTargets = potentialBlockers.filter(p => (p.health || 0) <= totalAttack - ((p.armor || 0) + (p.buffs?.filter(b => b.type === 'armor').reduce((acc, b) => acc + b.value, 0) || 0)));
         if (killableTargets.length > 0) {
             // Target the killable creature with the highest attack
             targetId = killableTargets.sort((a, b) => (b.attack || 0) - (a.attack || 0))[0].id;
@@ -539,11 +548,13 @@ const opponentAI = (state: GameState): GameState => {
             if (combatPlayer.hp < totalAttack) { // Lethal
                 targetId = 'player';
             } else {
-                // If AI creature would die and player creature would live, it's a bad trade, don't attack
+                // If AI creature would die and player creature would live, it's a bad trade, don't attack unless AI has HP advantage
                 const weakestBlocker = potentialBlockers.sort((a, b) => (a.attack || 0) - (a.attack || 0))[0];
-                const riposteDamage = (weakestBlocker.attack || 0) - (attackerCard.armor || 0);
-                if (riposteDamage < (attackerCard.health || 0)) {
-                    targetId = 'player'; // Attack player if the trade is bad or there are no blockers
+                const riposteDamage = Math.max(0, (weakestBlocker.attack || 0) - ((attackerCard.armor || 0) + (attackerCard.buffs?.filter(b => b.type === 'armor').reduce((acc, b) => acc + b.value, 0) || 0)));
+                if (riposteDamage >= (attackerCard.health || 0) && combatOpponent.hp > 10) {
+                   targetId = null; // Bad trade, don't attack this creature
+                } else {
+                   targetId = 'player'; // Attack player if the trade is bad or there are no valuable targets
                 }
             }
         }
@@ -562,16 +573,6 @@ const opponentAI = (state: GameState): GameState => {
               combatPlayer = combatResult.defender as Player;
           } else {
               combatPlayer.battlefield = combatPlayer.battlefield.map(c => c.id === targetId ? combatResult.defender as Card : c);
-
-              // Riposte
-              const finalDefenderState = combatPlayer.battlefield.find(c => c.id === targetId);
-              if (finalDefenderState && (finalDefenderState.health || 0) > 0 && !finalDefenderState.tapped) {
-                 combatLog.push({ type: 'combat', turn, message: `${finalDefenderState.name} riposte !`, target: 'player' });
-                 const riposteResult = resolveDamage(finalDefenderState, combatResult.attacker, combatLog, combatState.turn, combatPlayer);
-                 combatOpponent.battlefield = combatOpponent.battlefield.map(c => c.id === attacker.id ? riposteResult.defender as Card : c);
-                 combatPlayer = riposteResult.attackerOwner as Player;
-                 combatLog = riposteResult.log;
-              }
           }
           combatOpponent.battlefield = combatOpponent.battlefield.map(c => c.id === attacker.id ? {...c, tapped: true, canAttack: false} : c);
           combatLog = combatResult.log;
@@ -779,8 +780,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         const initialState = shuffleAndDeal(state);
         let player = { ...initialState.player };
         
-        player.maxMana = 1;
-        player.mana = 1;
+        player.maxMana = 0;
+        player.mana = 0;
         
         const newState = {
             ...state,
@@ -789,18 +790,15 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             player,
         };
         
-        return {
-            ...newState,
-            log: [...newState.log, { type: 'phase', turn: 1, message: "Début du tour de Joueur."}]
-        }
+        return gameReducer(newState, { type: 'PASS_TURN' });
     }
 
     case 'RESTART_GAME': {
         const initialState = shuffleAndDeal(state);
         let player = { ...initialState.player };
         
-        player.maxMana = 1;
-        player.mana = 1;
+        player.maxMana = 0;
+        player.mana = 0;
         
         const newState = {
             ...state,
@@ -809,10 +807,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             player,
         };
 
-        return {
-            ...newState,
-            log: [...newState.log, { type: 'phase', turn: 1, message: "Début du tour de Joueur."}]
-        }
+        return gameReducer(newState, { type: 'PASS_TURN' });
     }
     
     case 'END_COMBAT_ANIMATION': {
@@ -1487,8 +1482,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         return { ...state, log };
       }
       if (player.hand.length >= MAX_HAND_SIZE) {
-        log.push({ type: 'info', turn: state.turn, message: 'Votre main est pleine, impossible de méditer.' });
-        return { ...state, log };
+        log.push({ type: 'info', turn: state.turn, message: 'Votre main est pleine, la méditation échoue.' });
+        const newState = {...state, log};
+        return gameReducer(newState, { type: 'PASS_TURN' });
       }
       
       const randomIndex = Math.floor(Math.random() * player.graveyard.length);
