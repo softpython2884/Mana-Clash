@@ -26,7 +26,7 @@ export default function Home() {
     <div className="flex flex-col min-h-screen bg-background text-foreground font-body">
       <header
         className={cn(
-          "p-2 bg-primary text-primary-foreground shadow-md sticky top-0 z-20 flex items-center justify-between transition-all duration-300",
+          "p-2 bg-primary text-primary-foreground shadow-md sticky top-0 z-20 flex items-center justify-between transition-all duration-300 overflow-hidden",
           !isHeaderVisible && "-translate-y-full h-0 p-0"
         )}
       >
