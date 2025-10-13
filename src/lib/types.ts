@@ -46,13 +46,14 @@ export interface CardSkill {
   currentCooldown?: number;
   onCooldown?: boolean;
   cardToGenerate?: string;
+  source?: 'enchantment' | 'skill'; // To track origin of dynamically added skills
 }
 
 export interface Buff {
-    type: 'attack' | 'armor' | 'crit' | 'revive';
+    type: 'attack' | 'armor' | 'crit' | 'revive' | 'rebirth';
     value: number;
     duration: number; // in turns. Infinity for permanent
-    source: 'spell' | 'artifact' | 'biome' | 'enchantment' | 'structure';
+    source: 'spell' | 'artifact' | 'biome' | 'enchantment' | 'structure' | 'skill';
     remainingUses?: number;
 }
 

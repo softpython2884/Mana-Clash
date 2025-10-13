@@ -71,45 +71,40 @@ const createInitialPlayer = (id: 'player' | 'opponent'): Player => ({
 
 const applyGlobalEnchantmentEffects = (player: Player): Player => {
     const enchantments = player.battlefield.filter(c => c.type === 'Enchantment');
-    if (enchantments.length === 0) {
-        // If no enchantments, return a version of the player with enchantment buffs removed
-        return {
-            ...player,
-            battlefield: player.battlefield.map(card => ({
-                ...card,
-                buffs: card.buffs.filter(b => b.source !== 'enchantment')
-            }))
-        };
-    }
+    
+    // Create a deep copy of the battlefield to work with
+    let newBattlefield = player.battlefield.map(card => ({
+      ...card,
+      buffs: card.buffs.filter(b => b.source !== 'enchantment'),
+      skill: card.skill?.source === 'enchantment' ? undefined : card.skill,
+    }));
 
-    const newBattlefield = player.battlefield.map(card => {
-        if (card.type !== 'Creature') return card;
-
-        let newCard = { ...card };
-        // First, clear existing enchantment buffs to avoid stacking duplicates
-        newCard.buffs = newCard.buffs.filter(b => b.source !== 'enchantment');
-
+    if (enchantments.length > 0) {
         for (const enchantment of enchantments) {
-            if (enchantment.element === newCard.element) {
-                if (enchantment.id.startsWith('fire_aura')) {
-                    newCard.buffs.push({ type: 'attack', value: 1, duration: Infinity, source: 'enchantment' });
-                }
-                if (enchantment.id.startsWith('ice_shield')) {
-                    newCard.buffs.push({ type: 'armor', value: 1, duration: Infinity, source: 'enchantment' });
-                }
-                if (enchantment.id.startsWith('forest_heart')) {
-                    // This is tricky. Let's just grant a buff that we can check elsewhere if needed
-                    // For now, let's represent it as an armor buff for simplicity until we can add health buffs
-                    newCard.buffs.push({ type: 'armor', value: 1, duration: Infinity, source: 'enchantment' });
-                }
-                if (enchantment.id.startsWith('shadow_link') && !newCard.skill) {
-                    newCard.skill = { type: 'lifesteal', used: false };
+            for (let i = 0; i < newBattlefield.length; i++) {
+                let card = newBattlefield[i];
+                if (card.type === 'Creature' && card.element === enchantment.element) {
+                    let newCard = { ...card, buffs: [...card.buffs] };
+                    if (enchantment.id.startsWith('fire_aura')) {
+                        newCard.buffs.push({ type: 'attack', value: 1, duration: Infinity, source: 'enchantment' });
+                    }
+                    if (enchantment.id.startsWith('ice_shield')) {
+                        newCard.buffs.push({ type: 'armor', value: 1, duration: Infinity, source: 'enchantment' });
+                    }
+                    if (enchantment.id.startsWith('forest_heart') && newCard.health !== undefined && newCard.initialHealth !== undefined) {
+                        const healthBonus = 1;
+                        newCard.health += healthBonus;
+                        newCard.initialHealth += healthBonus;
+                    }
+                    if (enchantment.id.startsWith('shadow_link') && !newCard.skill) {
+                        newCard.skill = { type: 'lifesteal', used: false, source: 'enchantment' };
+                    }
+                    newBattlefield[i] = newCard;
                 }
             }
         }
-        return newCard;
-    });
-
+    }
+    
     return { ...player, battlefield: newBattlefield };
 };
 
@@ -835,70 +830,100 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'CLEAN_BATTLEFIELD': {
-        const clean = (p: Player, ownerKey: 'player' | 'opponent'): { player: Player, log: LogEntry[] } => {
+        const clean = (p: Player, ownerKey: 'player' | 'opponent', fullState: GameState): { player: Player, log: LogEntry[] } => {
             let graveyard = [...p.graveyard];
             let log: LogEntry[] = [];
-            const battlefield = p.battlefield.filter(c => {
-                const reviveBuff = c.buffs.find(b => b.type === 'revive');
+            
+            // Cards that are confirmed dead and not reviving
+            const deadCards = p.battlefield.filter(c => {
                 if ((c.health || 0) <= 0) {
+                     const phoenixBuff = c.buffs.find(b => b.type === 'rebirth');
+                     if (phoenixBuff) {
+                         return false; // Phoenix will revive, so don't move to graveyard yet
+                     }
+                    const reviveBuff = c.buffs.find(b => b.type === 'revive');
                     if (reviveBuff) {
-                        log.push({ type: 'skill', turn: state.turn, message: `${c.name} est ranimé par le totem !`, target: ownerKey });
-                        const revivedCard = {
-                          ...c, 
-                          health: c.initialHealth, 
-                          isEntering: true,
-                          buffs: c.buffs.map(b => {
-                            if (b.type === 'revive') {
-                                return {...b, remainingUses: (b.remainingUses || 1) - 1};
-                            }
-                            return b;
-                          }).filter(b => b.type !== 'revive' || (b.remainingUses || 0) > 0)
-                        };
-                        
-                        // We need to find the totem and decrement its uses
-                        const totemOwner = ownerKey === 'player' ? state.player : state.opponent;
-                        const totemIndex = totemOwner.structures.findIndex(s => s.skill?.type === 'revive');
-                        if (totemIndex !== -1) {
-                            const totem = totemOwner.structures[totemIndex];
-                            if (totem.uses !== undefined) {
-                                totem.uses -= 1;
-                            }
-                        }
-
-                        // Instead of pushing to graveyard, we return it to the battlefield
-                        // This requires modifying how we reconstruct the battlefield
-                        return true; // Keep it on the battlefield for now, we'll update it
-                    } else {
-                        graveyard.push({ ...c, health: c.initialHealth, buffs: [] });
-                        log.push({ type: 'destroy', turn: state.turn, message: `${c.name} est détruit.`, target: ownerKey });
-                        return false;
+                        return false; // Will be handled by revival logic
                     }
+                    return true;
                 }
-                return true;
+                return false;
             });
 
+            deadCards.forEach(c => {
+                graveyard.push({ ...c, health: c.initialHealth, buffs: [] });
+                log.push({ type: 'destroy', turn: fullState.turn, message: `${c.name} est détruit.`, target: ownerKey });
+            });
+            
             // Re-map battlefield to update revived cards
-            const finalBattlefield = p.battlefield.map(c => {
-                if ((c.health || 0) <= 0 && c.buffs.some(b => b.type === 'revive')) {
-                    return {
-                        ...c, 
-                        health: c.initialHealth, 
-                        isEntering: true,
-                        spellAnimation: { targetId: c.id },
-                        buffs: c.buffs.filter(b => b.type !== 'revive') // One-time use
-                    };
-                }
-                return c;
-            }).filter(c => (c.health || 0) > 0);
+            const finalBattlefield = p.battlefield
+                .map(c => {
+                    if ((c.health || 0) <= 0) {
+                        // Phoenix Revival
+                         const phoenixBuff = c.buffs.find(b => b.type === 'rebirth');
+                         if (phoenixBuff) {
+                             log.push({ type: 'skill', turn: fullState.turn, message: `Le ${c.name} renaît de ses cendres !`, target: ownerKey });
+                             return {
+                                 ...c,
+                                 health: c.initialHealth,
+                                 isEntering: true,
+                                 skillJustUsed: true,
+                                 buffs: c.buffs.filter(b => b.type !== 'rebirth'), // one-time use
+                             };
+                         }
 
+                        // Totem Revival
+                        const reviveBuff = c.buffs.find(b => b.type === 'revive');
+                        if (reviveBuff) {
+                            log.push({ type: 'skill', turn: fullState.turn, message: `${c.name} est ranimé par le totem !`, target: ownerKey });
+                            return {
+                                ...c,
+                                health: c.initialHealth,
+                                isEntering: true,
+                                skillJustUsed: true,
+                                buffs: c.buffs.filter(b => b.type !== 'revive'),
+                            };
+                        }
+                    }
+                    return c;
+                })
+                .filter(c => (c.health || 0) > 0); // Remove cards that were not revived
 
             return { player: { ...p, battlefield: finalBattlefield, graveyard }, log };
         };
 
-        const { player, log: playerLog } = clean(state.player, 'player');
-        const { player: opponent, log: opponentLog } = clean(state.opponent, 'opponent');
+        const { player: playerAfterClean, log: playerLog } = clean(state.player, 'player', state);
+        const { player: opponentAfterClean, log: opponentLog } = clean(state.opponent, 'opponent', state);
         
-        return { ...state, player, opponent, log: [...state.log, ...playerLog, ...opponentLog] };
+        let newPlayer = playerAfterClean;
+        let newOpponent = opponentAfterClean;
+
+        // Decrement totem uses
+        const playerRevived = state.player.battlefield.some(c => (c.health || 0) <= 0 && c.buffs.some(b => b.type === 'revive'));
+        if (playerRevived) {
+            const totemIndex = newPlayer.structures.findIndex(s => s.skill?.type === 'revive');
+            if (totemIndex !== -1) {
+                const totem = { ...newPlayer.structures[totemIndex] };
+                if (totem.uses !== undefined && totem.uses > 0) {
+                    totem.uses -= 1;
+                    newPlayer.structures[totemIndex] = totem;
+                }
+            }
+        }
+        const opponentRevived = state.opponent.battlefield.some(c => (c.health || 0) <= 0 && c.buffs.some(b => b.type === 'revive'));
+        if (opponentRevived) {
+             const totemIndex = newOpponent.structures.findIndex(s => s.skill?.type === 'revive');
+            if (totemIndex !== -1) {
+                const totem = { ...newOpponent.structures[totemIndex] };
+                if (totem.uses !== undefined && totem.uses > 0) {
+                    totem.uses -= 1;
+                    newOpponent.structures[totemIndex] = totem;
+                }
+            }
+        }
+
+
+        return { ...state, player: newPlayer, opponent: newOpponent, log: [...state.log, ...playerLog, ...opponentLog] };
     }
 
 
@@ -1135,12 +1160,16 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       newCardState.summoningSickness = true;
       newCardState.isEntering = true;
 
+      if (card.id.startsWith('phoenix')) {
+          newCardState.buffs.push({ type: 'rebirth', value: 1, duration: Infinity, source: 'skill' });
+      }
+
       if (card.type === 'Land') {
         newPlayerState.battlefield = [...newPlayerState.battlefield, newCardState];
         newPlayerState.maxMana = newPlayerState.maxMana + 1;
         newPlayerState.mana = newPlayerState.mana; // Mana from land is available next turn, but let's give it now
       } else if (card.type === 'Creature' || card.type === 'Artifact' || card.type === 'Enchantment') {
-        newPlayerState.battlefield.push(newCardState);
+        newPlayerState.battlefield = [...newPlayerState.battlefield, newCardState];
         
         let updatedPlayerWithEffects = { ...newPlayerState };
 
@@ -1172,12 +1201,32 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
                 spellBeingCast: card,
             };
         }
+        // Handle non-targeted spells/potions here
         if(card.id.startsWith('health_potion')) {
             newPlayerState.hp = Math.min(20, newPlayerState.hp + 5);
             tempNewState.log.push({ type: 'heal', turn: state.turn, message: `${activePlayerKey === 'player' ? 'Joueur' : 'Adversaire'} se soigne de 5 PV.`, target: activePlayerKey });
         } else if (card.id.startsWith('mana_potion')) {
             newPlayerState.mana = newPlayerState.mana + 2;
             tempNewState.log.push({ type: 'mana', turn: state.turn, message: `${activePlayerKey === 'player' ? 'Joueur' : 'Adversaire'} gagne 2 mana.`, target: activePlayerKey });
+        } else if (card.id.startsWith('fire_potion')) {
+            const opponentKey = activePlayerKey === 'player' ? 'opponent' : 'player';
+            let opponent = { ...tempNewState[opponentKey] };
+            opponent.battlefield = opponent.battlefield.map(c => ({...c, health: (c.health || 0) - 2}));
+             tempNewState.log.push({ type: 'damage', turn: state.turn, message: `Toutes les créatures adverses subissent 2 dégâts.`, target: opponentKey });
+            tempNewState = {...tempNewState, [opponentKey]: opponent};
+        } else if (card.id.startsWith('resurrection_potion')) {
+            if (newPlayerState.graveyard.length > 0) {
+                const resurrectedCardIndex = Math.floor(Math.random() * newPlayerState.graveyard.length);
+                const cardToResurrect = newPlayerState.graveyard[resurrectedCardIndex];
+                
+                if (cardToResurrect.type === 'Creature') {
+                    newPlayerState.graveyard.splice(resurrectedCardIndex, 1);
+                    const newInstance = instantiateCard(cardToResurrect);
+                    newInstance.isEntering = true;
+                    newPlayerState.battlefield.push(newInstance);
+                    tempNewState.log.push({ type: 'skill', turn: state.turn, message: `${cardToResurrect.name} revient du cimetière !`, target: activePlayerKey });
+                }
+            }
         }
         newPlayerState.graveyard.push(card);
       }
@@ -1287,8 +1336,17 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // Apply skill/spell effect
       switch (spellOrSkillCaster.skill?.type) {
         case 'damage':
-          targetCard.health = (targetCard.health || 0) - (spellOrSkillCaster.skill.value || 0);
-          log.push({ type: 'damage', turn, message: `${targetCard.name} subit ${spellOrSkillCaster.skill.value} dégâts. PV restants: ${targetCard.health}`, target: targetOwnerKey });
+          if (spellOrSkillCaster.id.startsWith('shadow_potion')) {
+              if ((targetCard.health || 0) <= 3) {
+                  targetCard.health = 0;
+                  log.push({ type: 'damage', turn, message: `${targetCard.name} est détruit par la Potion d'Ombre.`, target: targetOwnerKey });
+              } else {
+                  log.push({ type: 'info', turn, message: `La Potion d'Ombre n'a pas d'effet sur ${targetCard.name}.` });
+              }
+          } else {
+              targetCard.health = (targetCard.health || 0) - (spellOrSkillCaster.skill.value || 0);
+              log.push({ type: 'damage', turn, message: `${targetCard.name} subit ${spellOrSkillCaster.skill.value} dégâts. PV restants: ${targetCard.health}`, target: targetOwnerKey });
+          }
           break;
         case 'damage_and_heal':
             targetCard.health = (targetCard.health || 0) - (spellOrSkillCaster.skill.value || 0);
@@ -1318,7 +1376,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             if (totem && (totem.uses || 0) > 0) {
                  targetCard.buffs.push({ type: 'revive', value: 1, duration: Infinity, source: 'structure', remainingUses: 1 });
                  log.push({ type: 'buff', turn, message: `${targetCard.name} est marqué par le ${spellOrSkillCaster.name}.`, target: targetOwnerKey });
-                 if(totem.uses) totem.uses -= 1;
             }
             break;
         case 'sacrifice':
@@ -1421,15 +1478,28 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
     
     case 'MEDITATE': {
-      if (state.activePlayer !== 'player') return state;
-      const player = state.player;
+      if (state.activePlayer !== 'player' || state.phase !== 'main') return state;
+      let player = { ...state.player };
+      let log = [...state.log];
+
       if (player.graveyard.length === 0) {
-        return {
-          ...state,
-          log: [...state.log, { type: 'info', turn: state.turn, message: 'Le cimetière est vide, impossible de méditer.' }]
-        };
+        log.push({ type: 'info', turn: state.turn, message: 'Le cimetière est vide, impossible de méditer.' });
+        return { ...state, log };
       }
-      return gameReducer(state, { type: 'PASS_TURN' });
+      if (player.hand.length >= MAX_HAND_SIZE) {
+        log.push({ type: 'info', turn: state.turn, message: 'Votre main est pleine, impossible de méditer.' });
+        return { ...state, log };
+      }
+      
+      const randomIndex = Math.floor(Math.random() * player.graveyard.length);
+      const cardFromGraveyard = player.graveyard[randomIndex];
+      player.hand = [...player.hand, cardFromGraveyard];
+      player.graveyard = player.graveyard.filter((_, i) => i !== randomIndex);
+      log.push({type: 'draw', turn: state.turn, message: `Joueur médite et récupère ${cardFromGraveyard.name} du cimetière.`, target: 'player'});
+      
+      const newState = {...state, player, log};
+      
+      return gameReducer(newState, { type: 'PASS_TURN' });
     }
 
     case 'REDRAW_HAND': {
@@ -1483,17 +1553,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       
       let currentPlayer = {...stateWithClearedFlags[currentPlayerKey]};
       let currentLog = [...stateWithClearedFlags.log];
-
-      // Handle "Meditate" action before passing the turn
-      if (state.phase === 'main' && (state.log.at(-1)?.message.includes('Méditer') || action.type === 'MEDITATE')) {
-        if(currentPlayer.graveyard.length > 0 && currentPlayer.hand.length < MAX_HAND_SIZE) {
-          const randomIndex = Math.floor(Math.random() * currentPlayer.graveyard.length);
-          const cardFromGraveyard = currentPlayer.graveyard[randomIndex];
-          currentPlayer.hand.push(cardFromGraveyard);
-          currentPlayer.graveyard.splice(randomIndex, 1);
-          currentLog.push({type: 'draw', turn: stateWithClearedFlags.turn, message: `${currentPlayerKey === 'player' ? 'Joueur' : 'Adversaire'} récupère ${cardFromGraveyard.name} du cimetière.`, target: currentPlayerKey})
-        }
-      }
 
       // AI auto-focus draw
       if (currentPlayerKey === 'opponent' && currentPlayer.hand.length <= 2) {
