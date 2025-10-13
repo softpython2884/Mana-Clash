@@ -252,7 +252,7 @@ const resolveDamage = (attacker: Card, defender: Card | Player, log: GameState['
         newLog.push({ type: 'damage', turn, message: `${newDefender.id === 'player' ? 'Joueur' : 'Adversaire'} subit ${damageDealt} dégâts. PV restants: ${newDefender.hp}`, target: newDefender.id });
     } else { // It's a card
         const totalArmor = (newDefender.armor || 0) + (newDefender.buffs?.filter(b => b.type === 'armor').reduce((acc, b) => acc + b.value, 0) || 0);
-        const defenderOwnerKey = newDefender.id.includes('player-') ? 'player' : 'opponent';
+        const defenderOwnerKey = newAttackerOwner.id === 'player' ? 'opponent' : 'player';
 
         if (isCritical) {
             newLog.push({ type: 'combat', turn, message: `L'armure de ${newDefender.name} est ignorée.` });
@@ -333,7 +333,7 @@ const opponentAI = (state: GameState): GameState => {
       }
     }
     
-    // 2. BOARD PRESENCE: Play creatures if board is empty or weak
+    // 2. BOARD PRESENCE: Play creatures if board is weak
     const opponentCreaturesOnBoard = opponent.battlefield.filter(c => c.type === 'Creature').length;
     if (opponentCreaturesOnBoard < 2) {
         const creaturesInHand = opponent.hand
@@ -431,9 +431,11 @@ const opponentAI = (state: GameState): GameState => {
                  }
             }
         } else if (card.skill?.type === 'sacrifice') {
-          const valuableAllies = opponent.battlefield.filter(c => c.id !== card.id && c.type === 'Creature' && c.health < c.initialHealth / 2 && (c.attack || 0) > 3);
+          // Heal a valuable ally that is damaged
+          const valuableAllies = opponent.battlefield.filter(c => c.id !== card.id && c.type === 'Creature' && (c.health || 0) < (c.initialHealth || 0) && (c.attack || 0) >= 4);
           if (valuableAllies.length > 0) {
-            if(applyAction({type: 'ACTIVATE_SKILL', cardId: card.id, targetId: valuableAllies[0].id})) {
+            const targetToHeal = valuableAllies.sort((a,b) => (a.initialHealth! - a.health!) - (b.initialHealth! - b.health!))[0]; // Heal the most damaged one
+            if(applyAction({type: 'ACTIVATE_SKILL', cardId: card.id, targetId: targetToHeal.id})) {
                 actionFound = true;
                 break;
             }
@@ -441,8 +443,31 @@ const opponentAI = (state: GameState): GameState => {
         }
     }
      if(actionFound) { actionsTaken++; continue; }
+     
+    // 6. LAST RESORT: Sacrifice non-essential cards for health
+    if (opponent.hp <= 8 && !opponent.hand.some(c => c.id.startsWith('health_potion'))) {
+        const sacrificableCards = opponent.hand.filter(c => 
+            c.type !== 'Creature' && 
+            c.skill?.type !== 'heal' && 
+            !c.id.startsWith('health_potion')
+        );
 
-    // 6. Play other cards (creatures/artifacts/enchantments) to establish board presence
+        if (sacrificableCards.length > 0) {
+            const cardsToSacrifice = sacrificableCards.slice(0, 2); // Sacrifice up to 2 cards
+            const healthGain = cardsToSacrifice.length * 2;
+
+            opponent.hp = Math.min(20, opponent.hp + healthGain);
+            opponent.hand = opponent.hand.filter(c => !cardsToSacrifice.find(sac => sac.id === c.id));
+            opponent.graveyard.push(...cardsToSacrifice);
+            
+            log.push({ type: 'heal', turn, message: `Dernier recours: L'IA sacrifie ${cardsToSacrifice.length} cartes pour regagner ${healthGain} PV.`, target: 'opponent' });
+            actionFound = true;
+            actionsTaken++;
+            continue;
+        }
+    }
+
+    // 7. Play other cards (creatures/artifacts/enchantments) to establish board presence
     if (opponent.battlefield.length < MAX_BATTLEFIELD_SIZE) {
         const hasCreatures = opponent.battlefield.some(c => c.type === 'Creature');
         const playableCards = opponent.hand
@@ -546,7 +571,7 @@ const opponentAI = (state: GameState): GameState => {
               // Riposte
               const finalDefenderState = combatPlayer.battlefield.find(c => c.id === targetId);
               if (finalDefenderState && (finalDefenderState.health || 0) > 0 && !finalDefenderState.tapped) {
-                 combatLog.push({ type: 'combat', turn, message: `${finalDefenderState.name} riposte !`, target: 'opponent' });
+                 combatLog.push({ type: 'combat', turn, message: `${finalDefenderState.name} riposte !`, target: 'player' });
                  const riposteResult = resolveDamage(finalDefenderState, combatResult.attacker, combatLog, combatState.turn, combatPlayer);
                  combatOpponent.battlefield = combatOpponent.battlefield.map(c => c.id === attacker.id ? riposteResult.defender as Card : c);
                  combatPlayer = riposteResult.attackerOwner as Player;
@@ -1203,19 +1228,19 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           log.push({ type: 'heal', turn, message: `${spellOrSkillCaster.name} soigne ${targetCard.name} de ${spellOrSkillCaster.skill.value} PV.`, target: targetOwnerKey });
           break;
         case 'sacrifice':
-             const sacrificedCard = stateWithClearedFlags[activePlayerKey].battlefield.find(c => c.id === spellOrSkillCaster.id);
+            const sacrificedCard = stateWithClearedFlags[activePlayerKey].battlefield.find(c => c.id === spellOrSkillCaster.id);
             if (sacrificedCard && sacrificedCard.health) {
-                const healAmount = Math.floor(sacrificedCard.health * 0.75);
+                // The skill heals for a percentage of the *target's* remaining health, not the sacrificed unit's health
+                const healAmount = Math.floor((targetCard.health || 0) * 0.75);
                 targetCard.health = Math.min(targetCard.initialHealth!, (targetCard.health || 0) + healAmount);
                 log.push({ type: 'heal', turn, message: `${sacrificedCard.name} est sacrifié et soigne ${targetCard.name} de ${healAmount} PV.`, target: targetOwnerKey });
+                
+                let playerToUpdate = activePlayerKey === 'player' ? player : opponent;
+                playerToUpdate.battlefield = playerToUpdate.battlefield.filter(c => c.id !== sacrificedCard.id);
+                playerToUpdate.graveyard.push(sacrificedCard);
 
-                if (activePlayerKey === 'player') {
-                    player.battlefield = player.battlefield.filter(c => c.id !== sacrificedCard.id);
-                    player.graveyard.push(sacrificedCard);
-                } else {
-                    opponent.battlefield = opponent.battlefield.filter(c => c.id !== sacrificedCard.id);
-                    opponent.graveyard.push(sacrificedCard);
-                }
+                if (activePlayerKey === 'player') player = playerToUpdate;
+                else opponent = playerToUpdate;
             }
             break;
       }
@@ -1364,7 +1389,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       let currentLog = [...stateWithClearedFlags.log];
 
       // Handle "Meditate" action before passing the turn
-      if (state.phase === 'main' && (state.log.at(-1)?.message.includes('méditer') || action.type === 'MEDITATE')) {
+      if (state.phase === 'main' && (state.log.at(-1)?.message.includes('Méditer') || action.type === 'MEDITATE')) {
         if(currentPlayer.graveyard.length > 0 && currentPlayer.hand.length < MAX_HAND_SIZE) {
           const randomIndex = Math.floor(Math.random() * currentPlayer.graveyard.length);
           const cardFromGraveyard = currentPlayer.graveyard[randomIndex];
