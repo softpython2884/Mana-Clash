@@ -76,7 +76,7 @@ export const createDeck = (): Card[] => {
       for (let i = 0; i < count; i++) {
         deck.push({ 
             ...cardTemplate, 
-            id: `${cardTemplate.id}-${i}`,
+            id: `${cardTemplate.id}-${i}-${Math.random().toString(36).substring(7)}`,
             health: cardTemplate.initialHealth,
             tapped: false,
             isAttacking: false,
