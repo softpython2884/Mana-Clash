@@ -1,7 +1,7 @@
 'use client';
 import type { ImagePlaceholder } from './placeholder-images';
 
-export type CardType = 'Creature' | 'Land' | 'Spell' | 'Artifact' | 'Biome' | 'Enchantment' | 'Potion' | 'SpecialSummon' | 'Trap' | 'Ritual';
+export type CardType = 'Creature' | 'Land' | 'Spell' | 'Artifact' | 'Biome' | 'Enchantment' | 'Potion' | 'SpecialSummon' | 'Trap' | 'Ritual' | 'Structure';
 export type GamePhase = 'main' | 'combat' | 'targeting' | 'spell_targeting' | 'post_mulligan' | 'end' | 'game-over';
 export type BiomeType = 'Forest' | 'Mountain' | 'Swamp' | 'Desert' | 'Ice' | 'Volcano' | 'Sanctuary' | 'Plains' | 'Cavern' | 'River' | 'Ruins' | 'Void' | 'Sky';
 
@@ -23,6 +23,9 @@ export type SkillType =
   | 'damage'
   | 'damage_and_heal'
   | 'resurrect'
+  | 'revive'
+  | 'generate_card'
+  | 'add_to_deck'
   | 'sacrifice';
 
 export type SkillTarget = 'self' | 'friendly_creature' | 'any_creature' | 'player' | 'opponent_creature';
@@ -42,13 +45,15 @@ export interface CardSkill {
   cooldown?: number;
   currentCooldown?: number;
   onCooldown?: boolean;
+  cardToGenerate?: string;
 }
 
 export interface Buff {
-    type: 'attack' | 'armor' | 'crit';
+    type: 'attack' | 'armor' | 'crit' | 'revive';
     value: number;
     duration: number; // in turns. Infinity for permanent
-    source: 'spell' | 'artifact' | 'biome' | 'enchantment';
+    source: 'spell' | 'artifact' | 'biome' | 'enchantment' | 'structure';
+    remainingUses?: number;
 }
 
 export interface Card {
@@ -78,6 +83,7 @@ export interface Card {
   duration?: number; // For artifacts
   skillJustUsed?: boolean; // For visual feedback
   isEntering?: boolean; // For spawn animation
+  uses?: number; // For structures like Totem
 }
 
 export interface Player {
@@ -89,6 +95,7 @@ export interface Player {
   hand: Card[];
   battlefield: Card[];
   graveyard: Card[];
+  structures: Card[];
   biomeChanges: number;
   hasRedrawn: boolean; // Mulligan flag for the game
   focusDrawNextTurn: boolean;

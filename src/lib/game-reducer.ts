@@ -1,6 +1,6 @@
 'use client';
 import type { GameState, Card, Player, GamePhase, Buff, LogEntry, ElementType } from './types';
-import { createDeck, allCards } from '@/data/initial-cards';
+import { createDeck, allCards, instantiateCard, getCardTemplate } from '@/data/initial-cards';
 
 const MAX_HAND_SIZE = 7;
 const MAX_BATTLEFIELD_SIZE = 7;
@@ -66,7 +66,7 @@ const drawCardsWithBiomeAffinity = (player: Player, count: number, activeBiome: 
 
 const createInitialPlayer = (id: 'player' | 'opponent'): Player => ({
     id,
-    hp: 20, mana: 0, maxMana: 0, deck: [], hand: [], battlefield: [], graveyard: [], biomeChanges: 2, hasRedrawn: false, focusDrawNextTurn: false,
+    hp: 20, mana: 0, maxMana: 0, deck: [], hand: [], battlefield: [], graveyard: [], structures: [], biomeChanges: 2, hasRedrawn: false, focusDrawNextTurn: false,
 });
 
 const applyGlobalEnchantmentEffects = (player: Player): Player => {
@@ -475,7 +475,7 @@ const opponentAI = (state: GameState): GameState => {
                 if (c.manaCost > opponent.mana) return false;
                 // Don't play an enchantment if there are no creatures on the board
                 if (c.type === 'Enchantment' && !hasCreatures) return false;
-                return c.type === 'Creature' || c.type === 'Artifact' || c.type === 'Enchantment';
+                return c.type === 'Creature' || c.type === 'Artifact' || c.type === 'Enchantment' || c.type === 'Structure';
             })
             .sort((a, b) => {
                 // Prioritize creatures if the board is empty
@@ -545,7 +545,7 @@ const opponentAI = (state: GameState): GameState => {
                 targetId = 'player';
             } else {
                 // If AI creature would die and player creature would live, it's a bad trade, don't attack
-                const weakestBlocker = potentialBlockers.sort((a, b) => (a.attack || 0) - (b.attack || 0))[0];
+                const weakestBlocker = potentialBlockers.sort((a, b) => (a.attack || 0) - (a.attack || 0))[0];
                 const riposteDamage = (weakestBlocker.attack || 0) - (attackerCard.armor || 0);
                 if (riposteDamage < (attackerCard.health || 0)) {
                     targetId = 'player'; // Attack player if the trade is bad or there are no blockers
@@ -742,14 +742,8 @@ const checkForCombos = (state: GameState): GameState => {
             const fusionResultTemplate = allCards.find(c => c.id === fusion.result);
             if (fusionResultTemplate) {
                 const newCard: Card = {
-                    ...fusionResultTemplate,
-                    id: `${fusionResultTemplate.id}-${Math.random().toString(36).substring(7)}`,
-                    health: fusionResultTemplate.initialHealth,
-                    tapped: false,
-                    isAttacking: false,
-                    canAttack: false,
+                    ...instantiateCard(fusionResultTemplate),
                     summoningSickness: true,
-                    buffs: [],
                     isEntering: true,
                 };
                 activePlayerObject.battlefield.push(newCard);
@@ -842,17 +836,63 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'CLEAN_BATTLEFIELD': {
         const clean = (p: Player, ownerKey: 'player' | 'opponent'): { player: Player, log: LogEntry[] } => {
-            const graveyard = [...p.graveyard];
-            let log = [] as LogEntry[];
+            let graveyard = [...p.graveyard];
+            let log: LogEntry[] = [];
             const battlefield = p.battlefield.filter(c => {
+                const reviveBuff = c.buffs.find(b => b.type === 'revive');
                 if ((c.health || 0) <= 0) {
-                    graveyard.push({ ...c, health: c.initialHealth, buffs: [] });
-                    log.push({ type: 'destroy', turn: state.turn, message: `${c.name} est détruit.`, target: ownerKey });
-                    return false;
+                    if (reviveBuff) {
+                        log.push({ type: 'skill', turn: state.turn, message: `${c.name} est ranimé par le totem !`, target: ownerKey });
+                        const revivedCard = {
+                          ...c, 
+                          health: c.initialHealth, 
+                          isEntering: true,
+                          buffs: c.buffs.map(b => {
+                            if (b.type === 'revive') {
+                                return {...b, remainingUses: (b.remainingUses || 1) - 1};
+                            }
+                            return b;
+                          }).filter(b => b.type !== 'revive' || (b.remainingUses || 0) > 0)
+                        };
+                        
+                        // We need to find the totem and decrement its uses
+                        const totemOwner = ownerKey === 'player' ? state.player : state.opponent;
+                        const totemIndex = totemOwner.structures.findIndex(s => s.skill?.type === 'revive');
+                        if (totemIndex !== -1) {
+                            const totem = totemOwner.structures[totemIndex];
+                            if (totem.uses !== undefined) {
+                                totem.uses -= 1;
+                            }
+                        }
+
+                        // Instead of pushing to graveyard, we return it to the battlefield
+                        // This requires modifying how we reconstruct the battlefield
+                        return true; // Keep it on the battlefield for now, we'll update it
+                    } else {
+                        graveyard.push({ ...c, health: c.initialHealth, buffs: [] });
+                        log.push({ type: 'destroy', turn: state.turn, message: `${c.name} est détruit.`, target: ownerKey });
+                        return false;
+                    }
                 }
                 return true;
             });
-            return { player: { ...p, battlefield, graveyard }, log };
+
+            // Re-map battlefield to update revived cards
+            const finalBattlefield = p.battlefield.map(c => {
+                if ((c.health || 0) <= 0 && c.buffs.some(b => b.type === 'revive')) {
+                    return {
+                        ...c, 
+                        health: c.initialHealth, 
+                        isEntering: true,
+                        spellAnimation: { targetId: c.id },
+                        buffs: c.buffs.filter(b => b.type !== 'revive') // One-time use
+                    };
+                }
+                return c;
+            }).filter(c => (c.health || 0) > 0);
+
+
+            return { player: { ...p, battlefield: finalBattlefield, graveyard }, log };
         };
 
         const { player, log: playerLog } = clean(state.player, 'player');
@@ -915,10 +955,15 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         if (stateWithClearedFlags.phase !== 'main') return stateWithClearedFlags;
         const activePlayerKey = stateWithClearedFlags.activePlayer;
         const activePlayerObject = stateWithClearedFlags[activePlayerKey];
-        const card = activePlayerObject.battlefield.find((c: Card) => c.id === action.cardId);
+        const card = activePlayerObject.battlefield.find((c: Card) => c.id === action.cardId) || activePlayerObject.structures.find((c: Card) => c.id === action.cardId);
 
         if (!card || !card.skill || card.skill.used || card.summoningSickness || card.tapped || card.skill.onCooldown) return stateWithClearedFlags;
         
+        // --- Handle specific mana costs for skills ---
+        if (card.skill.type === 'global_buff_armor' && activePlayerObject.mana < 8) {
+            return {...state, log: [...state.log, {type: 'info', turn: state.turn, message: 'Pas assez de mana (8 requis).'}]};
+        }
+
         // If skill requires a target, change phase to spell_targeting
         if (card.skill.target && card.skill.target !== 'self' && card.skill.target !== 'player') {
             // For the player, just set the state to targeting. The GameBoard will handle the click.
@@ -939,8 +984,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         // --- Logic for skills that don't need a target (or target self/player) ---
         let player = { ...activePlayerObject };
         let log = [...stateWithClearedFlags.log];
-        const cardIndex = player.battlefield.findIndex((c: Card) => c.id === action.cardId);
-        let cardToUpdate = { ...player.battlefield[cardIndex] };
+        let cardIndex = player.battlefield.findIndex((c: Card) => c.id === action.cardId);
+        let cardIsStructure = false;
+        if (cardIndex === -1) {
+            cardIndex = player.structures.findIndex((c: Card) => c.id === action.cardId);
+            cardIsStructure = true;
+        }
+
+        let cardToUpdate = cardIsStructure ? { ...player.structures[cardIndex] } : { ...player.battlefield[cardIndex] };
         
         let logEntry: LogEntry | null = null;
         
@@ -954,19 +1005,40 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
                 player = drawnPlayer;
                 logEntry = { type: 'draw', turn: stateWithClearedFlags.turn, message: `${cardToUpdate.name} fait piocher ${drawnCard?.name || 'une carte'}.`, target: activePlayerKey };
                 break;
+             case 'global_buff_armor':
+                if (player.mana >= 8) {
+                    player.mana -= 8;
+                    player.battlefield = player.battlefield.map(c => {
+                        if (c.type === 'Creature') {
+                            return {
+                                ...c,
+                                buffs: [...c.buffs, { type: 'armor', value: cardToUpdate.skill?.value || 1, duration: cardToUpdate.skill?.duration || 10, source: 'structure' }]
+                            };
+                        }
+                        return c;
+                    });
+                    logEntry = { type: 'buff', turn: stateWithClearedFlags.turn, message: `${cardToUpdate.name} donne +${cardToUpdate.skill?.value || 1} armure à toutes les créatures alliées.`, target: activePlayerKey };
+                }
+                break;
             default:
                 return stateWithClearedFlags;
         }
         
         cardToUpdate.skill.used = true;
-        cardToUpdate.tapped = true;
+        if (!cardIsStructure) {
+            cardToUpdate.tapped = true;
+        }
         if (cardToUpdate.skill.cooldown) {
             cardToUpdate.skill.onCooldown = true;
             cardToUpdate.skill.currentCooldown = cardToUpdate.skill.cooldown;
         }
         cardToUpdate.skillJustUsed = true; // For visual feedback
 
-        player.battlefield[cardIndex] = cardToUpdate;
+        if (cardIsStructure) {
+            player.structures[cardIndex] = cardToUpdate;
+        } else {
+            player.battlefield[cardIndex] = cardToUpdate;
+        }
         
         return { 
             ...stateWithClearedFlags,
@@ -1059,7 +1131,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       let newPlayerState = {...player, hand: newHand, mana: newMana};
       let tempNewState: GameState = {...state, log: newLog };
 
-      const newCardState: Card = { ...card, summoningSickness: true, canAttack: false, buffs: [], isEntering: true };
+      const newCardState: Card = instantiateCard(card);
+      newCardState.summoningSickness = true;
+      newCardState.isEntering = true;
 
       if (card.type === 'Land') {
         newPlayerState.battlefield = [...newPlayerState.battlefield, newCardState];
@@ -1087,6 +1161,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             });
             tempNewState.log.push({ type: 'buff', turn: state.turn, message: `${card.name} donne +${card.skill.value} armure à toutes les créatures.` });
         }
+      } else if (card.type === 'Structure') {
+          newPlayerState.structures = [...newPlayerState.structures, newCardState];
       } else if (card.type === 'Spell' || card.type === 'Potion') {
         if (card.skill?.target) {
             return {
@@ -1237,6 +1313,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           targetCard.health = Math.min(targetCard.initialHealth || 0, (targetCard.health || 0) + (spellOrSkillCaster.skill.value || 0));
           log.push({ type: 'heal', turn, message: `${spellOrSkillCaster.name} soigne ${targetCard.name} de ${spellOrSkillCaster.skill.value} PV.`, target: targetOwnerKey });
           break;
+        case 'revive':
+            const totem = activePlayerObject.structures.find(s => s.id === spellOrSkillCaster.id);
+            if (totem && (totem.uses || 0) > 0) {
+                 targetCard.buffs.push({ type: 'revive', value: 1, duration: Infinity, source: 'structure', remainingUses: 1 });
+                 log.push({ type: 'buff', turn, message: `${targetCard.name} est marqué par le ${spellOrSkillCaster.name}.`, target: targetOwnerKey });
+                 if(totem.uses) totem.uses -= 1;
+            }
+            break;
         case 'sacrifice':
             const sacrificedCard = stateWithClearedFlags[activePlayerKey].battlefield.find(c => c.id === spellOrSkillCaster.id);
             if (sacrificedCard && sacrificedCard.health) {
@@ -1287,11 +1371,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           }
         }
 
-      } else { // It was a spell from hand, move to graveyard
-        if (activePlayerKey === 'player') {
-            player.graveyard = [...player.graveyard, spellOrSkillCaster];
-        } else {
-            opponent.graveyard = [...opponent.graveyard, spellOrSkillCaster];
+      } else { // It was a spell from hand or structure, move to graveyard if it's a spell
+        if (spellOrSkillCaster.type === 'Spell' || spellOrSkillCaster.type === 'Potion') {
+            if (activePlayerKey === 'player') {
+                player.graveyard = [...player.graveyard, spellOrSkillCaster];
+            } else {
+                opponent.graveyard = [...opponent.graveyard, spellOrSkillCaster];
+            }
         }
       }
     
@@ -1443,6 +1529,36 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         }
         return newCard;
       });
+
+      // Handle structures
+      currentPlayer.structures = currentPlayer.structures.map(s => {
+          if (s.skill?.onCooldown) {
+              const newCooldown = (s.skill.currentCooldown || 0) - 1;
+              if (newCooldown <= 0) {
+                  // Effect triggers
+                  if (s.skill.type === 'generate_card' && s.skill.cardToGenerate && currentPlayer.hand.length < MAX_HAND_SIZE) {
+                      const cardTemplate = getCardTemplate(s.skill.cardToGenerate);
+                      if (cardTemplate) {
+                          const newCard = instantiateCard(cardTemplate);
+                          currentPlayer.hand.push(newCard);
+                          currentLog.push({ type: 'draw', turn: state.turn, message: `${s.name} génère ${newCard.name}.`, target: currentPlayerKey });
+                      }
+                  } else if (s.skill.type === 'add_to_deck' && s.skill.cardToGenerate) {
+                      const cardTemplate = getCardTemplate(s.skill.cardToGenerate);
+                      if (cardTemplate) {
+                          const newCard = instantiateCard(cardTemplate);
+                          currentPlayer.deck.push(newCard);
+                           currentLog.push({ type: 'info', turn: state.turn, message: `${s.name} ajoute ${newCard.name} à la pioche.`, target: currentPlayerKey });
+                      }
+                  }
+                  return { ...s, skill: { ...s.skill, onCooldown: false, currentCooldown: 0 }};
+              } else {
+                  return { ...s, skill: { ...s.skill, currentCooldown: newCooldown }};
+              }
+          }
+          return s;
+      });
+
 
       let graveyardAdditions: Card[] = [];
       if(artifactsToRemove.length > 0){

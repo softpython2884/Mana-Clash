@@ -10,6 +10,7 @@ import { Swords, RotateCcw, ScrollText, Brain, Replace, Sparkles } from 'lucide-
 import { Card as UICard, CardContent } from '@/components/ui/card';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import GameLog from './GameLog';
+import PlayerInventory from './PlayerInventory';
 import { cn } from '@/lib/utils';
 
 export default function GameBoard() {
@@ -30,7 +31,7 @@ export default function GameBoard() {
         const timer = setTimeout(() => {
             setSpellcastTarget(null);
             dispatch({ type: 'END_SPELL_ANIMATION' });
-        }, 500); // Duration of the flash animation
+        }, 1000); // Duration of the flash animation
         return () => clearTimeout(timer);
     }
   }, [state.spellAnimation]);
@@ -48,8 +49,8 @@ export default function GameBoard() {
 
 
   useEffect(() => {
-    const playerDeadCards = state.player.battlefield.filter(c => c.health <= 0).map(c => c.id);
-    const opponentDeadCards = state.opponent.battlefield.filter(c => c.health <= 0).map(c => c.id);
+    const playerDeadCards = state.player.battlefield.filter(c => (c.health || 0) <= 0).map(c => c.id);
+    const opponentDeadCards = state.opponent.battlefield.filter(c => (c.health || 0) <= 0).map(c => c.id);
     const allDeadCards = [...playerDeadCards, ...opponentDeadCards];
     
     if (allDeadCards.length > 0) {
@@ -88,8 +89,14 @@ export default function GameBoard() {
 
     if (phase === 'combat' && card.canAttack && !card.tapped) {
       dispatch({ type: 'SELECT_ATTACKER', cardId });
-    } else if (phase === 'main' || (phase === 'spell_targeting' && (spellBeingCast?.skill?.target === 'friendly_creature' || spellBeingCast?.skill?.target === 'any_creature'))) {
-      dispatch({ type: 'SELECT_CARD', cardId });
+    } else if (phase === 'main' || (phase === 'spell_targeting')) {
+       const caster = spellBeingCast;
+       const targetType = caster?.skill?.target;
+       if(targetType === 'friendly_creature' || targetType === 'any_creature'){
+         dispatch({ type: 'CAST_SPELL_ON_TARGET', targetId: cardId });
+       } else {
+         dispatch({ type: 'SELECT_CARD', cardId });
+       }
     }
   }
 
@@ -171,7 +178,7 @@ export default function GameBoard() {
           isBeingAttacked={attackingCards?.defenderId === card.id}
           isBeingSpellcast={spellcastTarget === card.id}
       />
-  )), [player.battlefield, phase, selectedAttackerId, selectedCardId, spellBeingCast, leavingCards, attackingCards, spellcastTarget]);
+  )), [player.battlefield, phase, selectedAttackerId, selectedCardId, spellBeingCast, leavingCards, attackingCards, spellcastTarget, handleActivateSkill, handleSelectCardOnBattlefield]);
 
   const opponentHasTaunt = opponent.battlefield.some(c => c.taunt && !c.tapped);
   const opponentHasCreatures = opponent.battlefield.filter(c => c.type === 'Creature').length > 0;
@@ -244,7 +251,12 @@ export default function GameBoard() {
         case 'targeting':
             return 'Choisissez une cible';
         case 'spell_targeting':
-            return `Ciblez une créature pour ${spellBeingCast?.name}`;
+            const casterName = spellBeingCast?.name || 'sort';
+            const targetType = spellBeingCast?.skill?.target;
+            if (targetType === 'friendly_creature' || targetType === 'any_creature' || targetType === 'opponent_creature') {
+                return `Ciblez une créature pour ${casterName}`;
+            }
+            return `Ciblez avec ${casterName}`;
         case 'post_mulligan':
             return 'Jouez une carte pour terminer votre tour.';
         default:
@@ -252,7 +264,16 @@ export default function GameBoard() {
     }
   }
   return (
-    <div className="w-full h-full flex p-2 sm:p-4 gap-2 sm:gap-4 max-w-[100rem] mx-auto">
+    <div className="w-full h-full flex p-2 sm:p-4 gap-2 sm:gap-4 max-w-[120rem] mx-auto">
+      <div className="w-80 hidden lg:block hide-scrollbar">
+        <PlayerInventory 
+            structures={player.structures} 
+            onActivateSkill={handleActivateSkill}
+            mana={player.mana}
+            phase={phase}
+            activePlayer={activePlayer}
+         />
+      </div>
       <div className="flex-grow flex flex-col gap-2 sm:gap-4">
         <GameOverDialog winner={winner} onRestart={() => dispatch({ type: 'RESTART_GAME' })} />
 
@@ -278,7 +299,7 @@ export default function GameBoard() {
               </div>
           </div>
         </div>
-        <div className="min-h-[184px] sm:min-h-[224px] md:min-h-[268px] bg-black/20 rounded-xl p-2 flex items-center justify-center gap-2 backdrop-blur-sm shadow-inner overflow-x-hidden transition-all duration-300">
+        <div className="min-h-[184px] sm:min-h-[224px] md:min-h-[268px] bg-black/20 rounded-xl p-2 flex items-center justify-center gap-2 backdrop-blur-sm shadow-inner overflow-x-auto transition-all duration-300">
           {MemoizedOpponentBattlefield}
         </div>
 
@@ -338,7 +359,7 @@ export default function GameBoard() {
         </div>
 
         {/* Player Area */}
-        <div className="min-h-[184px] sm:min-h-[224px] md:min-h-[268px] bg-black/20 rounded-xl p-2 flex items-center justify-center gap-2 backdrop-blur-sm shadow-inner overflow-x-hidden transition-all duration-300">
+        <div className="min-h-[184px] sm:min-h-[224px] md:min-h-[268px] bg-black/20 rounded-xl p-2 flex items-center justify-center gap-2 backdrop-blur-sm shadow-inner overflow-x-auto transition-all duration-300">
           {MemoizedPlayerBattlefield}
         </div>
         <div className="flex justify-between items-end">

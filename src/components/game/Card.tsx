@@ -2,7 +2,7 @@
 import type { Card as CardType, BiomeType } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Swords, Shield, Heart, Zap, Mountain, Trees, Snowflake, Flame, Sun, ShieldQuestion, X, BrainCircuit, Sparkles, PlusCircle, Timer, Skull, Hand } from 'lucide-react';
+import { Swords, Shield, Heart, Zap, Mountain, Trees, Snowflake, Flame, Sun, ShieldQuestion, X, BrainCircuit, Sparkles, PlusCircle, Timer, Skull, Hand, Recycle } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { useEffect, useState } from 'react';
 
@@ -12,6 +12,7 @@ interface GameCardProps {
   onClick?: () => void;
   onSkillClick?: () => void;
   inHand?: boolean;
+  isStructure?: boolean;
   isActiveBiome?: boolean;
   isAttacking?: boolean; // Card is selected to be an attacker
   isTargeted?: boolean;  // Card is selected as a defender target
@@ -21,6 +22,7 @@ interface GameCardProps {
   isLeaving?: boolean; // To animate card leaving
   isBeingAttacked?: boolean;
   isBeingSpellcast?: boolean;
+  hasRevive?: boolean;
 }
 
 const biomeIcon: Record<string, React.ElementType> = {
@@ -42,6 +44,9 @@ const skillIcon: Record<string, React.ElementType> = {
     buff_attack: Swords,
     buff_armor: Shield,
     global_buff_armor: Shield,
+    revive: Recycle,
+    generate_card: PlusCircle,
+    add_to_deck: Recycle,
     sacrifice: Skull,
 };
 
@@ -57,8 +62,8 @@ const biomeColor: Record<string, string> = {
 };
 
 
-export default function GameCard({ card, isPlayable = false, onClick, onSkillClick, inHand = false, isActiveBiome = false, isAttacking = false, isTargeted = false, isTargetable = false, isLethal = false, isEntering = false, isLeaving = false, isBeingAttacked = false, isBeingSpellcast = false }: GameCardProps) {
-  const { name, manaCost, description, attack, health, armor, type, tapped, canAttack, criticalHitChance, preferredBiome, biome, taunt, buffs, duration, skillJustUsed } = card;
+export default function GameCard({ card, isPlayable = false, onClick, onSkillClick, inHand = false, isStructure = false, isActiveBiome = false, isAttacking = false, isTargeted = false, isTargetable = false, isLethal = false, isEntering = false, isLeaving = false, isBeingAttacked = false, isBeingSpellcast = false }: GameCardProps) {
+  const { name, manaCost, description, attack, health, armor, type, tapped, canAttack, criticalHitChance, preferredBiome, biome, taunt, buffs, duration, skillJustUsed, uses } = card;
 
   const [showSkillFeedback, setShowSkillFeedback] = useState(false);
 
@@ -76,6 +81,7 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
   const SkillIcon = card.skill ? skillIcon[card.skill.type] : null;
 
   const borderClass = biome ? biomeColor[biome] : '';
+  const hasRevive = buffs?.some(b => b.type === 'revive');
 
   const handleSkillClick = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card click event from firing
@@ -97,22 +103,27 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
         tapped && 'transform rotate-12 scale-95 opacity-70',
         isActiveBiome && 'ring-4 ring-white',
         isEntering && 'animate-drop-in',
-        isLeaving && 'animate-flash-out',
+        isLeaving && 'animate-flash-out-re-emerge',
         isBeingAttacked && 'animate-shake-quick',
-        isBeingSpellcast && 'animate-spell-flash'
+        isBeingSpellcast && 'animate-spell-flash',
+        isStructure && 'w-full'
       )}
       onClick={onClick}
     >
       <Card
         className={cn(
-          'w-[120px] h-[168px] sm:w-[150px] sm:h-[210px] md:w-[180px] md:h-[252px] flex flex-col overflow-hidden select-none bg-card-foreground/5 dark:bg-card-foreground/10 backdrop-blur-md rounded-xl transition-all',
+          'flex flex-col overflow-hidden select-none bg-card-foreground/5 dark:bg-card-foreground/10 backdrop-blur-md rounded-xl transition-all',
+          isStructure 
+            ? 'w-full h-auto'
+            : 'w-[120px] h-[168px] sm:w-[150px] sm:h-[210px] md:w-[180px] md:h-[252px]',
           isPlayable && 'cursor-pointer ring-4 ring-primary ring-offset-2 ring-offset-background shadow-lg shadow-primary/50',
           canAttack && !tapped && 'cursor-pointer ring-4 ring-orange-500 ring-offset-2 ring-offset-background shadow-lg shadow-orange-500/50 animate-pulse',
           isAttacking && 'ring-4 ring-red-500 ring-offset-2 ring-offset-background shadow-lg shadow-red-500/50', // Red border for selected attacker
           isTargetable && 'cursor-pointer ring-4 ring-yellow-400 animate-pulse', // Highlight for potential targets
           onClick && "cursor-pointer",
           type === 'Biome' && borderClass && `border-4 ${borderClass}`,
-          taunt && 'shadow-lg shadow-blue-500/50 ring-2 ring-blue-500'
+          taunt && 'shadow-lg shadow-blue-500/50 ring-2 ring-blue-500',
+          hasRevive && 'shadow-lg shadow-amber-400/50 ring-2 ring-amber-400'
         )}
       >
         <CardHeader className="p-2 flex-shrink-0">
@@ -146,17 +157,20 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
                 <Badge key={i} variant="secondary" className={cn(
                   "px-1 py-0 text-[9px] sm:text-xs animate-fade-in",
                   buff.type === 'attack' ? 'bg-red-500/80' : 'bg-blue-500/80',
-                  buff.type === 'crit' && 'bg-yellow-500/80'
+                  buff.type === 'crit' && 'bg-yellow-500/80',
+                  buff.type === 'revive' && 'bg-amber-500/80'
                 )}>
                   {buff.type === 'attack' && <Swords size={10} className="mr-1"/>}
                   {buff.type === 'armor' && <Shield size={10} className="mr-1"/>}
                   {buff.type === 'crit' && <Zap size={10} className="mr-1"/>}
-                  +{buff.value}{buff.type === 'crit' && '%'}{buff.duration !== Infinity && ` (${buff.duration}t)`}
+                  {buff.type === 'revive' && <Recycle size={10} className="mr-1"/>}
+                  {buff.type !== 'revive' && `+${buff.value}${buff.type === 'crit' ? '%' : ''}${buff.duration !== Infinity ? ` (${buff.duration}t)`: ''}`}
+                  {buff.type === 'revive' && `Revive (${buff.remainingUses})`}
                 </Badge>
               ))}
             </div>
         </CardContent>
-        <CardFooter className="p-2 flex-shrink-0 min-h-[40px] sm:min-h-[50px] flex flex-col items-start bg-secondary/30">
+        <CardFooter className={cn("p-2 flex-shrink-0 min-h-[40px] sm:min-h-[50px] flex flex-col items-start bg-secondary/30", isStructure && "min-h-[30px]")}>
           {type === 'Creature' && (
             <div className='w-full'>
                 {totalCritChance > 0 && (
@@ -186,6 +200,14 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
                 </div>
             </div>
           )}
+          {(type === 'Artifact' || type === 'Structure') && card.skill?.cooldown && card.skill.currentCooldown && card.skill.currentCooldown > 0 &&  (
+             <div className="w-full px-2">
+                <div className="w-full bg-gray-600 rounded-full h-2.5 dark:bg-gray-800 relative">
+                    <div className="bg-yellow-400 h-2.5 rounded-full" style={{width: `${((card.skill.cooldown - card.skill.currentCooldown) / card.skill.cooldown) * 100}%`}}></div>
+                     <span className='absolute inset-0 text-white text-[10px] font-bold text-center w-full leading-tight'>Recharge: {card.skill.currentCooldown} / {card.skill.cooldown}</span>
+                </div>
+            </div>
+          )}
           {type === 'Artifact' && duration !== undefined && (
              <div className="flex items-center gap-2 text-sm sm:text-lg font-bold text-white">
                 <Timer size={20} className="sm:hidden"/>
@@ -198,14 +220,19 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
                 <Icon size={18} className="text-white/70"/>
             </div>
           )}
-          {card.skill && !card.skill.onCooldown && !card.tapped && !card.summoningSickness && SkillIcon && (
+          {card.skill && (!card.skill.onCooldown || card.skill.type === 'revive') && !card.tapped && !card.summoningSickness && SkillIcon && (
             <div className="absolute bottom-1 left-1" onClick={handleSkillClick}>
               <div className='p-1 bg-black/50 rounded-full cursor-pointer hover:bg-black/80 transition-colors'>
                 <SkillIcon className='w-5 h-5 sm:w-6 sm:h-6 text-yellow-400'/>
               </div>
             </div>
           )}
-          {card.skill?.onCooldown && card.skill.cooldown && (
+          {uses !== undefined && (
+            <div className="absolute bottom-1 right-1 text-xs font-bold text-white bg-black/50 px-2 py-1 rounded-full">
+                {uses} left
+            </div>
+          )}
+          {card.skill?.onCooldown && card.skill.cooldown && card.skill.type !== 'generate_card' && card.skill.type !== 'add_to_deck' && (
              <div className="absolute bottom-1 left-1 flex items-center justify-center" title={`En recharge: ${card.skill.currentCooldown} tours`}>
                 <div className='p-1 bg-black/70 rounded-full cursor-not-allowed'>
                     <Timer className='w-5 h-5 sm:w-6 sm:h-6 text-gray-400'/>
@@ -218,5 +245,3 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
     </div>
   );
 }
-
-    

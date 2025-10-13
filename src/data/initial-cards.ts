@@ -3,13 +3,29 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 import type { Card, CardType, Rarity } from '@/lib/types';
 
 // Helper function to get a card template from the master list
-const getCardTemplate = (id: string): Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summoningSickness'> | undefined => {
-    return allCards.find(c => c.id === id);
+const getCardTemplate = (id: string): Omit<Card, 'id' | 'tapped' | 'isAttacking' | 'canAttack' | 'summoningSickness'> | undefined => {
+    const card = allCards.find(c => c.id === id);
+    if (!card) return undefined;
+    // We return a copy to avoid mutation of the original template
+    return { ...card };
 };
 
 // Helper function to instantiate a card from a template
-const instantiateCard = (template: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summoningSickness'>): Card => {
-    const uniqueId = `${template.id}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+let cardCounter = 0;
+const instantiateCard = (templateOrId: string | Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summoningSickness'>): Card => {
+    let template: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summoningSickness'> | undefined;
+
+    if (typeof templateOrId === 'string') {
+        template = getCardTemplate(templateOrId);
+    } else {
+        template = templateOrId;
+    }
+
+    if (!template) {
+        throw new Error(`Card template not found for: ${templateOrId}`);
+    }
+
+    const uniqueId = `${template.id}-${Date.now()}-${cardCounter++}`;
     return {
         ...template,
         id: uniqueId,
@@ -22,6 +38,7 @@ const instantiateCard = (template: Omit<Card, 'tapped' | 'isAttacking' | 'canAtt
         skill: template.skill ? { ...template.skill, used: false, onCooldown: false, currentCooldown: 0 } : undefined,
         buffs: [],
         duration: template.duration,
+        uses: template.uses
     };
 };
 
@@ -180,6 +197,14 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
   createCard('ruins_biome', 'Biome Ruines', 'Biome', 0, 'Change le biome actuel en Ruines.', { biome: 'Ruins' }),
   createCard('void_biome', 'Biome Néant', 'Biome', 0, 'Change le biome actuel en Néant.', { biome: 'Void' }),
   createCard('sky_biome', 'Biome Ciel', 'Biome', 0, 'Change le biome actuel en Ciel.', { biome: 'Sky' }),
+
+  // Structures
+  createCard('storm_caller', 'Faiseur de tempête', 'Structure', 5, 'Tous les 3 tours, génère une carte "Foudre" dans votre main.', { rarity: 'Epic', skill: { type: 'generate_card', cardToGenerate: 'lightning_bolt', cooldown: 3, currentCooldown: 3, onCooldown: true, used: false } }),
+  createCard('berry_plant', 'Plante à baies', 'Structure', 4, 'Tous les 3 tours, génère une carte "Lumière Guérisseuse" dans votre main.', { rarity: 'Rare', skill: { type: 'generate_card', cardToGenerate: 'healing_light', cooldown: 3, currentCooldown: 3, onCooldown: true, used: false } }),
+  createCard('wooden_hut', 'Hutte en bois', 'Structure', 6, 'Tous les 5 tours, ajoute un "Soldat Humain" à votre pioche.', { rarity: 'Epic', skill: { type: 'add_to_deck', cardToGenerate: 'human_soldier', cooldown: 5, currentCooldown: 5, onCooldown: true, used: false } }),
+  createCard('runic_shield', 'Bouclier runique', 'Structure', 3, 'Activation (8 Mana): Donne +1 armure à toutes vos créatures pour 10 tours. Temps de recharge: 3 tours.', { rarity: 'Epic', skill: { type: 'global_buff_armor', value: 1, duration: 10, cooldown: 3, used: false } }),
+  createCard('immortality_totem', 'Totem d\'immortalité', 'Structure', 7, 'Permet de marquer une créature alliée. Si elle meurt, elle revient à la vie avec tous ses PV. 3 utilisations.', { rarity: 'Legendary', skill: { type: 'revive', target: 'friendly_creature', used: false }, uses: 3 }),
+
 ];
 
 // Deck building rules
@@ -189,13 +214,14 @@ const deckRules = {
   maxEpic: 1,
   maxLegendary: 1,
   categories: {
-    Creature: { min: 24, max: 30 },
+    Creature: { min: 20, max: 28 },
     Spell: { min: 2, max: 5 },
-    Artifact: { min: 1, max: 4 },
+    Artifact: { min: 1, max: 3 },
     Enchantment: { min: 1, max: 3 },
     Potion: { min: 1, max: 3 },
     Land: { min: 3, max: 5 },
     Biome: { min: 1, max: 2 },
+    Structure: { min: 0, max: 2 }
   },
 };
 
@@ -224,6 +250,7 @@ const createRandomDeck = (): Card[] => {
         Potion: getRandomInt(deckRules.categories.Potion.min, deckRules.categories.Potion.max),
         Land: getRandomInt(deckRules.categories.Land.min, deckRules.categories.Land.max),
         Biome: getRandomInt(deckRules.categories.Biome.min, deckRules.categories.Biome.max),
+        Structure: getRandomInt(deckRules.categories.Structure.min, deckRules.categories.Structure.max),
     };
     
     // Adjust counts to meet deck size
@@ -250,6 +277,7 @@ const createRandomDeck = (): Card[] => {
     for (const type in categoryCounts) {
         const count = categoryCounts[type as CardType]!;
         const typeCards = availableCards.filter(c => c.type === type);
+        if (typeCards.length === 0) continue;
         for (let i = 0; i < count; i++) {
             let added = false;
             let attempts = 0;
@@ -259,8 +287,8 @@ const createRandomDeck = (): Card[] => {
                 const countInDeck = deck.filter(c => c.id.startsWith(randomCardTemplate.id)).length;
                 
                 let canAdd = true;
-                if (cardRarity === 'Epic' && deck.filter(c => c.rarity === 'Epic').length >= deckRules.maxEpic) canAdd = false;
-                if (cardRarity === 'Legendary' && deck.filter(c => c.rarity === 'Legendary').length >= deckRules.maxLegendary) canAdd = false;
+                if (cardRarity === 'Epic' && deck.filter(c => c.rarity === 'Epic' && !c.id.startsWith(randomCardTemplate.id)).length >= deckRules.maxEpic) canAdd = false;
+                if (cardRarity === 'Legendary' && deck.filter(c => c.rarity === 'Legendary' && !c.id.startsWith(randomCardTemplate.id)).length >= deckRules.maxLegendary) canAdd = false;
                 if (countInDeck >= deckRules.maxDuplicates && randomCardTemplate.type !== 'Land' && randomCardTemplate.type !== 'Biome') canAdd = false;
                 
 
@@ -275,7 +303,8 @@ const createRandomDeck = (): Card[] => {
     
     // Fill remaining spots if deck is not full
      while (deck.length < deckRules.deckSize) {
-        const randomCardTemplate = availableCards.filter(c => c.type === 'Creature')[getRandomInt(0, availableCards.filter(c => c.type === 'Creature').length - 1)];
+        const creatureCards = availableCards.filter(c => c.type === 'Creature');
+        const randomCardTemplate = creatureCards[getRandomInt(0, creatureCards.length - 1)];
         if (deck.filter(c => c.id.startsWith(randomCardTemplate.id)).length < deckRules.maxDuplicates) {
             deck.push(instantiateCard(randomCardTemplate));
         }
@@ -288,3 +317,5 @@ const createRandomDeck = (): Card[] => {
 export const createDeck = (type: 'player' | 'opponent'): Card[] => {
     return createRandomDeck();
 };
+
+export { instantiateCard, getCardTemplate };
