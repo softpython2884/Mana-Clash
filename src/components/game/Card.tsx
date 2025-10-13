@@ -16,6 +16,7 @@ interface GameCardProps {
   isTargeted?: boolean;  // Card is selected as a defender target
   isTargetable?: boolean; // Card can be targeted by an attacker
   showSkill?: boolean; // Show the skill icon
+  isEntering?: boolean; // To animate card entry
 }
 
 const biomeIcon: Record<BiomeType, React.ElementType> = {
@@ -39,7 +40,7 @@ const biomeColor: Record<BiomeType, string> = {
 };
 
 
-export default function GameCard({ card, isPlayable = false, onClick, onSkillClick, inHand = false, isActiveBiome = false, isAttacking = false, isTargeted = false, isTargetable = false, showSkill = false }: GameCardProps) {
+export default function GameCard({ card, isPlayable = false, onClick, onSkillClick, inHand = false, isActiveBiome = false, isAttacking = false, isTargeted = false, isTargetable = false, showSkill = false, isEntering = false }: GameCardProps) {
   const { name, manaCost, description, attack, health, armor, type, tapped, canAttack, criticalHitChance, preferredBiome, biome, taunt, buffs, duration } = card;
 
   const Icon = preferredBiome ? biomeIcon[preferredBiome] : null;
@@ -63,17 +64,18 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
         "relative transition-all duration-300 ease-in-out shadow-lg hover:shadow-2xl rounded-xl",
         inHand && "hover:-translate-y-6 hover:z-10",
         tapped && 'transform rotate-12 scale-95 opacity-70',
-        isActiveBiome && 'ring-4 ring-white'
+        isActiveBiome && 'ring-4 ring-white',
+        isEntering && 'animate-boing'
       )}
       onClick={onClick}
     >
       <Card
         className={cn(
-          'w-[150px] h-[210px] md:w-[180px] md:h-[252px] flex flex-col overflow-hidden select-none bg-card-foreground/5 dark:bg-card-foreground/10 backdrop-blur-md rounded-xl',
+          'w-[150px] h-[210px] md:w-[180px] md:h-[252px] flex flex-col overflow-hidden select-none bg-card-foreground/5 dark:bg-card-foreground/10 backdrop-blur-md rounded-xl transition-all',
           isPlayable && 'cursor-pointer ring-4 ring-primary ring-offset-2 ring-offset-background shadow-lg shadow-primary/50',
           canAttack && !tapped && 'cursor-pointer ring-4 ring-orange-500 ring-offset-2 ring-offset-background shadow-lg shadow-orange-500/50 animate-pulse',
           isAttacking && 'ring-4 ring-red-500 ring-offset-2 ring-offset-background shadow-lg shadow-red-500/50', // Red border for selected attacker
-          isTargetable && 'cursor-pointer ring-4 ring-yellow-400', // Highlight for potential targets
+          isTargetable && 'cursor-pointer ring-4 ring-yellow-400 animate-pulse', // Highlight for potential targets
           onClick && "cursor-pointer",
           type === 'Biome' && `border-4 ${borderClass}`,
           taunt && 'shadow-lg shadow-blue-500/50 ring-2 ring-blue-500'
@@ -103,7 +105,7 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
             <div className="absolute top-16 left-2 flex flex-col gap-1">
               {buffs?.map((buff, i) => (
                 <Badge key={i} variant="secondary" className={cn(
-                  "px-1 py-0 text-xs",
+                  "px-1 py-0 text-xs animate-fade-in",
                   buff.type === 'attack' ? 'bg-red-500/80' : 'bg-blue-500/80',
                   buff.type === 'crit' && 'bg-yellow-500/80'
                 )}>
