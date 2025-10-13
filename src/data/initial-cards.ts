@@ -188,13 +188,13 @@ const deckRules = {
   maxEpic: 1,
   maxLegendary: 1,
   categories: {
-    Creature: { min: 20, max: 25 },
-    Spell: { min: 4, max: 8 },
-    Artifact: { min: 3, max: 8 },
-    Enchantment: { min: 2, max: 5 },
-    Potion: { min: 2, max: 5 },
-    Land: { min: 4, max: 6 },
-    Biome: { min: 3, max: 4 },
+    Creature: { min: 24, max: 30 },
+    Spell: { min: 2, max: 5 },
+    Artifact: { min: 1, max: 4 },
+    Enchantment: { min: 1, max: 3 },
+    Potion: { min: 1, max: 3 },
+    Land: { min: 3, max: 5 },
+    Biome: { min: 1, max: 2 },
   },
 };
 
@@ -274,7 +274,7 @@ const createRandomDeck = (): Card[] => {
     
     // Fill remaining spots if deck is not full
      while (deck.length < deckRules.deckSize) {
-        const randomCardTemplate = availableCards[getRandomInt(0, availableCards.length - 1)];
+        const randomCardTemplate = availableCards.filter(c => c.type === 'Creature')[getRandomInt(0, availableCards.filter(c => c.type === 'Creature').length - 1)];
         if (deck.filter(c => c.id.startsWith(randomCardTemplate.id)).length < deckRules.maxDuplicates) {
             deck.push(instantiateCard(randomCardTemplate));
         }
