@@ -1,6 +1,28 @@
 'use client';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
-import type { Card, CardType, BiomeType } from '@/lib/types';
+import type { Card, CardType, Rarity } from '@/lib/types';
+
+// Helper function to get a card template from the master list
+const getCardTemplate = (id: string): Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summoningSickness'> | undefined => {
+    return allCards.find(c => c.id === id);
+};
+
+// Helper function to instantiate a card from a template
+const instantiateCard = (template: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summoningSickness'>): Card => {
+    return {
+        ...template,
+        id: `${template.id}-${Math.random().toString(36).substring(7)}`,
+        health: template.initialHealth,
+        tapped: false,
+        isAttacking: false,
+        canAttack: false,
+        summoningSickness: false,
+        taunt: template.taunt,
+        skill: template.skill ? { ...template.skill, used: false, onCooldown: false, currentCooldown: 0 } : undefined,
+        buffs: [],
+        duration: template.duration,
+    };
+};
 
 const getImage = (id: string) => {
   // Not using images for now
@@ -129,7 +151,7 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
 
   // Artifacts
   createCard('defense_totem', 'Totem de Défense', 'Artifact', 4, "Donne +1 d'armure à toutes vos créatures alliées. Dure 3 tours.", { skill: { type: 'global_buff_armor', value: 1, duration: 3, used: false }, duration: 3 }),
-  createCard('ring_of_fire', 'Anneau du Feu', 'Artifact', 3, 'Vos sorts de feu coûtent 1 de moins.', { rarity: 'Rare', element: 'Fire' }),
+  createCard('ring_of_fire', 'Anneau du Feu', 'Artifact', 3, 'Vos sorts de feu coûtent 1 de moins.', { rarity: 'Rare', element: 'Fire', duration: 3 }),
   createCard('scepter_of_knowledge', 'Sceptre de Savoir', 'Artifact', 5, 'Piochez une carte supplémentaire au début de votre tour. Dure 2 tours.', { duration: 2, rarity: 'Epic' }),
   createCard('kings_shield', 'Bouclier du Roi', 'Artifact', 4, 'Le joueur ne peut pas être la cible d\'attaques directes si vous contrôlez une créature. Dure 3 tours.', { duration: 3, rarity: 'Legendary' }),
   createCard('soul_stone', 'Pierre d’Âme', 'Artifact', 6, 'Quand une créature meurt, vous gagnez 1 PV. Dure 4 tours.', { duration: 4, rarity: 'Epic' }),
@@ -159,114 +181,173 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
   createCard('sky_biome', 'Biome Ciel', 'Biome', 0, 'Change le biome actuel en Ciel.', { biome: 'Sky' }),
 ];
 
-export const createDeck = (): Card[] => {
-  const deck: Card[] = [];
-  const addCards = (id: string, count: number) => {
-    const cardTemplate = allCards.find(c => c.id === id);
-    if (cardTemplate) {
-      for (let i = 0; i < count; i++) {
-        deck.push({ 
-            ...cardTemplate, 
-            id: `${cardTemplate.id}-${i}-${Math.random().toString(36).substring(7)}`,
-            health: cardTemplate.initialHealth,
-            tapped: false,
-            isAttacking: false,
-            canAttack: false,
-            summoningSickness: false,
-            taunt: cardTemplate.taunt,
-            skill: cardTemplate.skill ? { ...cardTemplate.skill, used: false, onCooldown: false, currentCooldown: 0 } : undefined,
-            buffs: [],
-            duration: cardTemplate.duration,
-        });
-      }
+// Deck building rules
+const deckRules = {
+  deckSize: 40,
+  maxDuplicates: 2,
+  maxEpic: 1,
+  maxLegendary: 1,
+  categories: {
+    Creature: { min: 15, max: 22 },
+    Spell: { min: 4, max: 10 },
+    Artifact: { min: 5, max: 10 },
+    Enchantment: { min: 3, max: 7 },
+    Potion: { min: 3, max: 6 },
+    Land: { min: 4, max: 6 },
+    Biome: { min: 3, max: 4 },
+  },
+};
+
+// Helper function to get a random integer between min and max (inclusive)
+const getRandomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+// Helper to shuffle an array
+const shuffleDeck = (deck: Card[]): Card[] => {
+    for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
     }
-  };
+    return deck;
+};
 
-  // Player/Opponent Deck Composition
-  addCards('goblin', 2);
-  addCards('elf', 2);
-  addCards('wild_wolf', 2);
-  addCards('human_soldier', 2);
-  addCards('swamp_serpent', 2);
-  addCards('guard_dog', 1);
-  addCards('giant_rat', 2);
-  addCards('fragile_skeleton', 2);
-  addCards('minor_spirit', 1);
-  addCards('brave_peasant', 1);
-  addCards('wandering_monk', 1);
-  addCards('cave_bat', 2);
-  addCards('desert_lizard', 2);
-  addCards('ice_fish', 1);
-  addCards('black_raven', 1);
-  addCards('barbarian_orc', 2);
-  addCards('sylvan_archer', 2);
+const createRandomDeck = (): Card[] => {
+    const deck: Card[] = [];
+    const availableCards = allCards.filter(c => c.type !== 'SpecialSummon');
 
-  // Rares
-  addCards('knight', 1);
-  addCards('wizard', 1);
-  addCards('cleric', 2);
-  addCards('vampire', 1);
-  addCards('sage', 1);
-  addCards('elemental_fire', 1);
-  addCards('elemental_water', 1);
-  addCards('elemental_earth', 2);
-  addCards('fallen_shaman', 1);
-  addCards('knowledge_priest', 2);
-  addCards('shadow_assassin', 1);
-  addCards('oak_druid', 1);
-  addCards('desert_warrior', 1);
-  addCards('ice_guardian', 1);
-  
-  // Epics
-  addCards('golem', 1);
-  addCards('griffon', 1);
-  addCards('dragon', 1);
-  addCards('minotaur', 1);
-  addCards('ruin_specter', 1);
-  addCards('ancestral_basilisk', 1);
-  
-  // Legendaries
-  addCards('hydra', 1);
-  addCards('phoenix', 1);
-  addCards('archmage_elements', 1);
-  addCards('abyss_lord', 1);
-  
-  // Spells, Potions, etc.
-  addCards('health_potion', 1);
-  addCards('mana_potion', 1);
-  addCards('berserk_rage', 1);
-  addCards('stoneskin', 1);
-  addCards('lightning_bolt', 1);
-  addCards('frostbolt', 2);
-  addCards('shadow_bolt', 1);
-  addCards('healing_light', 1);
-  addCards('giant_growth', 1);
+    // Determine counts for each category
+    const categoryCounts: { [key in CardType]?: number } = {
+        Creature: getRandomInt(deckRules.categories.Creature.min, deckRules.categories.Creature.max),
+        Spell: getRandomInt(deckRules.categories.Spell.min, deckRules.categories.Spell.max),
+        Artifact: getRandomInt(deckRules.categories.Artifact.min, deckRules.categories.Artifact.max),
+        Enchantment: getRandomInt(deckRules.categories.Enchantment.min, deckRules.categories.Enchantment.max),
+        Potion: getRandomInt(deckRules.categories.Potion.min, deckRules.categories.Potion.max),
+        Land: getRandomInt(deckRules.categories.Land.min, deckRules.categories.Land.max),
+        Biome: getRandomInt(deckRules.categories.Biome.min, deckRules.categories.Biome.max),
+    };
+    
+    // Adjust counts to meet deck size
+    let currentSize = Object.values(categoryCounts).reduce((a, b) => a + b, 0);
+    while (currentSize < deckRules.deckSize) {
+        const randomCategory = Object.keys(deckRules.categories)[getRandomInt(0, Object.keys(deckRules.categories).length - 1)] as CardType;
+        if (categoryCounts[randomCategory]! < deckRules.categories[randomCategory].max) {
+            categoryCounts[randomCategory]!++;
+            currentSize++;
+        }
+    }
+    while (currentSize > deckRules.deckSize) {
+        const randomCategory = Object.keys(deckRules.categories)[getRandomInt(0, Object.keys(deckRules.categories).length - 1)] as CardType;
+        if (categoryCounts[randomCategory]! > deckRules.categories[randomCategory].min) {
+            categoryCounts[randomCategory]!--;
+            currentSize--;
+        }
+    }
+    
+    // Add cards to deck
+    for (const type in categoryCounts) {
+        const count = categoryCounts[type as CardType]!;
+        const typeCards = availableCards.filter(c => c.type === type);
+        for (let i = 0; i < count; i++) {
+            let added = false;
+            let attempts = 0;
+            while(!added && attempts < 50) {
+                const randomCardTemplate = typeCards[getRandomInt(0, typeCards.length - 1)];
+                const cardRarity = randomCardTemplate.rarity;
+                const countInDeck = deck.filter(c => c.id.startsWith(randomCardTemplate.id)).length;
+                
+                let canAdd = true;
+                if (cardRarity === 'Epic' && countInDeck >= deckRules.maxEpic) canAdd = false;
+                if (cardRarity === 'Legendary' && countInDeck >= deckRules.maxLegendary) canAdd = false;
+                if (cardRarity !== 'Epic' && cardRarity !== 'Legendary' && randomCardTemplate.type !== 'Biome' && randomCardTemplate.type !== 'Land' && countInDeck >= deckRules.maxDuplicates) canAdd = false;
 
-  addCards('strength_enchantment', 1);
-  addCards('kings_blessing', 1);
-  
-  // Artifacts
-  addCards('defense_totem', 1);
-  addCards('ring_of_fire', 1);
-  addCards('scepter_of_knowledge', 1);
-  
-  // Lands & Biomes
-  addCards('forest_land', 2);
-  addCards('mountain_land', 2);
-  addCards('swamp_land', 2);
-  addCards('desert_land', 1);
-  addCards('ice_land', 1);
-  addCards('plains_land', 2);
+                if(canAdd) {
+                    deck.push(instantiateCard(randomCardTemplate));
+                    added = true;
+                }
+                attempts++;
+            }
+        }
+    }
+    
+    // Fill remaining spots if deck is not full
+     while (deck.length < deckRules.deckSize) {
+        const randomCardTemplate = availableCards[getRandomInt(0, availableCards.length - 1)];
+        if (deck.filter(c => c.id.startsWith(randomCardTemplate.id)).length < deckRules.maxDuplicates) {
+            deck.push(instantiateCard(randomCardTemplate));
+        }
+    }
 
-  addCards('forest_biome', 1);
-  addCards('ice_biome', 1);
+    return shuffleDeck(deck);
+};
+
+// For now, player gets a pre-defined deck that follows the rules
+const createPlayerDeck = (): Card[] => {
+    const deck: Card[] = [];
+    const add = (id: string, count: number) => {
+        const template = getCardTemplate(id);
+        if (template) {
+            for (let i = 0; i < count; i++) deck.push(instantiateCard(template));
+        }
+    };
+    
+    // Creatures (18)
+    add('goblin', 2);
+    add('elf', 2);
+    add('human_soldier', 2);
+    add('wild_wolf', 1);
+    add('cleric', 2);
+    add('knight', 1);
+    add('wizard', 1);
+    add('vampire', 1);
+    add('golem', 1);
+    add('elemental_fire', 1);
+    add('elemental_earth', 1);
+    add('sylvan_archer', 1);
+    add('barbarian_orc', 1);
+    add('dragon', 1); // Epic
+
+    // Spells (6)
+    add('berserk_rage', 1);
+    add('stoneskin', 1);
+    add('lightning_bolt', 1);
+    add('healing_light', 1);
+    add('giant_growth', 1);
+    add('frostbolt', 1);
+
+    // Artifacts (5)
+    add('defense_totem', 1);
+    add('scepter_of_knowledge', 1);
+    add('war_hammer', 1);
+    add('orb_of_ice', 1);
+    add('amulet_of_resistance', 1);
+
+    // Enchantments (3)
+    add('strength_enchantment', 1);
+    add('kings_blessing', 1);
+    add('fire_aura', 1);
+
+    // Potions (3)
+    add('health_potion', 1);
+    add('mana_potion', 1);
+    add('speed_potion', 1);
+
+    // Lands (5)
+    add('forest_land', 2);
+    add('mountain_land', 2);
+    add('plains_land', 1);
+
+    // Biomes (3)
+    add('forest_biome', 1);
+    add('volcano_biome', 1);
+    add('sanctuary_biome', 1);
+
+    return shuffleDeck(deck);
+}
 
 
-  // Shuffle deck
-  for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
-  }
-
-  return deck.slice(0, 70); // 70 card deck
+// The main function to be called by the game reducer
+export const createDeck = (type: 'player' | 'opponent'): Card[] => {
+    if (type === 'opponent') {
+        return createRandomDeck();
+    }
+    return createPlayerDeck();
 };

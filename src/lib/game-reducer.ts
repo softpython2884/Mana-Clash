@@ -128,8 +128,8 @@ const shuffleAndDeal = (state: GameState): Omit<GameState, 'gameId'> => {
     let player = createInitialPlayer('player');
     let opponent = createInitialPlayer('opponent');
 
-    player.deck = createDeck();
-    opponent.deck = createDeck();
+    player.deck = createDeck('player');
+    opponent.deck = createDeck('opponent');
     
     const defaultBiomeCard = allCards.find(c => c.id === 'forest_biome');
     const activeBiome = defaultBiomeCard ? { ...defaultBiomeCard, tapped: false, isAttacking: false, canAttack: false, summoningSickness: false, initialHealth: defaultBiomeCard.health, buffs: []} : null;
@@ -1327,5 +1327,3 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return stateWithClearedFlags;
   }
 }
-
-    
