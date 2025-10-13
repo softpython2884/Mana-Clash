@@ -18,6 +18,7 @@ export type GameAction =
   | { type: 'CAST_SPELL_ON_TARGET'; targetId: string }
   | { type: 'PASS_TURN' }
   | { type: 'MEDITATE' }
+  | { type: 'REDRAW_HAND' }
   | { type: 'EXECUTE_OPPONENT_TURN' }
   | { type: 'LOG_MESSAGE'; log: LogEntry }
   | { type: 'CHANGE_PHASE', phase: GamePhase }
@@ -40,7 +41,7 @@ const drawCards = (player: Player, count: number): Player => {
 
 const createInitialPlayer = (id: 'player' | 'opponent'): Player => ({
     id,
-    hp: 20, mana: 0, maxMana: 0, deck: [], hand: [], battlefield: [], graveyard: [], biomeChanges: 2,
+    hp: 20, mana: 0, maxMana: 0, deck: [], hand: [], battlefield: [], graveyard: [], biomeChanges: 2, hasRedrawn: false,
 });
 
 const applyBiomeBuffs = (battlefield: Card[], biome: Card | null): Card[] => {
@@ -180,6 +181,13 @@ const opponentAI = (state: GameState): GameState => {
   const turn = tempState.turn;
 
   // --- Main Phase ---
+
+  // Decide whether to redraw hand
+  const handValue = opponent.hand.reduce((sum, card) => sum + (card.attack || 0) + (card.health || 0), 0);
+  if (!opponent.hasRedrawn && handValue < 5 && opponent.hand.length > 3) {
+      log.push({ type: 'info', turn, message: 'Adversaire choisit de piocher une nouvelle main.' });
+      return gameReducer(tempState, { type: 'REDRAW_HAND' });
+  }
   
   // Decide whether to meditate
   if (opponent.hand.length < 2 && opponent.graveyard.length > 2 && opponent.mana < 4) {
@@ -636,35 +644,35 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'PLAY_CARD': {
-      if (stateWithClearedFeedback.activePlayer !== 'player' || stateWithClearedFeedback.phase !== 'main') return stateWithClearedFeedback;
+      if (state.activePlayer !== 'player' || (state.phase !== 'main' && state.phase !== 'post_mulligan')) return state;
       
-      let player = {...stateWithClearedFeedback.player};
+      let player = {...state.player};
       const cardIndex = player.hand.findIndex((c: Card) => c.id === action.cardId);
-      if (cardIndex === -1) return stateWithClearedFeedback;
+      if (cardIndex === -1) return state;
 
       const card = player.hand[cardIndex];
       let hasPlayedLand = player.battlefield.some((c: Card) => c.type === 'Land' && c.summoningSickness);
 
       if (card.type === 'Land' && hasPlayedLand) {
-        return { ...stateWithClearedFeedback, log: [...stateWithClearedFeedback.log, { type: 'info', turn: stateWithClearedFeedback.turn, message: "Vous ne pouvez jouer qu'un terrain par tour." }]};
+        return { ...state, log: [...state.log, { type: 'info', turn: state.turn, message: "Vous ne pouvez jouer qu'un terrain par tour." }]};
       }
       if (card.manaCost > player.mana) {
-        return { ...stateWithClearedFeedback, log: [...stateWithClearedFeedback.log, { type: 'info', turn: stateWithClearedFeedback.turn, message: "Pas assez de mana." }]};
+        return { ...state, log: [...state.log, { type: 'info', turn: state.turn, message: "Pas assez de mana." }]};
       }
       const battlefieldCardCount = player.battlefield.filter((c: Card) => c.type === 'Creature' || c.type === 'Artifact').length;
       if ((card.type === 'Creature' || card.type === 'Artifact') && battlefieldCardCount >= MAX_BATTLEFIELD_SIZE) {
-        return { ...stateWithClearedFeedback, log: [...stateWithClearedFeedback.log, { type: 'info', turn: stateWithClearedFeedback.turn, message: "Vous avez trop de cartes sur le terrain." }]};
+        return { ...state, log: [...state.log, { type: 'info', turn: state.turn, message: "Vous avez trop de cartes sur le terrain." }]};
       }
       if (card.type === 'Biome') {
-          return gameReducer(stateWithClearedFeedback, { type: 'CHANGE_BIOME', cardId: card.id, player: 'player' });
+          return gameReducer(state, { type: 'CHANGE_BIOME', cardId: card.id, player: 'player' });
       }
       
       const newHand = player.hand.filter((c: Card) => c.id !== card.id);
       const newMana = player.mana - card.manaCost;
-      let newLog = [...stateWithClearedFeedback.log, { type: 'play', turn: stateWithClearedFeedback.turn, message: `Joueur joue ${card.name}.` }];
+      let newLog = [...state.log, { type: 'play', turn: state.turn, message: `Joueur joue ${card.name}.` }];
       
       let newPlayerState = {...player, hand: newHand, mana: newMana};
-      let tempNewState = {...stateWithClearedFeedback, log: newLog };
+      let tempNewState: GameState = {...state, log: newLog };
 
       const newCardState: Card = { ...card, summoningSickness: true, canAttack: false, buffs: [] };
 
@@ -683,7 +691,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
                 }
                 return c;
             });
-            tempNewState.log.push({ type: 'buff', turn: stateWithClearedFeedback.turn, message: `${card.name} donne +${card.skill.value} armure à toutes les créatures.` });
+            tempNewState.log.push({ type: 'buff', turn: state.turn, message: `${card.name} donne +${card.skill.value} armure à toutes les créatures.` });
         }
       } else if (card.type === 'Spell' || card.type === 'Enchantment' || card.type === 'Potion') {
         if (card.skill?.target === 'opponent_creature') {
@@ -696,10 +704,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         }
         if(card.id.startsWith('health_potion')) {
             newPlayerState.hp = Math.min(20, newPlayerState.hp + 5);
-            tempNewState.log.push({ type: 'heal', turn: stateWithClearedFeedback.turn, message: `Joueur se soigne de 5 PV.` });
+            tempNewState.log.push({ type: 'heal', turn: state.turn, message: `Joueur se soigne de 5 PV.` });
         } else if (card.id.startsWith('mana_potion')) {
             newPlayerState.mana = newPlayerState.mana + 2;
-            tempNewState.log.push({ type: 'mana', turn: stateWithClearedFeedback.turn, message: `Joueur gagne 2 mana.` });
+            tempNewState.log.push({ type: 'mana', turn: state.turn, message: `Joueur gagne 2 mana.` });
         } else if (card.skill?.target === 'friendly_creature' && tempNewState.selectedCardId) {
             const targetIndex = newPlayerState.battlefield.findIndex((c: Card) => c.id === tempNewState.selectedCardId);
             if (targetIndex > -1) {
@@ -713,17 +721,23 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
                 }
                 targetCard.buffs = newBuffs;
                 newPlayerState.battlefield[targetIndex] = targetCard;
-                tempNewState.log.push({ type: 'spell', turn: stateWithClearedFeedback.turn, message: `${card.name} est lancé sur ${targetCard.name}.` });
+                tempNewState.log.push({ type: 'spell', turn: state.turn, message: `${card.name} est lancé sur ${targetCard.name}.` });
             }
         }
         newPlayerState.graveyard = [...newPlayerState.graveyard, card];
       }
 
-      return {
+      const finalState = {
         ...tempNewState,
         player: newPlayerState,
         selectedCardId: null,
       };
+
+      if (state.phase === 'post_mulligan') {
+        return gameReducer(finalState, { type: 'PASS_TURN' });
+      }
+
+      return finalState;
     }
     
     case 'SELECT_ATTACKER': {
@@ -823,15 +837,41 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
     
     case 'MEDITATE': {
-      if (stateWithClearedFeedback.activePlayer !== 'player') return stateWithClearedFeedback;
-      const player = stateWithClearedFeedback.player;
+      if (state.activePlayer !== 'player') return state;
+      const player = state.player;
       if (player.graveyard.length === 0) {
         return {
-          ...stateWithClearedFeedback,
-          log: [...stateWithClearedFeedback.log, { type: 'info', turn: stateWithClearedFeedback.turn, message: 'Le cimetière est vide, impossible de méditer.' }]
+          ...state,
+          log: [...state.log, { type: 'info', turn: state.turn, message: 'Le cimetière est vide, impossible de méditer.' }]
         };
       }
-      return gameReducer(stateWithClearedFeedback, { type: 'PASS_TURN' });
+      return gameReducer(state, { type: 'PASS_TURN' });
+    }
+
+    case 'REDRAW_HAND': {
+      const activePlayerKey = state.activePlayer;
+      let player = { ...state[activePlayerKey] };
+      
+      if (player.hasRedrawn) return state;
+
+      // Shuffle hand back into deck
+      player.deck.push(...player.hand);
+      player.hand = [];
+      for (let i = player.deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [player.deck[i], player.deck[j]] = [player.deck[j], player.deck[i]];
+      }
+
+      // Draw 5 new cards
+      player = drawCards(player, 5);
+      player.hasRedrawn = true;
+
+      return {
+        ...state,
+        [activePlayerKey]: player,
+        phase: 'post_mulligan',
+        log: [...state.log, { type: 'draw', turn: state.turn, message: `${activePlayerKey === 'player' ? 'Joueur' : 'Adversaire'} pioche une nouvelle main.` }]
+      };
     }
 
     case 'PASS_TURN': {
@@ -902,6 +942,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }));
       currentPlayer.graveyard = [...currentPlayer.graveyard, ...graveyardAdditions];
       currentPlayer.biomeChanges = 2;
+      currentPlayer.hasRedrawn = false; // Reset mulligan flag for the turn
 
 
       const nextTurnNumber = nextPlayerKey === 'player' ? stateWithClearedFeedback.turn + 1 : stateWithClearedFeedback.turn;
@@ -936,6 +977,19 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'EXECUTE_OPPONENT_TURN': {
       if (stateWithClearedFeedback.activePlayer !== 'opponent') return stateWithClearedFeedback;
       const finalStateFromAI = opponentAI(stateWithClearedFeedback);
+      
+      if(finalStateFromAI.phase === 'post_mulligan') {
+        const playableCards = finalStateFromAI.opponent.hand.filter(c => c.manaCost <= finalStateFromAI.opponent.mana && c.type !== 'Spell');
+        if (playableCards.length > 0) {
+            const cardToPlay = playableCards.sort((a, b) => b.manaCost - a.manaCost)[0];
+            const stateAfterPlay = gameReducer(finalStateFromAI, {type: 'PLAY_CARD', cardId: cardToPlay.id});
+            return {
+              ...stateAfterPlay,
+              isThinking: false
+            }
+        }
+        return gameReducer({...finalStateFromAI, isThinking: false }, {type: 'PASS_TURN'});
+      }
       
       // If AI decided to meditate, it already called PASS_TURN, so we just return the new state
       if (finalStateFromAI.activePlayer === 'player') {

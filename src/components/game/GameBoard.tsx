@@ -6,7 +6,7 @@ import GameCard from './Card';
 import PlayerStats from './PlayerStats';
 import GameOverDialog from './GameOverDialog';
 import { Button } from '@/components/ui/button';
-import { Swords, RotateCcw, ScrollText, Brain } from 'lucide-react';
+import { Swords, RotateCcw, ScrollText, Brain, Replace } from 'lucide-react';
 import { Card as UICard, CardContent } from '@/components/ui/card';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import GameLog from './GameLog';
@@ -83,6 +83,11 @@ export default function GameBoard() {
     if (activePlayer !== 'player' || phase !== 'main') return;
     dispatch({ type: 'MEDITATE' });
   }
+  
+  const handleRedraw = () => {
+    if (activePlayer !== 'player' || phase !== 'main' || player.hasRedrawn) return;
+    dispatch({ type: 'REDRAW_HAND' });
+  }
 
   const handlePassTurn = () => {
     if (activePlayer !== 'player') return;
@@ -99,7 +104,7 @@ export default function GameBoard() {
           <GameCard
               key={card.id}
               card={card}
-              isPlayable={activePlayer === 'player' && phase === 'main' && (isBiomeChangeable || isCardPlayable)}
+              isPlayable={activePlayer === 'player' && (phase === 'main' || phase === 'post_mulligan') && (isBiomeChangeable || isCardPlayable)}
               onClick={() => handlePlayCard(card.id)}
               inHand
           />
@@ -172,6 +177,7 @@ export default function GameBoard() {
 
   const canAttack = player.battlefield.some(c => c.canAttack && !c.tapped);
   const canMeditate = player.graveyard.length > 0;
+  const canRedraw = !player.hasRedrawn;
 
   const getPhaseDescription = () => {
     switch(phase) {
@@ -183,6 +189,8 @@ export default function GameBoard() {
             return 'Choisissez une cible';
         case 'spell_targeting':
             return `Ciblez une créature pour ${spellBeingCast?.name}`;
+        case 'post_mulligan':
+            return 'Jouez une carte';
         default:
             return '';
     }
@@ -227,6 +235,10 @@ export default function GameBoard() {
                   <p className="font-headline text-lg sm:text-xl">{getPhaseDescription()}</p>
                   {phase === 'main' && activePlayer === 'player' && (
                     <div className="flex gap-2">
+                        <Button onClick={handleRedraw} disabled={!canRedraw} variant="secondary" className="w-28 sm:w-36">
+                            Mulligan
+                            <Replace className="ml-2"/>
+                        </Button>
                         <Button onClick={handlePhaseAction} disabled={winner !== undefined || !canAttack} className="w-28 sm:w-36">
                             Combat
                             <Swords className="ml-2"/>
@@ -239,6 +251,9 @@ export default function GameBoard() {
                             Fin du tour
                         </Button>
                     </div>
+                  )}
+                   {phase === 'post_mulligan' && activePlayer === 'player' && (
+                     <p className="text-sm text-muted-foreground">Jouez une carte pour terminer votre tour.</p>
                   )}
                   {(phase === 'combat' || phase === 'targeting') && activePlayer === 'player' && (
                     <div className="flex gap-2">

@@ -2,7 +2,7 @@
 import type { ImagePlaceholder } from './placeholder-images';
 
 export type CardType = 'Creature' | 'Land' | 'Spell' | 'Artifact' | 'Biome' | 'Enchantment' | 'Potion' | 'SpecialSummon' | 'Trap' | 'Ritual';
-export type GamePhase = 'main' | 'combat' | 'targeting' | 'spell_targeting' | 'end' | 'game-over';
+export type GamePhase = 'main' | 'combat' | 'targeting' | 'spell_targeting' | 'post_mulligan' | 'end' | 'game-over';
 export type BiomeType = 'Forest' | 'Mountain' | 'Swamp' | 'Desert' | 'Ice' | 'Volcano' | 'Sanctuary';
 
 export type SkillType = 
@@ -79,6 +79,7 @@ export interface Player {
   battlefield: Card[];
   graveyard: Card[];
   biomeChanges: number;
+  hasRedrawn: boolean; // Mulligan flag for the turn
 }
 export type LogType = 
     | 'game_start'
