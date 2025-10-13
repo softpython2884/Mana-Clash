@@ -14,7 +14,7 @@ export type GameAction =
   | { type: 'SELECT_CARD'; cardId: string }
   | { type: 'SELECT_ATTACKER'; cardId: string }
   | { type: 'SELECT_DEFENDER'; cardId: string | 'opponent' }
-  | { type: 'DECLARE_ATTACK' }
+  | { type 'DECLARE_ATTACK' }
   | { type: 'CAST_SPELL_ON_TARGET'; targetId: string }
   | { type: 'PASS_TURN' }
   | { type: 'MEDITATE' }
@@ -26,19 +26,39 @@ export type GameAction =
   | { type: 'END_COMBAT_ANIMATION' }
   | { type: 'CLEAN_BATTLEFIELD' };
 
-const drawCards = (player: Player, count: number): Player => {
-  const cardsToDrawCount = Math.max(0, MAX_HAND_SIZE - player.hand.length);
-  const actualCount = Math.min(count, cardsToDrawCount);
-  
-  if (actualCount === 0) {
-    return player;
-  }
+const drawCardsWithBiomeAffinity = (player: Player, count: number, activeBiome: Card | null): { player: Player, drawnCard?: Card } => {
+    let newDeck = [...player.deck];
+    let newHand = [...player.hand];
+    let drawnCard: Card | undefined;
 
-  const drawnCards = player.deck.slice(0, actualCount);
-  const newDeck = player.deck.slice(actualCount);
-  const newHand = [...player.hand, ...drawnCards];
+    for (let i = 0; i < count; i++) {
+        if (newHand.length >= MAX_HAND_SIZE) break;
+        if (newDeck.length === 0) break;
 
-  return { ...player, deck: newDeck, hand: newHand };
+        const cardsToProbe = newDeck.slice(0, 5);
+        let cardToDraw: Card;
+        let cardIndexInDeck: number;
+
+        if (activeBiome?.biome && cardsToProbe.length > 0) {
+            const biomeMatchingCards = cardsToProbe.filter(c => c.preferredBiome === activeBiome.biome);
+            if (biomeMatchingCards.length > 0) {
+                cardToDraw = biomeMatchingCards[Math.floor(Math.random() * biomeMatchingCards.length)];
+                cardIndexInDeck = newDeck.findIndex(c => c.id === cardToDraw.id);
+            } else {
+                cardToDraw = newDeck[0];
+                cardIndexInDeck = 0;
+            }
+        } else {
+            cardToDraw = newDeck[0];
+            cardIndexInDeck = 0;
+        }
+        
+        drawnCard = cardToDraw;
+        newHand.push(drawnCard);
+        newDeck.splice(cardIndexInDeck, 1);
+    }
+
+    return { player: { ...player, deck: newDeck, hand: newHand }, drawnCard };
 };
 
 const createInitialPlayer = (id: 'player' | 'opponent'): Player => ({
@@ -103,17 +123,18 @@ export const getInitialState = (): GameState => {
   return initialState;
 };
 
-const shuffleAndDeal = (): Omit<GameState, 'gameId'> => {
+const shuffleAndDeal = (state: GameState): Omit<GameState, 'gameId'> => {
     let player = createInitialPlayer('player');
     let opponent = createInitialPlayer('opponent');
 
     player.deck = createDeck();
     opponent.deck = createDeck();
-
-    player = drawCards(player, 5);
-    opponent = drawCards(opponent, 5);
     
     const defaultBiomeCard = allCards.find(c => c.id === 'forest_biome');
+    const activeBiome = defaultBiomeCard ? { ...defaultBiomeCard, tapped: false, isAttacking: false, canAttack: false, summoningSickness: false, initialHealth: defaultBiomeCard.health, buffs: []} : null;
+
+    player = drawCardsWithBiomeAffinity(player, 5, activeBiome).player;
+    opponent = drawCardsWithBiomeAffinity(opponent, 5, activeBiome).player;
     
     return {
         turn: 1,
@@ -124,7 +145,7 @@ const shuffleAndDeal = (): Omit<GameState, 'gameId'> => {
         winner: undefined,
         log: [{ type: 'game_start', turn: 1, message: "Le match commence!" }],
         isThinking: false,
-        activeBiome: defaultBiomeCard ? { ...defaultBiomeCard, tapped: false, isAttacking: false, canAttack: false, summoningSickness: false, initialHealth: defaultBiomeCard.health, buffs: []} : null,
+        activeBiome: activeBiome,
         selectedCardId: null,
         selectedAttackerId: null,
         selectedDefenderId: null,
@@ -198,6 +219,7 @@ const opponentAI = (state: GameState): GameState => {
       const highCostCards = opponent.hand.filter(c => c.manaCost > 4).length;
       if (handValue > 20 || highCostCards > 2) {
           log.push({ type: 'info', turn, message: 'Adversaire choisit de piocher une nouvelle main.' });
+          // This action will trigger a PASS_TURN with the redraw flag, so we can stop here.
           return gameReducer(tempState, { type: 'REDRAW_HAND' });
       }
   }
@@ -528,7 +550,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
   switch (action.type) {
     case 'INITIALIZE_GAME': {
-        const initialState = shuffleAndDeal();
+        const initialState = shuffleAndDeal(state);
         const player = {
             ...initialState.player,
             maxMana: 1,
@@ -543,7 +565,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'RESTART_GAME': {
-      const initialState = shuffleAndDeal();
+      const initialState = shuffleAndDeal(state);
        const player = {
             ...initialState.player,
             maxMana: 1,
@@ -586,7 +608,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'DRAW_CARD': {
         const { player: playerKey, count } = action;
         let playerToUpdate = {...stateWithClearedFlags[playerKey]};
-        const updatedPlayer = drawCards(playerToUpdate, count);
+        const { player: updatedPlayer } = drawCardsWithBiomeAffinity(playerToUpdate, count, stateWithClearedFlags.activeBiome);
         let log = [...stateWithClearedFlags.log];
         if (updatedPlayer.hand.length === playerToUpdate.hand.length && count > 0) {
           log.push({ type: 'info', turn: stateWithClearedFlags.turn, message: `${playerKey === 'player' ? "Votre" : "Sa"} main est pleine, la carte est défaussée.`});
@@ -658,10 +680,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
                 logEntry = { type: 'skill', turn: stateWithClearedFlags.turn, message: `Joueur active la compétence Provocation de ${cardToUpdate.name}!` };
                 break;
             case 'draw':
-                const drawnState = gameReducer(stateWithClearedFlags, { type: 'DRAW_CARD', player: 'player', count: 1 });
-                player = drawnState.player;
-                log = drawnState.log;
-                logEntry = { type: 'draw', turn: stateWithClearedFlags.turn, message: `${cardToUpdate.name} fait piocher une carte.` };
+                const { player: drawnPlayer, drawnCard } = drawCardsWithBiomeAffinity(player, 1, stateWithClearedFlags.activeBiome);
+                player = drawnPlayer;
+                logEntry = { type: 'draw', turn: stateWithClearedFlags.turn, message: `${cardToUpdate.name} fait piocher ${drawnCard?.name || 'une carte'}.` };
                 break;
             default:
                 return stateWithClearedFlags;
@@ -884,7 +905,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (spellOrSkillCaster.skill?.target === 'opponent_creature') {
         findTarget(opponent, 'opponent');
       } else if (spellOrSkillCaster.skill?.target === 'friendly_creature') {
-        findTarget(player, 'player');
+        findTarget(activePlayerKey === 'player' ? player : opponent, activePlayerKey);
       } else if (spellOrSkillCaster.skill?.target === 'any_creature') {
         findTarget(player, 'player');
         if (!target) {
@@ -1036,7 +1057,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
 
       // Draw 5 new cards
-      player = drawCards(player, 5);
+      player = drawCardsWithBiomeAffinity(player, 5, state.activeBiome).player;
       player.hasRedrawn = true;
 
       const logMessage = activePlayerKey === 'player' 
@@ -1130,11 +1151,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
 
       const nextTurnNumber = nextPlayerKey === 'player' ? stateWithClearedFlags.turn + 1 : stateWithClearedFlags.turn;
-      const drawState = gameReducer({...stateWithClearedFlags, [currentPlayerKey]: currentPlayer, log: currentLog }, { type: 'DRAW_CARD', player: nextPlayerKey, count: 1 });
-      let nextPlayerState = drawState[nextPlayerKey];
+      const { player: nextPlayerState, log: drawLog } = gameReducer({...stateWithClearedFlags, [currentPlayerKey]: currentPlayer, log: currentLog }, { type: 'DRAW_CARD', player: nextPlayerKey, count: 1 });
       
-      nextPlayerState.maxMana = Math.min(10, nextPlayerState.maxMana + 1);
-      nextPlayerState.mana = nextPlayerState.maxMana;
+      let nextPlayer = nextPlayerState[nextPlayerKey];
+      
+      nextPlayer.maxMana = Math.min(10, nextPlayer.maxMana + 1);
+      nextPlayer.mana = nextPlayer.maxMana;
       
       let finalState = {
         ...stateWithClearedFlags,
@@ -1146,8 +1168,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         selectedDefenderId: null,
         spellBeingCast: null,
         [currentPlayerKey]: currentPlayer,
-        [nextPlayerKey]: nextPlayerState,
-        log: [...drawState.log, { type: 'phase', turn: nextTurnNumber, message: `Début du tour de ${nextPlayerKey === 'player' ? 'Joueur' : "l'Adversaire"}.` }],
+        [nextPlayerKey]: nextPlayer,
+        log: [...drawLog, { type: 'phase', turn: nextTurnNumber, message: `Début du tour de ${nextPlayerKey === 'player' ? 'Joueur' : "l'Adversaire"}.` }],
         isThinking: nextPlayerKey === 'opponent',
       };
       
