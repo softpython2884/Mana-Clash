@@ -175,3 +175,5 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
     </div>
   );
 }
+
+    

@@ -97,26 +97,28 @@ export const createDeck = (): Card[] => {
   };
 
   // Player/Opponent Deck Composition
-  addCards('goblin', 3);
-  addCards('knight', 2);
-  addCards('elf', 2);
-  addCards('wizard', 1);
+  addCards('goblin', 4);
+  addCards('knight', 3);
+  addCards('elf', 3);
+  addCards('wizard', 2);
   addCards('golem', 1);
-  addCards('cleric', 1);
+  addCards('cleric', 2);
   addCards('vampire', 1);
   addCards('sage', 1);
+  addCards('griffon', 1);
+  addCards('hydra', 1);
   
-  addCards('health_potion', 1);
-  addCards('mana_potion', 1);
-  addCards('berserk_rage', 1);
+  addCards('health_potion', 2);
+  addCards('mana_potion', 2);
+  addCards('berserk_rage', 2);
   addCards('stoneskin', 1);
-  addCards('lightning_bolt', 1);
+  addCards('lightning_bolt', 2);
   addCards('strength_enchantment', 1);
   addCards('defense_totem', 1);
   
-  addCards('forest_land', 2);
-  addCards('mountain_land', 2);
-  addCards('swamp_land', 2);
+  addCards('forest_land', 3);
+  addCards('mountain_land', 3);
+  addCards('swamp_land', 3);
 
   addCards('forest_biome', 1);
   addCards('ice_biome', 1);
@@ -129,5 +131,7 @@ export const createDeck = (): Card[] => {
     [deck[i], deck[j]] = [deck[j], deck[i]];
   }
 
-  return deck.slice(0, 25); // 25 card deck
+  return deck.slice(0, 40); // 40 card deck
 };
+
+    
