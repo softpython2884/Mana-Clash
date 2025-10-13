@@ -97,6 +97,18 @@
       "imageHint": "legendary phoenix"
     },
     {
+      "id": "berlin_wall",
+      "description": "The Berlin Wall, made of concrete.",
+      "imageUrl": "https://picsum.photos/seed/berlin_wall/300/400",
+      "imageHint": "concrete wall"
+    },
+    {
+      "id": "china_wall",
+      "description": "The Great Wall of China.",
+      "imageUrl": "https://picsum.photos/seed/china_wall/300/400",
+      "imageHint": "great wall"
+    },
+    {
       "id": "forest_land",
       "description": "A lush, green forest.",
       "imageUrl": "https://picsum.photos/seed/forest_land/300/400",

@@ -224,13 +224,11 @@ const opponentAI = (state: GameState): GameState => {
 
           if (playableCreatures.length > 0) {
               const cardToPlay = playableCreatures[0];
-              log.push({ type: 'play', turn: tempState.turn, message: `Adversaire joue ${cardToPlay.name}.` });
-              let newCardOnField = { ...cardToPlay, summoningSickness: true, canAttack: false, buffs: [] };
-              opponent.battlefield = [...opponent.battlefield, newCardOnField];
-              opponent.hand = opponent.hand.filter((c: Card) => c.id !== cardToPlay.id);
-              opponent.mana -= cardToPlay.manaCost;
-              
-              opponent.battlefield = applyBiomeBuffs(opponent.battlefield, tempState.activeBiome);
+              const playAction = { type: 'PLAY_CARD' as const, cardId: cardToPlay.id };
+              const newState = gameReducer(tempState, playAction);
+              tempState = newState;
+              opponent = newState.opponent;
+              log = newState.log;
               playedCardInLoop = true; // A card was played, so we try again to meet the objective
           }
       }
@@ -248,14 +246,12 @@ const opponentAI = (state: GameState): GameState => {
 
       if (playableCards.length > 0) {
           const cardToPlay = playableCards[0];
-          log.push({ type: 'play', turn: tempState.turn, message: `Adversaire joue ${cardToPlay.name}.` });
-          let newCardOnField = { ...cardToPlay, summoningSickness: true, canAttack: false, buffs: [] };
-          opponent.battlefield = [...opponent.battlefield, newCardOnField];
-          opponent.hand = opponent.hand.filter((c: Card) => c.id !== cardToPlay.id);
-          opponent.mana -= cardToPlay.manaCost;
-          
-          opponent.battlefield = applyBiomeBuffs(opponent.battlefield, tempState.activeBiome);
-          playedValuableCard = true; // A card was played, so we try again
+          const playAction = { type: 'PLAY_CARD' as const, cardId: cardToPlay.id };
+          const newState = gameReducer(tempState, playAction);
+          tempState = newState;
+          opponent = newState.opponent;
+          log = newState.log;
+          playedValuableCard = true;
       }
   }
 
@@ -460,6 +456,73 @@ const resolvePlayerCombat = (state: GameState): GameState => {
 }
 
 
+const checkForCombos = (state: GameState): GameState => {
+    let player = { ...state.player };
+    let opponent = { ...state.opponent };
+    let log = [...state.log];
+    const turn = state.turn;
+    const activePlayerKey = state.activePlayer;
+    let activePlayerObject = activePlayerKey === 'player' ? player : opponent;
+
+    const elementalEarthCards = activePlayerObject.battlefield.filter(c => c.id.startsWith('elemental_earth'));
+    if (elementalEarthCards.length >= 3) {
+        log.push({ type: 'spell', turn, message: `Trois Élémentaires de Terre fusionnent !` });
+        
+        const idsToRemove = elementalEarthCards.slice(0, 3).map(c => c.id);
+        activePlayerObject.battlefield = activePlayerObject.battlefield.filter(c => !idsToRemove.includes(c.id));
+        activePlayerObject.graveyard.push(...elementalEarthCards.slice(0, 3).map(c => ({...c, health: c.initialHealth, buffs: []})));
+
+        const berlinWallTemplate = allCards.find(c => c.id === 'berlin_wall');
+        if (berlinWallTemplate) {
+            const newCard: Card = {
+                ...berlinWallTemplate,
+                id: `berlin_wall-${Math.random().toString(36).substring(7)}`,
+                health: berlinWallTemplate.initialHealth,
+                tapped: false,
+                isAttacking: false,
+                canAttack: false,
+                summoningSickness: true,
+                buffs: [],
+            };
+            activePlayerObject.battlefield.push(newCard);
+            log.push({ type: 'play', turn, message: `Le Mur de Berlin est érigé !` });
+        }
+    }
+    
+    const berlinWallCards = activePlayerObject.battlefield.filter(c => c.id.startsWith('berlin_wall'));
+    if (berlinWallCards.length >= 2) {
+        log.push({ type: 'spell', turn, message: `Deux Murs de Berlin fusionnent !` });
+        
+        const idsToRemove = berlinWallCards.slice(0, 2).map(c => c.id);
+        activePlayerObject.battlefield = activePlayerObject.battlefield.filter(c => !idsToRemove.includes(c.id));
+        activePlayerObject.graveyard.push(...berlinWallCards.slice(0, 2).map(c => ({...c, health: c.initialHealth, buffs: []})));
+
+        const chinaWallTemplate = allCards.find(c => c.id === 'china_wall');
+        if (chinaWallTemplate) {
+            const newCard: Card = {
+                ...chinaWallTemplate,
+                id: `china_wall-${Math.random().toString(36).substring(7)}`,
+                health: chinaWallTemplate.initialHealth,
+                tapped: false,
+                isAttacking: false,
+                canAttack: false,
+                summoningSickness: true,
+                buffs: [],
+            };
+            activePlayerObject.battlefield.push(newCard);
+            log.push({ type: 'play', turn, message: `La Muraille de Chine est construite !` });
+        }
+    }
+    
+    if (activePlayerKey === 'player') {
+        player = activePlayerObject;
+    } else {
+        opponent = activePlayerObject;
+    }
+
+    return { ...state, player, opponent, log };
+};
+
 export function gameReducer(state: GameState, action: GameAction): GameState {
   if (state.phase === 'game-over' && action.type !== 'RESTART_GAME' && action.type !== 'INITIALIZE_GAME') {
     return state;
@@ -553,7 +616,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         if (!card || !card.skill || card.skill.used || card.summoningSickness || card.tapped) return stateWithClearedFeedback;
         
         // If skill requires a target, change phase to spell_targeting
-        if (card.skill.target && card.skill.target !== 'self') {
+        if (card.skill.target && card.skill.target !== 'self' && card.skill.target !== 'player') {
             return {
                 ...stateWithClearedFeedback,
                 phase: 'spell_targeting',
@@ -648,9 +711,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'PLAY_CARD': {
-      if (state.activePlayer !== 'player' || (state.phase !== 'main' && state.phase !== 'post_mulligan')) return state;
+      let activePlayerKey = state.activePlayer;
+      if ((state.phase !== 'main' && state.phase !== 'post_mulligan')) return state;
       
-      let player = {...state.player};
+      let player = {...state[activePlayerKey]};
       const cardIndex = player.hand.findIndex((c: Card) => c.id === action.cardId);
       if (cardIndex === -1) return state;
 
@@ -668,12 +732,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         return { ...state, log: [...state.log, { type: 'info', turn: state.turn, message: "Vous avez trop de cartes sur le terrain." }]};
       }
       if (card.type === 'Biome') {
-          return gameReducer(state, { type: 'CHANGE_BIOME', cardId: card.id, player: 'player' });
+          return gameReducer(state, { type: 'CHANGE_BIOME', cardId: card.id, player: activePlayerKey });
       }
       
       const newHand = player.hand.filter((c: Card) => c.id !== card.id);
       const newMana = player.mana - card.manaCost;
-      let newLog = [...state.log, { type: 'play', turn: state.turn, message: `Joueur joue ${card.name}.` }];
+      let newLog = [...state.log, { type: 'play', turn: state.turn, message: `${activePlayerKey === 'player' ? 'Joueur' : 'Adversaire'} joue ${card.name}.` }];
       
       let newPlayerState = {...player, hand: newHand, mana: newMana};
       let tempNewState: GameState = {...state, log: newLog };
@@ -701,26 +765,30 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         if (card.skill?.target) {
             return {
                 ...tempNewState,
-                player: newPlayerState,
+                [activePlayerKey]: newPlayerState,
                 phase: 'spell_targeting',
                 spellBeingCast: card,
             };
         }
         if(card.id.startsWith('health_potion')) {
             newPlayerState.hp = Math.min(20, newPlayerState.hp + 5);
-            tempNewState.log.push({ type: 'heal', turn: state.turn, message: `Joueur se soigne de 5 PV.` });
+            tempNewState.log.push({ type: 'heal', turn: state.turn, message: `${activePlayerKey === 'player' ? 'Joueur' : 'Adversaire'} se soigne de 5 PV.` });
         } else if (card.id.startsWith('mana_potion')) {
             newPlayerState.mana = newPlayerState.mana + 2;
-            tempNewState.log.push({ type: 'mana', turn: state.turn, message: `Joueur gagne 2 mana.` });
+            tempNewState.log.push({ type: 'mana', turn: state.turn, message: `${activePlayerKey === 'player' ? 'Joueur' : 'Adversaire'} gagne 2 mana.` });
         }
         newPlayerState.graveyard = [...newPlayerState.graveyard, card];
       }
 
-      const finalState = {
+      let finalState: GameState = {
         ...tempNewState,
-        player: newPlayerState,
+        [activePlayerKey]: newPlayerState,
         selectedCardId: null,
       };
+
+      if (card.type === 'Creature' || card.type === 'Artifact') {
+          finalState = checkForCombos(finalState);
+      }
 
       if (state.phase === 'post_mulligan') {
         return gameReducer(finalState, { type: 'PASS_TURN' });
@@ -1010,7 +1078,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const finalStateFromAI = opponentAI(stateWithClearedFeedback);
       
       if(finalStateFromAI.phase === 'post_mulligan') {
-        const playableCards = finalStateFromAI.opponent.hand.filter(c => c.manaCost <= finalStateFromAI.opponent.mana && c.type !== 'Spell');
+        const playableCards = finalStateFromAI.opponent.hand.filter(c => c.manaCost <= finalStateFromAI.opponent.mana && (c.type === 'Creature' || c.type === 'Artifact' || c.type === 'Land'));
         if (playableCards.length > 0) {
             const cardToPlay = playableCards.sort((a, b) => b.manaCost - a.manaCost)[0];
              // The reducer will handle the PASS_TURN automatically after the card is played in 'post_mulligan' phase
