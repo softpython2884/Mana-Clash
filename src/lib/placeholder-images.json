@@ -67,6 +67,36 @@
       "imageHint": "swamp hydra"
     },
     {
+      "id": "elemental_fire",
+      "description": "A fire elemental.",
+      "imageUrl": "https://picsum.photos/seed/elemental_fire/300/400",
+      "imageHint": "fire elemental"
+    },
+    {
+      "id": "elemental_water",
+      "description": "A water elemental.",
+      "imageUrl": "https://picsum.photos/seed/elemental_water/300/400",
+      "imageHint": "water elemental"
+    },
+    {
+      "id": "elemental_earth",
+      "description": "An earth elemental.",
+      "imageUrl": "https://picsum.photos/seed/elemental_earth/300/400",
+      "imageHint": "earth elemental"
+    },
+    {
+      "id": "minotaur",
+      "description": "A powerful minotaur.",
+      "imageUrl": "https://picsum.photos/seed/minotaur/300/400",
+      "imageHint": "powerful minotaur"
+    },
+    {
+      "id": "phoenix",
+      "description": "A legendary phoenix.",
+      "imageUrl": "https://picsum.photos/seed/phoenix/300/400",
+      "imageHint": "legendary phoenix"
+    },
+    {
       "id": "forest_land",
       "description": "A lush, green forest.",
       "imageUrl": "https://picsum.photos/seed/forest_land/300/400",
