@@ -19,7 +19,8 @@ export type SkillType =
   | 'poison'
   | 'stealth'
   | 'summon'
-  | 'damage';
+  | 'damage'
+  | 'sacrifice';
 
 export type SkillTarget = 'self' | 'friendly_creature' | 'any_creature' | 'player' | 'opponent_creature';
 export type Rarity = 'Common' | 'Rare' | 'Epic' | 'Legendary';
@@ -32,6 +33,9 @@ export interface CardSkill {
   value?: number; // e.g., amount to heal or damage
   duration?: number; // for buffs
   target?: SkillTarget;
+  cooldown?: number;
+  currentCooldown?: number;
+  onCooldown?: boolean;
 }
 
 export interface Buff {
@@ -79,7 +83,7 @@ export interface Player {
   battlefield: Card[];
   graveyard: Card[];
   biomeChanges: number;
-  hasRedrawn: boolean; // Mulligan flag for the turn
+  hasRedrawn: boolean; // Mulligan flag for the game
 }
 export type LogType = 
     | 'game_start'
@@ -120,5 +124,5 @@ export interface GameState {
   selectedCardId: string | null;
   selectedAttackerId: string | null;
   selectedDefenderId: string | null;
-  spellBeingCast: Card | null; // For spells that require a target
+  spellBeingCast: Card | null; // For spells or skills that require a target
 }

@@ -40,6 +40,7 @@ const skillIcon: Record<string, React.ElementType> = {
     buff_attack: Swords,
     buff_armor: Shield,
     global_buff_armor: Shield,
+    sacrifice: Skull,
 };
 
 
@@ -192,12 +193,20 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
                 <Icon size={18} className="text-white/70"/>
             </div>
           )}
-          {showSkill && card.skill && SkillIcon && (
+          {showSkill && card.skill && !card.skill.onCooldown && SkillIcon && (
             <div className="absolute bottom-1 left-1" onClick={handleSkillClick}>
               <div className='p-1 bg-black/50 rounded-full cursor-pointer hover:bg-black/80 transition-colors'>
                 <SkillIcon className='w-5 h-5 sm:w-6 sm:h-6 text-yellow-400'/>
               </div>
             </div>
+          )}
+          {card.skill?.onCooldown && card.skill.cooldown && (
+             <div className="absolute bottom-1 left-1 flex items-center justify-center" title={`En recharge: ${card.skill.currentCooldown} tours`}>
+                <div className='p-1 bg-black/70 rounded-full cursor-not-allowed'>
+                    <Timer className='w-5 h-5 sm:w-6 sm:h-6 text-gray-400'/>
+                    <span className="absolute text-xs font-bold text-white top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">{card.skill.currentCooldown}</span>
+                </div>
+             </div>
           )}
         </CardFooter>
       </Card>

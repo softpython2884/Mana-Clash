@@ -46,7 +46,7 @@ export default function GameBoard() {
 
     if (phase === 'combat' && card.canAttack && !card.tapped) {
       dispatch({ type: 'SELECT_ATTACKER', cardId });
-    } else if (phase === 'main') {
+    } else if (phase === 'main' || (phase === 'spell_targeting' && spellBeingCast?.skill?.target === 'friendly_creature')) {
       dispatch({ type: 'SELECT_CARD', cardId });
     }
   }
@@ -85,7 +85,7 @@ export default function GameBoard() {
   }
   
   const handleRedraw = () => {
-    if (activePlayer !== 'player' || phase !== 'main' || player.hasRedrawn) return;
+    if (activePlayer !== 'player' || phase !== 'main' || turn !== 1) return;
     dispatch({ type: 'REDRAW_HAND' });
   }
 
@@ -118,9 +118,10 @@ export default function GameBoard() {
           isAttacking={card.id === selectedAttackerId}
           onClick={() => handleSelectCardOnBattlefield(card.id)}
           onSkillClick={() => handleActivateSkill(card.id)}
-          showSkill={card.id === selectedCardId && !!card.skill && !card.skill.used && !card.summoningSickness && !card.tapped}
+          showSkill={card.id === selectedCardId && !!card.skill && !card.skill.onCooldown && !card.summoningSickness && !card.tapped}
+          isTargetable={phase === 'spell_targeting' && spellBeingCast?.skill?.target === 'friendly_creature'}
       />
-  )), [player.battlefield, phase, selectedAttackerId, selectedCardId]);
+  )), [player.battlefield, phase, selectedAttackerId, selectedCardId, spellBeingCast]);
 
   const opponentHasTaunt = opponent.battlefield.some(c => c.taunt && !c.tapped);
   const opponentHasCreatures = opponent.battlefield.filter(c => c.type === 'Creature').length > 0;
@@ -177,7 +178,7 @@ export default function GameBoard() {
 
   const canAttack = player.battlefield.some(c => c.canAttack && !c.tapped);
   const canMeditate = player.graveyard.length > 0;
-  const canRedraw = !player.hasRedrawn;
+  const canRedraw = turn === 1;
 
   const getPhaseDescription = () => {
     switch(phase) {
@@ -235,10 +236,12 @@ export default function GameBoard() {
                   <p className="font-headline text-lg sm:text-xl">{getPhaseDescription()}</p>
                   {phase === 'main' && activePlayer === 'player' && (
                     <div className="flex gap-2">
+                        {turn === 1 && (
                         <Button onClick={handleRedraw} disabled={!canRedraw} variant="secondary" className="w-28 sm:w-36">
                             Mulligan
                             <Replace className="ml-2"/>
                         </Button>
+                        )}
                         <Button onClick={handlePhaseAction} disabled={winner !== undefined || !canAttack} className="w-28 sm:w-36">
                             Combat
                             <Swords className="ml-2"/>

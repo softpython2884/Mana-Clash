@@ -97,6 +97,12 @@
       "imageHint": "legendary phoenix"
     },
     {
+      "id": "fallen_shaman",
+      "description": "A fallen shaman holding a skull.",
+      "imageUrl": "https://picsum.photos/seed/fallen_shaman/300/400",
+      "imageHint": "shaman skull"
+    },
+    {
       "id": "berlin_wall",
       "description": "The Berlin Wall, made of concrete.",
       "imageUrl": "https://picsum.photos/seed/berlin_wall/300/400",

@@ -182,11 +182,14 @@ const opponentAI = (state: GameState): GameState => {
 
   // --- Main Phase ---
 
-  // Decide whether to redraw hand
-  const handValue = opponent.hand.reduce((sum, card) => sum + (card.attack || 0) + (card.health || 0), 0);
-  if (!opponent.hasRedrawn && handValue < 5 && opponent.hand.length > 3) {
-      log.push({ type: 'info', turn, message: 'Adversaire choisit de piocher une nouvelle main.' });
-      return gameReducer(tempState, { type: 'REDRAW_HAND' });
+  // Decide whether to redraw hand (only on turn 1)
+  if (turn === 1 && !opponent.hasRedrawn) {
+      const handValue = opponent.hand.reduce((sum, card) => sum + (card.manaCost || 0), 0);
+      const highCostCards = opponent.hand.filter(c => c.manaCost > 4).length;
+      if (handValue > 20 || highCostCards > 2) {
+          log.push({ type: 'info', turn, message: 'Adversaire choisit de piocher une nouvelle main.' });
+          return gameReducer(tempState, { type: 'REDRAW_HAND' });
+      }
   }
   
   // Decide whether to meditate
@@ -595,25 +598,33 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       };
 
     case 'SELECT_CARD': {
-        if (stateWithClearedFeedback.activePlayer !== 'player' || (stateWithClearedFeedback.phase !== 'main' && stateWithClearedFeedback.phase !== 'spell_targeting')) return stateWithClearedFeedback;
+        if (stateWithClearedFeedback.activePlayer !== 'player') return stateWithClearedFeedback;
         
-        // If we are in spell_targeting, this click is for CAST_SPELL_ON_TARGET
-        if (stateWithClearedFeedback.phase === 'spell_targeting' && stateWithClearedFeedback.spellBeingCast?.skill?.target === 'friendly_creature') {
-            return gameReducer(stateWithClearedFeedback, { type: 'CAST_SPELL_ON_TARGET', targetId: action.cardId });
-        }
+        const cardOnBattlefield = state.player.battlefield.find(c => c.id === action.cardId);
 
-        if (stateWithClearedFeedback.selectedCardId && stateWithClearedFeedback.selectedCardId === action.cardId) {
-            return { ...stateWithClearedFeedback, selectedCardId: null }; // Deselect
-        } else {
-            return { ...stateWithClearedFeedback, selectedCardId: action.cardId };
+        if (stateWithClearedFeedback.phase === 'spell_targeting' && cardOnBattlefield) {
+            const spell = stateWithClearedFeedback.spellBeingCast;
+            if (spell?.skill?.target === 'friendly_creature' || spell?.skill?.target === 'any_creature') {
+                return gameReducer(stateWithClearedFeedback, { type: 'CAST_SPELL_ON_TARGET', targetId: action.cardId });
+            }
         }
+        
+        if (stateWithClearedFeedback.phase === 'main' && cardOnBattlefield) {
+            if (stateWithClearedFeedback.selectedCardId && stateWithClearedFeedback.selectedCardId === action.cardId) {
+                return { ...stateWithClearedFeedback, selectedCardId: null }; // Deselect
+            } else {
+                return { ...stateWithClearedFeedback, selectedCardId: action.cardId };
+            }
+        }
+        
+        return stateWithClearedFeedback;
     }
 
     case 'ACTIVATE_SKILL': {
         if (stateWithClearedFeedback.activePlayer !== 'player' || stateWithClearedFeedback.phase !== 'main') return stateWithClearedFeedback;
         
         const card = stateWithClearedFeedback.player.battlefield.find((c: Card) => c.id === action.cardId);
-        if (!card || !card.skill || card.skill.used || card.summoningSickness || card.tapped) return stateWithClearedFeedback;
+        if (!card || !card.skill || card.skill.used || card.summoningSickness || card.tapped || card.skill.onCooldown) return stateWithClearedFeedback;
         
         // If skill requires a target, change phase to spell_targeting
         if (card.skill.target && card.skill.target !== 'self' && card.skill.target !== 'player') {
@@ -848,34 +859,28 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const turn = stateWithClearedFeedback.turn;
     
       let target: Card | undefined;
-      let targetOwner: 'player' | 'opponent' | undefined;
+      let targetOwnerKey: 'player' | 'opponent' | undefined;
     
-      // Determine which battlefield to search for the target
+      const findTarget = (p: Player, key: 'player'|'opponent') => {
+        const found = p.battlefield.find(c => c.id === targetId);
+        if (found) {
+            target = found;
+            targetOwnerKey = key;
+        }
+      }
+
       if (spellOrSkillCaster.skill?.target === 'opponent_creature') {
-        target = opponent.battlefield.find(c => c.id === targetId);
-        targetOwner = 'opponent';
-      } else if (spellOrSkillCaster.skill?.target === 'friendly_creature' || spellOrSkillCaster.skill?.target === 'any_creature') {
-        if (activePlayerKey === 'player') {
-            target = player.battlefield.find(c => c.id === targetId);
-            if (target) {
-                targetOwner = 'player';
-            } else if (spellOrSkillCaster.skill.target === 'any_creature') {
-                target = opponent.battlefield.find(c => c.id === targetId);
-                targetOwner = 'opponent';
-            }
-        } else { // activePlayer is opponent
-            target = opponent.battlefield.find(c => c.id === targetId);
-             if (target) {
-                targetOwner = 'opponent';
-            } else if (spellOrSkillCaster.skill.target === 'any_creature') {
-                target = player.battlefield.find(c => c.id === targetId);
-                targetOwner = 'player';
-            }
+        findTarget(opponent, 'opponent');
+      } else if (spellOrSkillCaster.skill?.target === 'friendly_creature') {
+        findTarget(player, 'player');
+      } else if (spellOrSkillCaster.skill?.target === 'any_creature') {
+        findTarget(player, 'player');
+        if (!target) {
+            findTarget(opponent, 'opponent');
         }
       }
     
-      if (!target || !targetOwner) {
-        // If target is invalid, simply exit targeting mode without consuming the spell/skill.
+      if (!target || !targetOwnerKey) {
         return { ...stateWithClearedFeedback, phase: 'main', spellBeingCast: null, selectedCardId: null };
       }
     
@@ -902,10 +907,26 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           targetCard.health = Math.min(targetCard.initialHealth || 0, (targetCard.health || 0) + (spellOrSkillCaster.skill.value || 0));
           log.push({ type: 'heal', turn, message: `${spellOrSkillCaster.name} soigne ${targetCard.name} de ${spellOrSkillCaster.skill.value} PV.` });
           break;
+        case 'sacrifice':
+             const sacrificedCard = stateWithClearedFeedback[activePlayerKey].battlefield.find(c => c.id === spellOrSkillCaster.id);
+            if (sacrificedCard && sacrificedCard.health) {
+                const healAmount = Math.floor(sacrificedCard.health * 0.75);
+                targetCard.health = Math.min(targetCard.initialHealth!, (targetCard.health || 0) + healAmount);
+                log.push({ type: 'heal', turn, message: `${sacrificedCard.name} est sacrifié et soigne ${targetCard.name} de ${healAmount} PV.` });
+
+                if (activePlayerKey === 'player') {
+                    player.battlefield = player.battlefield.filter(c => c.id !== sacrificedCard.id);
+                    player.graveyard.push(sacrificedCard);
+                } else {
+                    opponent.battlefield = opponent.battlefield.filter(c => c.id !== sacrificedCard.id);
+                    opponent.graveyard.push(sacrificedCard);
+                }
+            }
+            break;
       }
     
       // Update the target card on the correct battlefield
-      if (targetOwner === 'player') {
+      if (targetOwnerKey === 'player') {
         player.battlefield = player.battlefield.map(c => c.id === targetId ? targetCard : c);
       } else {
         opponent.battlefield = opponent.battlefield.map(c => c.id === targetId ? targetCard : c);
@@ -914,12 +935,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // Mark skill as used and tap the creature if it was a creature skill
       const isFromCreature = stateWithClearedFeedback[activePlayerKey].battlefield.some(c => c.id === spellOrSkillCaster.id);
       if (isFromCreature) {
-        const activePlayerBattlefield = activePlayerKey === 'player' ? player.battlefield : opponent.battlefield;
+        let activePlayerBattlefield = activePlayerKey === 'player' ? player.battlefield : opponent.battlefield;
         const casterIndex = activePlayerBattlefield.findIndex(c => c.id === spellOrSkillCaster.id);
+
+        // Caster might have been sacrificed
         if (casterIndex > -1) {
           let casterCard = { ...activePlayerBattlefield[casterIndex] };
           casterCard.tapped = true;
-          casterCard.skill = casterCard.skill ? { ...casterCard.skill, used: true } : undefined;
+          casterCard.skill = casterCard.skill ? { ...casterCard.skill, used: true, onCooldown: true } : undefined;
           casterCard.skillJustUsed = true;
           if (activePlayerKey === 'player') {
               player.battlefield[casterIndex] = casterCard;
@@ -927,6 +950,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
               opponent.battlefield[casterIndex] = casterCard;
           }
         }
+
       } else { // It was a spell from hand, move to graveyard
         if (activePlayerKey === 'player') {
             player.graveyard = [...player.graveyard, spellOrSkillCaster];
@@ -983,7 +1007,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const activePlayerKey = state.activePlayer;
       let player = { ...state[activePlayerKey] };
       
-      if (player.hasRedrawn) return state;
+      if (state.turn !== 1) return state;
 
       // Shuffle hand back into deck
       player.deck.push(...player.hand);
@@ -997,11 +1021,16 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       player = drawCards(player, 5);
       player.hasRedrawn = true;
 
+      const logMessage = activePlayerKey === 'player' 
+        ? { type: 'draw' as const, turn: state.turn, message: 'Joueur pioche une nouvelle main.' }
+        : { type: 'draw' as const, turn: state.turn, message: 'Adversaire pioche une nouvelle main.' };
+
+
       return {
         ...state,
         [activePlayerKey]: player,
         phase: 'post_mulligan',
-        log: [...state.log, { type: 'draw', turn: state.turn, message: `${activePlayerKey === 'player' ? 'Joueur' : 'Adversaire'} pioche une nouvelle main.` }]
+        log: [...state.log, logMessage]
       };
     }
 
@@ -1073,7 +1102,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }));
       currentPlayer.graveyard = [...currentPlayer.graveyard, ...graveyardAdditions];
       currentPlayer.biomeChanges = 2;
-      currentPlayer.hasRedrawn = false; // Reset mulligan flag for the turn
 
 
       const nextTurnNumber = nextPlayerKey === 'player' ? stateWithClearedFeedback.turn + 1 : stateWithClearedFeedback.turn;
@@ -1107,21 +1135,25 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     
     case 'EXECUTE_OPPONENT_TURN': {
       if (stateWithClearedFeedback.activePlayer !== 'opponent') return stateWithClearedFeedback;
-      const finalStateFromAI = opponentAI(stateWithClearedFeedback);
       
-      if(finalStateFromAI.phase === 'post_mulligan') {
-        const playableCards = finalStateFromAI.opponent.hand.filter(c => c.manaCost <= finalStateFromAI.opponent.mana && (c.type === 'Creature' || c.type === 'Artifact' || c.type === 'Land'));
-        if (playableCards.length > 0) {
-            const cardToPlay = playableCards.sort((a, b) => b.manaCost - a.manaCost)[0];
-             // The reducer will handle the PASS_TURN automatically after the card is played in 'post_mulligan' phase
-            const stateAfterPlay = gameReducer(finalStateFromAI, {type: 'PLAY_CARD', cardId: cardToPlay.id});
+      let finalStateFromAI = opponentAI(stateWithClearedFeedback);
+      
+      if (finalStateFromAI.phase === 'post_mulligan') {
+          const playableCards = finalStateFromAI.opponent.hand.filter(c => c.manaCost <= finalStateFromAI.opponent.mana && (c.type === 'Creature' || c.type === 'Artifact' || c.type === 'Land'));
+          if (playableCards.length > 0) {
+              const cardToPlay = playableCards.sort((a, b) => b.manaCost - a.manaCost)[0];
+              const stateAfterPlay = gameReducer(finalStateFromAI, {type: 'PLAY_CARD', cardId: cardToPlay.id});
+              return {
+                ...stateAfterPlay,
+                isThinking: false
+              };
+          }
+          // If no card can be played after mulligan, pass the turn.
+           const stateAfterPass = gameReducer({...finalStateFromAI, isThinking: false }, {type: 'PASS_TURN'});
             return {
-              ...stateAfterPlay,
-              isThinking: false
-            }
-        }
-        // If no card can be played, pass the turn
-        return gameReducer({...finalStateFromAI, isThinking: false }, {type: 'PASS_TURN'});
+                ...stateAfterPass,
+                isThinking: false
+            };
       }
       
       // If AI decided to meditate, it already called PASS_TURN, so we just return the new state
