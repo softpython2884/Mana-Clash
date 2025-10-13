@@ -858,7 +858,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const activePlayerKey = stateWithClearedFeedback.activePlayer;
     
       let player = { ...stateWithClearedFeedback.player };
-      let opponent = { ...stateWithClearedfeedback.opponent };
+      let opponent = { ...stateWithClearedFeedback.opponent };
       let log = [...stateWithClearedFeedback.log];
       const turn = stateWithClearedFeedback.turn;
     
@@ -1195,5 +1195,3 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return stateWithClearedFeedback;
   }
 }
-
-    
