@@ -129,6 +129,19 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
 
   // Artifacts
   createCard('defense_totem', 'Totem de Défense', 'Artifact', 4, "Donne +1 d'armure à toutes vos créatures alliées. Dure 3 tours.", { skill: { type: 'global_buff_armor', value: 1, duration: 3, used: false }, duration: 3 }),
+  createCard('ring_of_fire', 'Anneau du Feu', 'Artifact', 3, 'Vos sorts de feu coûtent 1 de moins.', { rarity: 'Rare', element: 'Fire' }),
+  createCard('scepter_of_knowledge', 'Sceptre de Savoir', 'Artifact', 5, 'Piochez une carte supplémentaire au début de votre tour. Dure 2 tours.', { duration: 2, rarity: 'Epic' }),
+  createCard('kings_shield', 'Bouclier du Roi', 'Artifact', 4, 'Le joueur ne peut pas être la cible d\'attaques directes si vous contrôlez une créature. Dure 3 tours.', { duration: 3, rarity: 'Legendary' }),
+  createCard('soul_stone', 'Pierre d’Âme', 'Artifact', 6, 'Quand une créature meurt, vous gagnez 1 PV. Dure 4 tours.', { duration: 4, rarity: 'Epic' }),
+  createCard('void_lantern', 'Lanterne du Vide', 'Artifact', 2, 'Les cartes défaussées sont retirées du jeu. Dure 3 tours.', { duration: 3, rarity: 'Rare' }),
+  createCard('crown_of_the_sun', 'Couronne du Soleil', 'Artifact', 5, 'Toutes vos créatures gagnent +1/+1. Dure 2 tours.', { duration: 2, rarity: 'Epic' }),
+  createCard('orb_of_ice', 'Orbe de Glace', 'Artifact', 3, 'Gèle une créature ennemie aléatoire pour 1 tour. Dure 2 tours.', { duration: 2, rarity: 'Rare' }),
+  createCard('war_hammer', 'Marteau de Guerre', 'Artifact', 4, 'Donne +3 d\'attaque à une créature alliée. Se brise après 2 attaques.', { duration: 2, rarity: 'Rare' }),
+  createCard('amulet_of_resistance', 'Amulette de Résistance', 'Artifact', 2, 'Vos créatures ont +2 d\'armure contre les sorts. Dure 3 tours.', { duration: 3, rarity: 'Rare' }),
+  createCard('altar_of_blood', 'Autel du Sang', 'Artifact', 3, 'Sacrifiez une créature pour piocher 2 cartes. Utilisable une fois.', { duration: 1, rarity: 'Epic' }),
+  createCard('time_bell', 'Cloche du Temps', 'Artifact', 7, 'Passez le prochain tour de votre adversaire. Se détruit après utilisation.', { duration: 1, rarity: 'Legendary' }),
+  createCard('shadow_dagger', 'Dague des Ombres', 'Artifact', 2, 'La première créature jouée chaque tour gagne "Discrétion" pour 1 tour.', { duration: 3, rarity: 'Rare' }),
+  createCard('totem_of_vitality', 'Totem de Vitalité', 'Artifact', 4, 'Soigne toutes vos créatures de 1 PV au début de votre tour. Dure 3 tours.', { duration: 3, rarity: 'Epic' }),
 
   // Biomes
   createCard('forest_biome', 'Biome Forêt', 'Biome', 0, "Change le biome actuel en Forêt.", { biome: 'Forest' }),
@@ -136,6 +149,14 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
   createCard('ice_biome', 'Biome Glace', 'Biome', 0, "Change le biome actuel en Glace.", { biome: 'Ice' }),
   createCard('volcano_biome', 'Biome Volcan', 'Biome', 0, "Change le biome actuel en Volcan.", { biome: 'Volcano' }),
   createCard('sanctuary_biome', 'Biome Sanctuaire', 'Biome', 0, "Change le biome actuel en Sanctuaire.", { biome: 'Sanctuary' }),
+  createCard('swamp_biome', 'Biome Marais', 'Biome', 0, 'Change le biome actuel en Marais.', { biome: 'Swamp' }),
+  createCard('mountain_biome', 'Biome Montagne', 'Biome', 0, 'Change le biome actuel en Montagne.', { biome: 'Mountain' }),
+  createCard('cavern_biome', 'Biome Caverne', 'Biome', 0, 'Change le biome actuel en Caverne.', { biome: 'Cavern' }),
+  createCard('river_biome', 'Biome Rivière', 'Biome', 0, 'Change le biome actuel en Rivière.', { biome: 'River' }),
+  createCard('plains_biome', 'Biome Plaines', 'Biome', 0, 'Change le biome actuel en Plaines.', { biome: 'Plains' }),
+  createCard('ruins_biome', 'Biome Ruines', 'Biome', 0, 'Change le biome actuel en Ruines.', { biome: 'Ruins' }),
+  createCard('void_biome', 'Biome Néant', 'Biome', 0, 'Change le biome actuel en Néant.', { biome: 'Void' }),
+  createCard('sky_biome', 'Biome Ciel', 'Biome', 0, 'Change le biome actuel en Ciel.', { biome: 'Sky' }),
 ];
 
 export const createDeck = (): Card[] => {
@@ -223,7 +244,11 @@ export const createDeck = (): Card[] => {
 
   addCards('strength_enchantment', 1);
   addCards('kings_blessing', 1);
+  
+  // Artifacts
   addCards('defense_totem', 1);
+  addCards('ring_of_fire', 1);
+  addCards('scepter_of_knowledge', 1);
   
   // Lands & Biomes
   addCards('forest_land', 2);
