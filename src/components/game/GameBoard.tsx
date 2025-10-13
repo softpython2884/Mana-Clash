@@ -24,7 +24,7 @@ export default function GameBoard() {
     }
   }, [state.gameId]);
 
-  const { gameId, turn, activePlayer, phase, player, opponent, winner, log, isThinking, activeBiome, selectedAttackerId, selectedDefenderId, selectedCardId } = state;
+  const { gameId, turn, activePlayer, phase, player, opponent, winner, log, isThinking, activeBiome, selectedAttackerId, selectedDefenderId, selectedCardId, spellBeingCast } = state;
   
   // Opponent AI logic
   useEffect(() => {
@@ -67,6 +67,12 @@ export default function GameBoard() {
       dispatch({ type: 'SELECT_DEFENDER', cardId });
     }
   }
+  
+  const handleSelectSpellTarget = (cardId: string) => {
+    if (phase === 'spell_targeting') {
+        dispatch({ type: 'CAST_SPELL_ON_TARGET', targetId: cardId });
+    }
+  }
 
   const handlePhaseAction = () => {
     if (activePlayer !== 'player') return;
@@ -83,7 +89,7 @@ export default function GameBoard() {
   const handlePassTurn = () => {
     if (activePlayer !== 'player') return;
     // Allow passing turn from any phase except targeting to prevent accidental skips
-    if (phase === 'targeting') return; 
+    if (phase === 'targeting' || phase === 'spell_targeting') return; 
     dispatch({ type: 'PASS_TURN' });
   }
 
@@ -120,17 +126,22 @@ export default function GameBoard() {
 
 
   const MemoizedOpponentBattlefield = useMemo(() => opponent.battlefield.map((card) => {
-    const isTargetable = phase === 'targeting' && selectedAttackerId && card.type === 'Creature' && (!opponentHasTaunt || card.taunt);
+    const isTargetableForAttack = phase === 'targeting' && selectedAttackerId && card.type === 'Creature' && (!opponentHasTaunt || card.taunt);
+    const isTargetableForSpell = phase === 'spell_targeting' && card.type === 'Creature';
+
     return (
         <GameCard 
           key={card.id} 
           card={card} 
           isTargeted={card.id === selectedDefenderId}
-          isTargetable={isTargetable}
-          onClick={() => handleSelectDefender(card.id)}
+          isTargetable={isTargetableForAttack || isTargetableForSpell}
+          onClick={() => {
+            if (isTargetableForAttack) handleSelectDefender(card.id);
+            if (isTargetableForSpell) handleSelectSpellTarget(card.id);
+          }}
         />
     )
-  }), [opponent.battlefield, phase, selectedAttackerId, selectedDefenderId, opponentHasTaunt]);
+  }), [opponent.battlefield, phase, selectedAttackerId, selectedDefenderId, opponentHasTaunt, spellBeingCast]);
 
   if (!isClient) {
     // Basic loading skeleton
@@ -155,6 +166,8 @@ export default function GameBoard() {
             return 'Choisissez un attaquant';
         case 'targeting':
             return 'Choisissez une cible';
+        case 'spell_targeting':
+            return `Ciblez une créature ennemie pour ${spellBeingCast?.name}`;
         default:
             return '';
     }
@@ -213,6 +226,13 @@ export default function GameBoard() {
                          Attaquer la cible
                          <Swords className="ml-2"/>
                       </Button>
+                       <Button onClick={() => dispatch({ type: 'CHANGE_PHASE', phase: 'main' })} variant="outline" disabled={winner !== undefined} className="w-48">
+                          Annuler
+                      </Button>
+                  </div>
+                )}
+                 {phase === 'spell_targeting' && activePlayer === 'player' && (
+                  <div className="flex gap-2">
                        <Button onClick={() => dispatch({ type: 'CHANGE_PHASE', phase: 'main' })} variant="outline" disabled={winner !== undefined} className="w-48">
                           Annuler
                       </Button>

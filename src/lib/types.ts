@@ -2,7 +2,7 @@
 import type { ImagePlaceholder } from './placeholder-images';
 
 export type CardType = 'Creature' | 'Land' | 'Spell' | 'Artifact' | 'Biome' | 'Enchantment' | 'Potion' | 'SpecialSummon' | 'Trap' | 'Ritual';
-export type GamePhase = 'main' | 'combat' | 'targeting' | 'end' | 'game-over';
+export type GamePhase = 'main' | 'combat' | 'targeting' | 'spell_targeting' | 'end' | 'game-over';
 export type BiomeType = 'Forest' | 'Mountain' | 'Swamp' | 'Desert' | 'Ice' | 'Volcano' | 'Sanctuary';
 
 export type SkillType = 
@@ -18,7 +18,8 @@ export type SkillType =
   | 'double_attack'
   | 'poison'
   | 'stealth'
-  | 'summon';
+  | 'summon'
+  | 'damage';
 
 export type SkillTarget = 'self' | 'friendly_creature' | 'any_creature' | 'player' | 'opponent_creature';
 export type Rarity = 'Common' | 'Rare' | 'Epic' | 'Legendary';
@@ -93,4 +94,5 @@ export interface GameState {
   selectedCardId: string | null;
   selectedAttackerId: string | null;
   selectedDefenderId: string | null;
+  spellBeingCast: Card | null; // For spells that require a target
 }

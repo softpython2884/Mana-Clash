@@ -15,6 +15,7 @@ export type GameAction =
   | { type: 'SELECT_ATTACKER'; cardId: string }
   | { type: 'SELECT_DEFENDER'; cardId: string | 'opponent' }
   | { type: 'DECLARE_ATTACK' }
+  | { type: 'CAST_SPELL_ON_TARGET'; targetId: string }
   | { type: 'PASS_TURN' }
   | { type: 'EXECUTE_OPPONENT_TURN' }
   | { type: 'LOG_MESSAGE'; message: string }
@@ -94,6 +95,7 @@ export const getInitialState = (): GameState => {
     selectedCardId: null,
     selectedAttackerId: null,
     selectedDefenderId: null,
+    spellBeingCast: null,
   };
   
   return initialState;
@@ -129,6 +131,7 @@ const shuffleAndDeal = (): GameState => {
         selectedCardId: null,
         selectedAttackerId: null,
         selectedDefenderId: null,
+        spellBeingCast: null,
     }
 }
 
@@ -173,16 +176,10 @@ const resolveDamage = (attacker: Card, defender: Card, log: any[], turn: number,
 
 
 const opponentAI = (state: GameState): GameState => {
-  let tempState = {
-    ...state,
-    opponent: { ...state.opponent },
-    player: { ...state.player },
-    log: [...state.log],
-  };
-  
-  let opponent = tempState.opponent;
-  let player = tempState.player;
-  let log = tempState.log;
+  let tempState = { ...state };
+  let opponent = { ...tempState.opponent };
+  let player = { ...tempState.player };
+  let log = [...tempState.log];
   const turn = tempState.turn;
 
   if (opponent.biomeChanges > 0) {
@@ -272,7 +269,7 @@ const opponentAI = (state: GameState): GameState => {
             log.push({ turn: tempState.turn, message: `Adversaire: ${attacker.name} attaque ${defenderInPlayerField.name}.` });
             
             const defenderHealthBefore = defenderInPlayerField.health || 0;
-            const attackResult = resolveDamage(attackerInBattlefield, defenderInPlayerField, log, tempState.turn, opponent);
+            resolveDamage(attackerInBattlefield, defenderInPlayerField, log, tempState.turn, opponent);
             
             if((defenderInPlayerField.health || 0) > 0 && (defenderInPlayerField.health || 0) < defenderHealthBefore) {
                log.push({ turn, message: `${defenderInPlayerField.name} riposte !` });
@@ -316,14 +313,11 @@ const opponentAI = (state: GameState): GameState => {
 };
 
 const resolvePlayerCombat = (state: GameState): GameState => {
-    let newState = {
-      ...state,
-      player: {...state.player},
-      opponent: {...state.opponent},
-      log: [...state.log]
-    };
-
+    let newState = { ...state };
     let { player, opponent, log, turn, selectedAttackerId, selectedDefenderId } = newState;
+    player = { ...player };
+    opponent = { ...opponent };
+    log = [...log];
 
     const attackerIndex = player.battlefield.findIndex((c: Card) => c.id === selectedAttackerId);
     if (attackerIndex === -1) return state;
@@ -412,7 +406,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'DRAW_CARD': {
         const { player: playerKey, count } = action;
-        const playerToUpdate = state[playerKey];
+        let playerToUpdate = {...state[playerKey]};
         const { player, log } = drawCards(playerToUpdate, count, [...state.log], state.turn);
         return {
             ...state,
@@ -587,6 +581,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             newState.log.push({ turn: state.turn, message: `${card.name} donne +${card.skill.value} armure à toutes les créatures.` });
         }
       } else if (card.type === 'Spell' || card.type === 'Enchantment' || card.type === 'Potion') {
+        if (card.skill?.target === 'opponent_creature') {
+            return {
+                ...newState,
+                player: newPlayerState,
+                phase: 'spell_targeting',
+                spellBeingCast: card,
+            };
+        }
         if(card.id.startsWith('health_potion')) {
             newPlayerState.hp = Math.min(20, newPlayerState.hp + 5);
             newState.log.push({ turn: state.turn, message: `Joueur se soigne de 5 PV.` });
@@ -657,6 +659,57 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         return { ...state, selectedDefenderId: action.cardId };
     }
 
+    case 'CAST_SPELL_ON_TARGET': {
+      if (state.phase !== 'spell_targeting' || !state.spellBeingCast || state.activePlayer !== 'player') return state;
+
+      const { targetId } = action;
+      const spell = state.spellBeingCast;
+      let opponent = { ...state.opponent };
+      let log = [...state.log];
+      const turn = state.turn;
+
+      const targetIndex = opponent.battlefield.findIndex(c => c.id === targetId);
+      if (targetIndex === -1) {
+        return { ...state, phase: 'main', spellBeingCast: null }; // Invalid target
+      }
+
+      let targetCard = { ...opponent.battlefield[targetIndex] };
+
+      log.push({ turn, message: `${state.player.id} lance ${spell.name} sur ${targetCard.name}.` });
+
+      if (spell.skill?.type === 'damage') {
+        targetCard.health = (targetCard.health || 0) - (spell.skill.value || 0);
+        log.push({ turn, message: `${targetCard.name} subit ${spell.skill.value} dégâts. PV restants: ${targetCard.health}` });
+      }
+
+      opponent.battlefield[targetIndex] = targetCard;
+
+      const updateField = (p: Player, owner: string): Player => {
+        const remainingCreatures = p.battlefield.filter(c => {
+          if ((c.health || 0) <= 0) {
+            log.push({ turn, message: `${c.name} (${owner}) est détruit.` });
+            p.graveyard.push({ ...c, health: c.initialHealth, buffs: [] });
+            return false;
+          }
+          return true;
+        });
+        return { ...p, battlefield: remainingCreatures };
+      };
+
+      opponent = updateField(opponent, "Adversaire");
+
+      let player = { ...state.player };
+      player.graveyard.push(spell);
+
+      return {
+        ...state,
+        opponent,
+        player,
+        log,
+        phase: 'main',
+        spellBeingCast: null,
+      };
+    }
 
     case 'DECLARE_ATTACK': {
         if (state.phase !== 'targeting' || state.activePlayer !== 'player' || !state.selectedAttackerId || !state.selectedDefenderId) return state;
@@ -702,7 +755,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (state.activeBiome?.biome === 'Sanctuary') {
           updatedBattlefield = updatedBattlefield.map((c: Card) => {
               if (c.type === 'Creature' && c.preferredBiome === 'Sanctuary' && c.health < c.initialHealth) {
-                   const newHealth = Math.min(c.initialHealth, (c.health || 0) + 1);
+                   const newHealth = Math.min(c.initialHealth!, (c.health || 0) + 1);
                    return {...c, health: newHealth};
               }
               return c;
@@ -736,6 +789,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         selectedCardId: null,
         selectedAttackerId: null,
         selectedDefenderId: null,
+        spellBeingCast: null,
         [currentPlayerKey]: currentPlayer,
         [nextPlayerKey]: nextPlayerState,
         log: [...logAfterDraw, { turn: nextTurnNumber, message: `Début du tour de ${nextPlayerKey === 'player' ? 'Joueur' : "l'Adversaire"}.` }],

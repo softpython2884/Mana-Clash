@@ -55,6 +55,18 @@
       "imageHint": "forgotten sage"
     },
     {
+      "id": "griffon",
+      "description": "A majestic griffon.",
+      "imageUrl": "https://picsum.photos/seed/griffon/300/400",
+      "imageHint": "majestic griffon"
+    },
+    {
+      "id": "hydra",
+      "description": "A swamp hydra.",
+      "imageUrl": "https://picsum.photos/seed/hydra/300/400",
+      "imageHint": "swamp hydra"
+    },
+    {
       "id": "forest_land",
       "description": "A lush, green forest.",
       "imageUrl": "https://picsum.photos/seed/forest_land/300/400",
@@ -95,6 +107,12 @@
       "description": "A creature with skin of stone.",
       "imageUrl": "https://picsum.photos/seed/stoneskin/300/400",
       "imageHint": "stone skin"
+    },
+    {
+      "id": "lightning_bolt",
+      "description": "A bolt of lightning.",
+      "imageUrl": "https://picsum.photos/seed/lightning_bolt/300/400",
+      "imageHint": "lightning bolt"
     },
     {
       "id": "artifact",

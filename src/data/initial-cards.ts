@@ -40,6 +40,9 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
   createCard('cleric', 'Clerc du Sanctuaire', 'Creature', 2, 'Compétence: Soigne 3 PV à une créature.', { attack: 1, health: 3, armor: 1, preferredBiome: 'Sanctuary', skill: { type: 'heal', value: 3, target: 'any_creature', used: false }}),
   createCard('vampire', 'Vampire Maudit', 'Creature', 4, 'Vol de vie (se soigne de la moitié des dégâts infligés).', { attack: 4, health: 3, armor: 1, preferredBiome: 'Swamp', skill: { type: 'lifesteal', used: false }}),
   createCard('sage', 'Sage Oublié', 'Creature', 3, 'Compétence: Piochez une carte.', { attack: 2, health: 2, armor: 0, skill: { type: 'draw', used: false }}),
+  createCard('griffon', 'Griffon majestueux', 'Creature', 5, "Une bête ailée rapide et puissante.", { attack: 4, health: 4, armor: 2, criticalHitChance: 15, preferredBiome: 'Mountain' }),
+  createCard('hydra', 'Hydre des marais', 'Creature', 7, "Une créature terrifiante à plusieurs têtes.", { attack: 6, health: 8, armor: 3, criticalHitChance: 10, preferredBiome: 'Swamp' }),
+
 
   // Lands
   createCard('forest_land', 'Forêt', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),
@@ -49,6 +52,8 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
   // Spells
   createCard('berserk_rage', "Rage du Berserker", 'Spell', 1, "Donne +3 en attaque à une créature pour 1 tour.", { skill: { type: 'buff_attack', value: 3, duration: 1, target: 'friendly_creature', used: false }}),
   createCard('stoneskin', "Peau de pierre", 'Spell', 2, "Donne +4 en armure à une créature pour 2 tours.", { skill: { type: 'buff_armor', value: 4, duration: 2, target: 'friendly_creature', used: false }}),
+  createCard('lightning_bolt', "Foudre", 'Spell', 3, "Inflige 6 points de dégâts à une créature ciblée.", { skill: { type: 'damage', value: 6, target: 'opponent_creature', used: false }}),
+
 
   // Potions
   createCard('health_potion', 'Potion de soin', 'Potion', 2, "Vous regagnez 5 points de vie."),
@@ -105,6 +110,7 @@ export const createDeck = (): Card[] => {
   addCards('mana_potion', 1);
   addCards('berserk_rage', 1);
   addCards('stoneskin', 1);
+  addCards('lightning_bolt', 1);
   addCards('strength_enchantment', 1);
   addCards('defense_totem', 1);
   
