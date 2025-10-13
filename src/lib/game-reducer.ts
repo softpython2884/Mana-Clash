@@ -369,7 +369,7 @@ const resolvePlayerCombat = (state: GameState): GameState => {
     let finalLog = [...log];
     let finalPlayer = { ...player };
     let finalOpponent = { ...opponent };
-    let combatAnimation = { attackerId: attackerCard.id, defenderId: selectedDefenderId };
+    let combatAnimation = { attackerId: attackerCard.id, defenderId: selectedDefenderId as string | 'opponent' };
 
     if (selectedDefenderId === 'opponent') {
         const combatResult = resolveDamage(attackerCard, finalOpponent, finalLog, turn, finalPlayer);
@@ -389,7 +389,7 @@ const resolvePlayerCombat = (state: GameState): GameState => {
         const combatResult = resolveDamage(newAttacker, newDefender, finalLog, turn, finalPlayer);
         newAttacker = combatResult.attacker;
         newDefender = combatResult.defender as Card;
-        finalPlayer = combatResult.owner;
+        finalPlayer = combatResult.attackerOwner;
         finalLog = combatResult.log;
 
         
@@ -399,7 +399,7 @@ const resolvePlayerCombat = (state: GameState): GameState => {
             let riposteResult = resolveDamage(newDefender, newAttacker, finalLog, turn, finalOpponent);
             newAttacker = riposteResult.defender as Card;
             newDefender = riposteResult.attacker;
-            finalOpponent = riposteResult.owner;
+            finalOpponent = riposteResult.attackerOwner;
             finalLog = riposteResult.log;
         }
 
