@@ -49,6 +49,8 @@ const logColors = {
 
 
 export default function GameLog({ log }: GameLogProps) {
+    const displayedLog = log.slice(-13);
+
     return (
         <Card className="h-full bg-black/30 backdrop-blur-sm border-white/10 flex flex-col">
             <CardHeader>
@@ -57,7 +59,7 @@ export default function GameLog({ log }: GameLogProps) {
             <CardContent className="flex-grow overflow-hidden">
                 <ScrollArea className="h-full pr-4">
                     <div className="flex flex-col gap-2">
-                        {log.slice().reverse().map((entry, i) => {
+                        {displayedLog.slice().reverse().map((entry, i) => {
                             const Icon = logIcons[entry.type] || Info;
                             const colorClass = logColors[entry.type] || 'text-gray-400';
                             const targetClass = entry.target === 'player' ? 'border-l-2 border-primary pl-3' : 'border-l-2 border-transparent pl-3';
