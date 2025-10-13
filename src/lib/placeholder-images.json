@@ -245,6 +245,96 @@
       "description": "A sanctuary biome card.",
       "imageUrl": "https://picsum.photos/seed/sanctuary_biome/300/400",
       "imageHint": "sanctuary biome"
+    },
+    {
+      "id": "wild_wolf",
+      "description": "A wild wolf from the forest.",
+      "imageUrl": "https://picsum.photos/seed/wild_wolf/300/400",
+      "imageHint": "wild wolf"
+    },
+    {
+      "id": "human_soldier",
+      "description": "A reliable human soldier.",
+      "imageUrl": "https://picsum.photos/seed/human_soldier/300/400",
+      "imageHint": "human soldier"
+    },
+    {
+      "id": "swamp_serpent",
+      "description": "A serpent lurking in the swamp.",
+      "imageUrl": "https://picsum.photos/seed/swamp_serpent/300/400",
+      "imageHint": "swamp serpent"
+    },
+    {
+      "id": "guard_dog",
+      "description": "A loyal guard dog.",
+      "imageUrl": "https://picsum.photos/seed/guard_dog/300/400",
+      "imageHint": "guard dog"
+    },
+    {
+      "id": "giant_rat",
+      "description": "An unusually large rat.",
+      "imageUrl": "https://picsum.photos/seed/giant_rat/300/400",
+      "imageHint": "giant rat"
+    },
+    {
+      "id": "fragile_skeleton",
+      "description": "A reanimated but fragile skeleton.",
+      "imageUrl": "https://picsum.photos/seed/fragile_skeleton/300/400",
+      "imageHint": "fragile skeleton"
+    },
+    {
+      "id": "minor_spirit",
+      "description": "A weak ectoplasmic entity.",
+      "imageUrl": "https://picsum.photos/seed/minor_spirit/300/400",
+      "imageHint": "minor spirit"
+    },
+    {
+      "id": "brave_peasant",
+      "description": "A peasant taking up arms.",
+      "imageUrl": "https://picsum.photos/seed/brave_peasant/300/400",
+      "imageHint": "brave peasant"
+    },
+    {
+      "id": "wandering_monk",
+      "description": "A disciplined wandering monk.",
+      "imageUrl": "https://picsum.photos/seed/wandering_monk/300/400",
+      "imageHint": "wandering monk"
+    },
+    {
+      "id": "cave_bat",
+      "description": "A bat from a dark cave.",
+      "imageUrl": "https://picsum.photos/seed/cave_bat/300/400",
+      "imageHint": "cave bat"
+    },
+    {
+      "id": "desert_lizard",
+      "description": "A lizard adapted to the desert.",
+      "imageUrl": "https://picsum.photos/seed/desert_lizard/300/400",
+      "imageHint": "desert lizard"
+    },
+    {
+      "id": "ice_fish",
+      "description": "A fish made of ice.",
+      "imageUrl": "https://picsum.photos/seed/ice_fish/300/400",
+      "imageHint": "ice fish"
+    },
+    {
+      "id": "black_raven",
+      "description": "A dark omen in the sky.",
+      "imageUrl": "https://picsum.photos/seed/black_raven/300/400",
+      "imageHint": "black raven"
+    },
+    {
+      "id": "barbarian_orc",
+      "description": "A brutish orc barbarian.",
+      "imageUrl": "https://picsum.photos/seed/barbarian_orc/300/400",
+      "imageHint": "barbarian orc"
+    },
+    {
+      "id": "sylvan_archer",
+      "description": "An experienced sylvan archer.",
+      "imageUrl": "https://picsum.photos/seed/sylvan_archer/300/400",
+      "imageHint": "sylvan archer"
     }
   ]
 }

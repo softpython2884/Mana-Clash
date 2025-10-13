@@ -1,3 +1,4 @@
+'use client';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import type { Card, CardType, BiomeType } from '@/lib/types';
 
@@ -33,6 +34,21 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
   // Creatures - Common
   createCard('goblin', 'Gobelin Féroce', 'Creature', 1, "Une petite créature vicieuse.", { attack: 2, health: 1, armor: 0, criticalHitChance: 10, preferredBiome: 'Mountain', rarity: 'Common', element: 'Fire' }),
   createCard('elf', 'Elfe Archer', 'Creature', 2, "Tire des flèches précises.", { attack: 3, health: 1, armor: 1, criticalHitChance: 15, preferredBiome: 'Forest', rarity: 'Common', element: 'Earth' }),
+  createCard('wild_wolf', 'Loup Sauvage', 'Creature', 2, "Rapide et mortel, il chasse en meute.", { attack: 3, health: 2, armor: 0, rarity: 'Common', preferredBiome: 'Forest', element: 'Neutral' }),
+  createCard('human_soldier', 'Soldat Humain', 'Creature', 2, "Entraîné et discipliné, un soldat fiable.", { attack: 2, health: 2, armor: 1, rarity: 'Common', preferredBiome: 'Sanctuary', element: 'Neutral' }),
+  createCard('swamp_serpent', 'Serpent des Marais', 'Creature', 1, "Attaque sournoisement depuis les eaux troubles.", { attack: 1, health: 2, armor: 0, rarity: 'Common', preferredBiome: 'Swamp', element: 'Water' }),
+  createCard('guard_dog', 'Chien de Garde', 'Creature', 2, "Loyal et protecteur.", { attack: 2, health: 3, armor: 0, rarity: 'Common', element: 'Neutral' }),
+  createCard('giant_rat', 'Rat Géant', 'Creature', 1, "Un nuisible plus gros et plus agressif que la normale.", { attack: 2, health: 1, armor: 0, rarity: 'Common', element: 'Shadow' }),
+  createCard('fragile_skeleton', 'Squelette Fragile', 'Creature', 1, "Se brise facilement, mais continue de se battre.", { attack: 1, health: 1, armor: 0, rarity: 'Common', element: 'Shadow' }),
+  createCard('minor_spirit', 'Esprit Mineur', 'Creature', 1, "Une faible entité ectoplasmique.", { attack: 1, health: 2, armor: 0, rarity: 'Common', element: 'Shadow' }),
+  createCard('brave_peasant', 'Paysan Courageux', 'Creature', 1, "N'a pas grand-chose, mais défend sa terre.", { attack: 1, health: 1, armor: 0, rarity: 'Common', element: 'Neutral' }),
+  createCard('wandering_monk', 'Moine Errant', 'Creature', 2, "Un combattant ascétique et discipliné.", { attack: 2, health: 2, armor: 1, rarity: 'Common', element: 'Light' }),
+  createCard('cave_bat', 'Chauve-Souris des Cavernes', 'Creature', 1, "Rapide et difficile à attraper.", { attack: 1, health: 1, armor: 0, rarity: 'Common', element: 'Air' }),
+  createCard('desert_lizard', 'Lézard du Désert', 'Creature', 2, "Adapté à la chaleur extrême.", { attack: 3, health: 1, armor: 0, rarity: 'Common', preferredBiome: 'Desert', element: 'Fire' }),
+  createCard('ice_fish', 'Poisson-Glace', 'Creature', 2, "Étrangement capable de survivre hors de l'eau glacée.", { attack: 2, health: 2, armor: 0, rarity: 'Common', preferredBiome: 'Ice', element: 'Water' }),
+  createCard('black_raven', 'Corbeau Noir', 'Creature', 1, "Un sombre présage qui vole dans le ciel.", { attack: 1, health: 1, armor: 0, rarity: 'Common', element: 'Air' }),
+  createCard('barbarian_orc', 'Orque Barbare', 'Creature', 3, "Brute épaisse qui frappe fort.", { attack: 4, health: 3, armor: 0, rarity: 'Common', preferredBiome: 'Mountain', element: 'Fire' }),
+  createCard('sylvan_archer', 'Archère Sylvestre', 'Creature', 3, "Une archère elfe encore plus expérimentée.", { attack: 3, health: 2, armor: 1, rarity: 'Common', preferredBiome: 'Forest', element: 'Earth' }),
   
   // Creatures - Rare
   createCard('knight', 'Chevalier Vaillant', 'Creature', 3, "Compétence: Peut forcer un adversaire à l'attaquer.", { attack: 2, health: 2, armor: 3, criticalHitChance: 5, preferredBiome: 'Sanctuary', skill: { type: 'taunt', used: false, cooldown: 3 }, rarity: 'Rare', element: 'Light' }),
@@ -119,18 +135,34 @@ export const createDeck = (): Card[] => {
   };
 
   // Player/Opponent Deck Composition
-  addCards('goblin', 3);
-  addCards('elf', 3);
-  addCards('elemental_fire', 2);
-  addCards('elemental_water', 2);
-  addCards('elemental_earth', 3);
+  addCards('goblin', 2);
+  addCards('elf', 2);
+  addCards('wild_wolf', 2);
+  addCards('human_soldier', 2);
+  addCards('swamp_serpent', 2);
+  addCards('guard_dog', 1);
+  addCards('giant_rat', 2);
+  addCards('fragile_skeleton', 2);
+  addCards('minor_spirit', 1);
+  addCards('brave_peasant', 1);
+  addCards('wandering_monk', 1);
+  addCards('cave_bat', 2);
+  addCards('desert_lizard', 2);
+  addCards('ice_fish', 1);
+  addCards('black_raven', 1);
+  addCards('barbarian_orc', 2);
+  addCards('sylvan_archer', 2);
 
-  addCards('knight', 2);
+  addCards('elemental_fire', 1);
+  addCards('elemental_water', 1);
+  addCards('elemental_earth', 2);
+
+  addCards('knight', 1);
   addCards('cleric', 2);
-  addCards('sage', 2);
-  addCards('vampire', 2);
-  addCards('fallen_shaman', 2);
-  addCards('knowledge_priest', 3);
+  addCards('sage', 1);
+  addCards('vampire', 1);
+  addCards('fallen_shaman', 1);
+  addCards('knowledge_priest', 2);
   
   addCards('golem', 1);
   addCards('griffon', 1);
@@ -138,26 +170,26 @@ export const createDeck = (): Card[] => {
   
   addCards('hydra', 1);
   
-  addCards('health_potion', 2);
-  addCards('mana_potion', 2);
-  addCards('berserk_rage', 2);
-  addCards('stoneskin', 2);
-  addCards('lightning_bolt', 2);
-  addCards('frostbolt', 3);
-  addCards('shadow_bolt', 2);
-  addCards('healing_light', 2);
-  addCards('giant_growth', 2);
+  addCards('health_potion', 1);
+  addCards('mana_potion', 1);
+  addCards('berserk_rage', 1);
+  addCards('stoneskin', 1);
+  addCards('lightning_bolt', 1);
+  addCards('frostbolt', 2);
+  addCards('shadow_bolt', 1);
+  addCards('healing_light', 1);
+  addCards('giant_growth', 1);
 
-  addCards('strength_enchantment', 2);
+  addCards('strength_enchantment', 1);
   addCards('kings_blessing', 1);
   addCards('defense_totem', 1);
   
-  addCards('forest_land', 5);
-  addCards('mountain_land', 5);
-  addCards('swamp_land', 5);
+  addCards('forest_land', 4);
+  addCards('mountain_land', 4);
+  addCards('swamp_land', 4);
 
-  addCards('forest_biome', 2);
-  addCards('ice_biome', 2);
+  addCards('forest_biome', 1);
+  addCards('ice_biome', 1);
 
 
   // Shuffle deck
