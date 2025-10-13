@@ -1154,7 +1154,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const nextTurnNumber = nextPlayerKey === 'player' ? stateWithClearedFlags.turn + 1 : stateWithClearedFlags.turn;
       
       const intermediateState = {...stateWithClearedFlags, [currentPlayerKey]: currentPlayer, log: currentLog };
-      const { [nextPlayerKey]: drawnPlayer, log: drawLog } = gameReducer(intermediateState, { type: 'DRAW_CARD', player: nextPlayerKey, count: 1 });
+      
+      let { [nextPlayerKey]: drawnPlayer } = gameReducer(intermediateState, { type: 'DRAW_CARD', player: nextPlayerKey, count: 1 });
 
       let nextPlayer = {...drawnPlayer};
       nextPlayer.maxMana = Math.min(10, nextPlayer.maxMana + 1);
@@ -1171,7 +1172,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         spellBeingCast: null,
         [currentPlayerKey]: currentPlayer,
         [nextPlayerKey]: nextPlayer,
-        log: [...drawLog, { type: 'phase', turn: nextTurnNumber, message: `Début du tour de ${nextPlayerKey === 'player' ? 'Joueur' : "l'Adversaire"}.` }],
+        log: [...intermediateState.log, { type: 'phase', turn: nextTurnNumber, message: `Début du tour de ${nextPlayerKey === 'player' ? 'Joueur' : "l'Adversaire"}.` }],
         isThinking: nextPlayerKey === 'opponent',
       };
       
