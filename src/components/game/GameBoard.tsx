@@ -249,7 +249,7 @@ export default function GameBoard() {
               </div>
           </div>
         </div>
-        <div className="min-h-[184px] sm:min-h-[224px] md:min-h-[268px] bg-black/20 rounded-xl p-2 flex items-center justify-center gap-2 backdrop-blur-sm shadow-inner overflow-x-auto">
+        <div className="min-h-[184px] sm:min-h-[224px] md:min-h-[268px] bg-black/20 rounded-xl p-2 flex items-center justify-center gap-2 backdrop-blur-sm shadow-inner overflow-x-hidden">
           {MemoizedOpponentBattlefield}
         </div>
 
@@ -311,7 +311,7 @@ export default function GameBoard() {
         </div>
 
         {/* Player Area */}
-        <div className="min-h-[184px] sm:min-h-[224px] md:min-h-[268px] bg-black/20 rounded-xl p-2 flex items-center justify-center gap-2 backdrop-blur-sm shadow-inner overflow-x-auto">
+        <div className="min-h-[184px] sm:min-h-[224px] md:min-h-[268px] bg-black/20 rounded-xl p-2 flex items-center justify-center gap-2 backdrop-blur-sm shadow-inner overflow-x-hidden">
           {MemoizedPlayerBattlefield}
         </div>
         <div className="flex justify-between items-end">
@@ -350,5 +350,3 @@ export default function GameBoard() {
     </div>
   );
 }
-
-    
