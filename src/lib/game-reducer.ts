@@ -449,17 +449,31 @@ const opponentAI = (state: GameState): GameState => {
 
     // 5. Play creatures/artifacts/enchantments to establish board presence
     if (opponent.battlefield.length < MAX_BATTLEFIELD_SIZE) {
-      const playableCards = opponent.hand
-        .filter(c => (c.type === 'Creature' || c.type === 'Artifact' || c.type === 'Enchantment') && c.manaCost <= opponent.mana)
-        .sort((a, b) => b.manaCost - a.manaCost); 
-
-      if (playableCards.length > 0) {
-        if(applyAction({ type: 'PLAY_CARD', cardId: playableCards[0].id })) {
-          actionFound = true;
-          actionsTaken++;
-          continue;
+        const hasCreatures = opponent.battlefield.some(c => c.type === 'Creature');
+        const playableCards = opponent.hand
+            .filter(c => {
+                if (c.manaCost > opponent.mana) return false;
+                // Don't play an enchantment if there are no creatures on the board
+                if (c.type === 'Enchantment' && !hasCreatures) return false;
+                return c.type === 'Creature' || c.type === 'Artifact' || c.type === 'Enchantment';
+            })
+            .sort((a, b) => {
+                // Prioritize creatures if the board is empty
+                if (!hasCreatures) {
+                    if (a.type === 'Creature' && b.type !== 'Creature') return -1;
+                    if (a.type !== 'Creature' && b.type === 'Creature') return 1;
+                }
+                // Otherwise, play the highest mana cost card
+                return b.manaCost - a.manaCost;
+            });
+    
+        if (playableCards.length > 0) {
+            if (applyAction({ type: 'PLAY_CARD', cardId: playableCards[0].id })) {
+                actionFound = true;
+                actionsTaken++;
+                continue;
+            }
         }
-      }
     }
 
     // If no action was found in this loop, break to avoid infinite loop
@@ -1357,7 +1371,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       // AI auto-focus draw
       if (currentPlayerKey === 'opponent' && currentPlayer.hand.length <= 2) {
           currentPlayer.focusDrawNextTurn = true;
-          currentLog.push({ type: 'skill', turn: stateWithClearedFlags.turn, message: "L'adversaire se concentre pour sa prochaine pioche.", target: 'opponent' });
+          currentLog.push({ type: 'skill', turn: stateWithClearedFlags.turn, message: "L'adversaire se concentre for sa prochaine pioche.", target: 'opponent' });
       }
 
       let artifactsToRemove: string[] = [];
