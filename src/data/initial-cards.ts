@@ -71,12 +71,16 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
   // Creatures - Epic
   createCard('dragon', 'Jeune Dragon', 'Creature', 5, "Un souffle de feu dévastateur.", { attack: 5, health: 4, armor: 3, criticalHitChance: 20, preferredBiome: 'Volcano', rarity: 'Epic', element: 'Fire' }),
   createCard('golem', 'Golem de Pierre', 'Creature', 6, "Une masse de roche animée, lente mais résistante.", { attack: 3, health: 8, armor: 4, criticalHitChance: 0, preferredBiome: 'Mountain', taunt: true, rarity: 'Epic', element: 'Earth' }),
-  createCard('griffon', 'Griffon majestueux', 'Creature', 5, "Une bête ailée rapide et puissante.", { attack: 4, health: 4, armor: 2, criticalHitChance: 15, preferredBiome: 'Mountain', rarity: 'Epic', element: 'Air' }),
+  createCard('griffon', 'Griffon Majestueux', 'Creature', 5, "Une bête ailée rapide et puissante.", { attack: 4, health: 4, armor: 2, criticalHitChance: 15, preferredBiome: 'Mountain', rarity: 'Epic', element: 'Air' }),
   createCard('minotaur', 'Minotaure Enragé', 'Creature', 6, "Charge furieusement ses ennemis.", { attack: 6, health: 5, armor: 3, criticalHitChance: 25, preferredBiome: 'Mountain', rarity: 'Epic', element: 'Earth' }),
+  createCard('ruin_specter', 'Spectre des Ruines', 'Creature', 5, "Hante les lieux oubliés, aspirant la vie.", { attack: 5, health: 4, armor: 1, rarity: 'Epic', element: 'Shadow' }),
+  createCard('ancestral_basilisk', 'Basilic Ancestral', 'Creature', 7, "Son regard pétrifie les plus courageux.", { attack: 5, health: 7, armor: 5, rarity: 'Epic', element: 'Earth' }),
   
   // Creatures - Legendary
-  createCard('hydra', 'Hydre des marais', 'Creature', 7, "Une créature terrifiante à plusieurs têtes.", { attack: 6, health: 8, armor: 3, criticalHitChance: 10, preferredBiome: 'Swamp', rarity: 'Legendary', element: 'Shadow' }),
+  createCard('hydra', 'Hydre des Marais', 'Creature', 7, "Une créature terrifiante à plusieurs têtes.", { attack: 6, health: 8, armor: 3, criticalHitChance: 10, preferredBiome: 'Swamp', rarity: 'Legendary', element: 'Shadow' }),
   createCard('phoenix', 'Phénix Immortel', 'Creature', 8, "Renaît de ses cendres une fois par partie.", { attack: 5, health: 5, armor: 2, criticalHitChance: 30, preferredBiome: 'Volcano', rarity: 'Legendary', element: 'Fire' }), // Need to implement rebirth skill
+  createCard('archmage_elements', 'Archimage des Éléments', 'Creature', 9, "Maîtrise absolue sur le feu, l'eau et la terre.", { attack: 7, health: 7, armor: 4, rarity: 'Legendary', element: 'Neutral' }),
+  createCard('abyss_lord', 'Seigneur des Abysses', 'Creature', 10, "Une puissance destructrice venue des profondeurs.", { attack: 10, health: 10, armor: 5, rarity: 'Legendary', element: 'Shadow' }),
 
   // Special Summon Creatures (Combos)
   createCard('berlin_wall', 'Mur de Berlin', 'SpecialSummon', 0, "Provocation. Solide comme le roc, mais en béton.", { attack: 2, health: 15, armor: 8, taunt: true, rarity: 'Epic', element: 'Neutral' }),
@@ -179,17 +183,21 @@ export const createDeck = (): Card[] => {
   addCards('griffon', 1);
   addCards('dragon', 1);
   addCards('minotaur', 1);
+  addCards('ruin_specter', 1);
+  addCards('ancestral_basilisk', 1);
   
   // Legendaries
   addCards('hydra', 1);
   addCards('phoenix', 1);
+  addCards('archmage_elements', 1);
+  addCards('abyss_lord', 1);
   
   // Spells, Potions, etc.
   addCards('health_potion', 1);
   addCards('mana_potion', 1);
   addCards('berserk_rage', 1);
   addCards('stoneskin', 1);
-  add_cards('lightning_bolt', 1);
+  addCards('lightning_bolt', 1);
   addCards('frostbolt', 2);
   addCards('shadow_bolt', 1);
   addCards('healing_light', 1);
