@@ -199,23 +199,24 @@ const resolveDamage = (attacker: Card, defender: Card | Player, log: GameState['
         newLog.push({ type: 'damage', turn, message: `${newDefender.id === 'player' ? 'Joueur' : 'Adversaire'} subit ${damageDealt} dégâts. PV restants: ${newDefender.hp}`, target: newDefender.id });
     } else { // It's a card
         const totalArmor = (newDefender.armor || 0) + (newDefender.buffs?.filter(b => b.type === 'armor').reduce((acc, b) => acc + b.value, 0) || 0);
+        const defenderOwnerKey = newDefender.id.includes('player') ? 'player' : 'opponent';
 
         if (isCritical) {
             newLog.push({ type: 'combat', turn, message: `💥 Coup critique ! L'armure de ${newDefender.name} est ignorée.` });
             newDefender.health = (newDefender.health || 0) - damageDealt;
-            newLog.push({ type: 'damage', turn, message: `${newDefender.name} subit ${damageDealt} dégâts directs. PV restants: ${newDefender.health}` });
+            newLog.push({ type: 'damage', turn, message: `${newDefender.name} subit ${damageDealt} dégâts directs. PV restants: ${newDefender.health}`, target: defenderOwnerKey });
         } else {
             const damageAfterArmor = Math.max(0, damageDealt - totalArmor);
             const absorbedDamage = damageDealt - damageAfterArmor;
 
             if (absorbedDamage > 0) {
                 newDefender.armor = Math.max(0, totalArmor - damageDealt);
-                newLog.push({ type: 'combat', turn, message: `${newDefender.name} absorbe ${absorbedDamage} dégâts. Armure restante: ${newDefender.armor}` });
+                newLog.push({ type: 'combat', turn, message: `${newDefender.name} absorbe ${absorbedDamage} dégâts. Armure restante: ${newDefender.armor}`, target: defenderOwnerKey });
             }
             
             if (damageAfterArmor > 0) {
                 newDefender.health = (newDefender.health || 0) - damageAfterArmor;
-                newLog.push({ type: 'damage', turn, message: `${newDefender.name} subit ${damageAfterArmor} dégâts. PV restants: ${newDefender.health}` });
+                newLog.push({ type: 'damage', turn, message: `${newDefender.name} subit ${damageAfterArmor} dégâts. PV restants: ${newDefender.health}`, target: defenderOwnerKey });
             }
         }
     }
@@ -436,7 +437,7 @@ const opponentAI = (state: GameState): GameState => {
               // Riposte
               const finalDefenderState = combatPlayer.battlefield.find(c => c.id === targetId);
               if (finalDefenderState && (finalDefenderState.health || 0) > 0 && !finalDefenderState.tapped) {
-                 combatLog.push({ type: 'combat', turn, message: `${finalDefenderState.name} riposte !` });
+                 combatLog.push({ type: 'combat', turn, message: `${finalDefenderState.name} riposte !`, target: 'opponent' });
                  const riposteResult = resolveDamage(finalDefenderState, combatResult.attacker, combatLog, combatState.turn, combatPlayer);
                  combatOpponent.battlefield = combatOpponent.battlefield.map(c => c.id === attacker.id ? riposteResult.defender as Card : c);
                  combatPlayer = riposteResult.attackerOwner as Player;
@@ -490,7 +491,7 @@ const resolvePlayerCombat = (state: GameState): GameState => {
         let newAttacker = { ...attackerCard };
         let newDefender = { ...defenderCard };
 
-        finalLog.push({ type: 'combat', turn: turn, message: `Joueur: ${newAttacker.name} attaque ${newDefender.name}.` });
+        finalLog.push({ type: 'combat', turn: turn, message: `Joueur: ${newAttacker.name} attaque ${newDefender.name}.`, target: 'player' });
 
         // --- Perform Combat ---
         const combatResult = resolveDamage(newAttacker, newDefender, finalLog, turn, finalPlayer);
@@ -502,7 +503,7 @@ const resolvePlayerCombat = (state: GameState): GameState => {
         
         // --- Riposte (Retaliation) ---
         if ((newDefender.health || 0) > 0) {
-            finalLog.push({ type: 'combat', turn: turn, message: `${newDefender.name} riposte !` });
+            finalLog.push({ type: 'combat', turn: turn, message: `${newDefender.name} riposte !`, target: 'player' });
             let riposteResult = resolveDamage(newDefender, newAttacker, finalLog, turn, finalOpponent);
             newAttacker = riposteResult.defender as Card;
             newDefender = riposteResult.attacker;
@@ -792,7 +793,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         switch(cardToUpdate.skill?.type) {
             case 'taunt':
                 cardToUpdate.taunt = true;
-                logEntry = { type: 'skill', turn: stateWithClearedFlags.turn, message: `${activePlayerKey === 'player' ? 'Joueur' : 'Adversaire'} active la compétence Provocation de ${cardToUpdate.name}!` };
+                logEntry = { type: 'skill', turn: stateWithClearedFlags.turn, message: `${activePlayerKey === 'player' ? 'Joueur' : 'Adversaire'} active la compétence Provocation de ${cardToUpdate.name}!`, target: activePlayerKey };
                 break;
             case 'draw':
                 const { player: drawnPlayer, drawnCard } = drawCardsWithBiomeAffinity(player, 1, stateWithClearedFlags.activeBiome);
@@ -1042,37 +1043,37 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       switch (spellOrSkillCaster.skill?.type) {
         case 'damage':
           targetCard.health = (targetCard.health || 0) - (spellOrSkillCaster.skill.value || 0);
-          log.push({ type: 'damage', turn, message: `${targetCard.name} subit ${spellOrSkillCaster.skill.value} dégâts. PV restants: ${targetCard.health}` });
+          log.push({ type: 'damage', turn, message: `${targetCard.name} subit ${spellOrSkillCaster.skill.value} dégâts. PV restants: ${targetCard.health}`, target: targetOwnerKey });
           break;
         case 'damage_and_heal':
             targetCard.health = (targetCard.health || 0) - (spellOrSkillCaster.skill.value || 0);
             activePlayerObject.hp = Math.min(20, activePlayerObject.hp + (spellOrSkillCaster.skill.heal || 0));
-            log.push({ type: 'damage', turn, message: `${targetCard.name} subit ${spellOrSkillCaster.skill.value} dégâts. PV restants: ${targetCard.health}` });
+            log.push({ type: 'damage', turn, message: `${targetCard.name} subit ${spellOrSkillCaster.skill.value} dégâts. PV restants: ${targetCard.health}`, target: targetOwnerKey });
             log.push({ type: 'heal', turn, message: `${ownerName} se soigne de ${spellOrSkillCaster.skill.heal} PV.`, target: activePlayerKey });
             break;
         case 'buff_attack':
           targetCard.buffs.push({ type: 'attack', value: spellOrSkillCaster.skill.value || 0, duration: spellOrSkillCaster.skill.duration || Infinity, source: 'spell' });
-          log.push({ type: 'buff', turn, message: `${targetCard.name} gagne +${spellOrSkillCaster.skill.value} en attaque.` });
+          log.push({ type: 'buff', turn, message: `${targetCard.name} gagne +${spellOrSkillCaster.skill.value} en attaque.`, target: targetOwnerKey });
           break;
         case 'buff_armor':
           targetCard.buffs.push({ type: 'armor', value: spellOrSkillCaster.skill.value || 0, duration: spellOrSkillCaster.skill.duration || Infinity, source: 'spell' });
-          log.push({ type: 'buff', turn, message: `${targetCard.name} gagne +${spellOrSkillCaster.skill.value} en armure.` });
+          log.push({ type: 'buff', turn, message: `${targetCard.name} gagne +${spellOrSkillCaster.skill.value} en armure.`, target: targetOwnerKey });
           break;
         case 'buff_attack_and_armor':
             targetCard.buffs.push({ type: 'attack', value: spellOrSkillCaster.skill.attack || 0, duration: spellOrSkillCaster.skill.duration || Infinity, source: 'spell' });
             targetCard.buffs.push({ type: 'armor', value: spellOrSkillCaster.skill.armor || 0, duration: spellOrSkillCaster.skill.duration || Infinity, source: 'spell' });
-            log.push({ type: 'buff', turn, message: `${targetCard.name} gagne +${spellOrSkillCaster.skill.attack} en attaque et +${spellOrSkillCaster.skill.armor} en armure.` });
+            log.push({ type: 'buff', turn, message: `${targetCard.name} gagne +${spellOrSkillCaster.skill.attack} en attaque et +${spellOrSkillCaster.skill.armor} en armure.`, target: targetOwnerKey });
             break;
         case 'heal':
           targetCard.health = Math.min(targetCard.initialHealth || 0, (targetCard.health || 0) + (spellOrSkillCaster.skill.value || 0));
-          log.push({ type: 'heal', turn, message: `${spellOrSkillCaster.name} soigne ${targetCard.name} de ${spellOrSkillCaster.skill.value} PV.` });
+          log.push({ type: 'heal', turn, message: `${spellOrSkillCaster.name} soigne ${targetCard.name} de ${spellOrSkillCaster.skill.value} PV.`, target: targetOwnerKey });
           break;
         case 'sacrifice':
              const sacrificedCard = stateWithClearedFlags[activePlayerKey].battlefield.find(c => c.id === spellOrSkillCaster.id);
             if (sacrificedCard && sacrificedCard.health) {
                 const healAmount = Math.floor(sacrificedCard.health * 0.75);
                 targetCard.health = Math.min(targetCard.initialHealth!, (targetCard.health || 0) + healAmount);
-                log.push({ type: 'heal', turn, message: `${sacrificedCard.name} est sacrifié et soigne ${targetCard.name} de ${healAmount} PV.` });
+                log.push({ type: 'heal', turn, message: `${sacrificedCard.name} est sacrifié et soigne ${targetCard.name} de ${healAmount} PV.`, target: targetOwnerKey });
 
                 if (activePlayerKey === 'player') {
                     player.battlefield = player.battlefield.filter(c => c.id !== sacrificedCard.id);
@@ -1125,11 +1126,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         }
       }
     
-      const updateField = (p: Player, owner: string): Player => {
+      const updateField = (p: Player, ownerKey: 'player' | 'opponent'): Player => {
         let graveyard = [...p.graveyard];
         const remainingCreatures = p.battlefield.filter(c => {
           if ((c.health || 0) <= 0) {
-            log.push({ type: 'destroy', turn, message: `${c.name} (${owner}) est détruit.` });
+            log.push({ type: 'destroy', turn, message: `${c.name} est détruit.`, target: ownerKey });
             graveyard.push({ ...c, health: c.initialHealth, buffs: [] });
             return false;
           }
@@ -1138,8 +1139,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         return { ...p, battlefield: remainingCreatures, graveyard };
       };
     
-      opponent = updateField(opponent, "Adversaire");
-      player = updateField(player, "Joueur");
+      opponent = updateField(opponent, "opponent");
+      player = updateField(player, "player");
     
       return {
         ...stateWithClearedFlags,
