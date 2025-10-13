@@ -530,6 +530,23 @@ const resolvePlayerCombat = (state: GameState): GameState => {
     };
 }
 
+type FusionRecipe = {
+  result: string;
+  components: string[];
+};
+
+const fusions: FusionRecipe[] = [
+    { result: 'berlin_wall', components: ['elemental_earth', 'elemental_earth', 'elemental_earth'] },
+    { result: 'china_wall', components: ['berlin_wall', 'berlin_wall'] },
+    { result: 'iron_colossus', components: ['golem', 'minotaur'] },
+    { result: 'ancient_dragon', components: ['dragon', 'phoenix'] },
+    { result: 'elemental_avatar', components: ['elemental_fire', 'elemental_water', 'elemental_earth'] },
+    { result: 'supreme_shadow', components: ['vampire', 'ruin_specter'] },
+    { result: 'world_tree', components: ['oak_druid', 'elemental_earth'] },
+    { result: 'judgment_angel', components: ['cleric', 'archmage_elements'] },
+    { result: 'stone_titan', components: ['golem', 'berlin_wall'] },
+    { result: 'chimera', components: ['griffon', 'ancestral_basilisk'] },
+];
 
 const checkForCombos = (state: GameState): GameState => {
     let player = { ...state.player };
@@ -539,53 +556,46 @@ const checkForCombos = (state: GameState): GameState => {
     const activePlayerKey = state.activePlayer;
     let activePlayerObject = activePlayerKey === 'player' ? player : opponent;
 
-    const elementalEarthCards = activePlayerObject.battlefield.filter(c => c.id.startsWith('elemental_earth'));
-    if (elementalEarthCards.length >= 3) {
-        log.push({ type: 'spell', turn, message: `Trois Élémentaires de Terre fusionnent !` });
-        
-        const idsToRemove = elementalEarthCards.slice(0, 3).map(c => c.id);
-        activePlayerObject.battlefield = activePlayerObject.battlefield.filter(c => !idsToRemove.includes(c.id));
-        activePlayerObject.graveyard.push(...elementalEarthCards.slice(0, 3).map(c => ({...c, health: c.initialHealth, buffs: []})));
+    for (const fusion of fusions) {
+        const battlefieldCardIds = activePlayerObject.battlefield.map(c => c.id.split('-')[0]);
+        let tempBattlefield = [...activePlayerObject.battlefield];
+        let canFuse = true;
+        let componentsToFuse: Card[] = [];
 
-        const berlinWallTemplate = allCards.find(c => c.id === 'berlin_wall');
-        if (berlinWallTemplate) {
-            const newCard: Card = {
-                ...berlinWallTemplate,
-                id: `berlin_wall-${Math.random().toString(36).substring(7)}`,
-                health: berlinWallTemplate.initialHealth,
-                tapped: false,
-                isAttacking: false,
-                canAttack: false,
-                summoningSickness: true,
-                buffs: [],
-            };
-            activePlayerObject.battlefield.push(newCard);
-            log.push({ type: 'play', turn, message: `Le Mur de Berlin est érigé !` });
+        for (const componentId of fusion.components) {
+            const index = tempBattlefield.findIndex(c => c.id.startsWith(componentId));
+            if (index !== -1) {
+                componentsToFuse.push(tempBattlefield[index]);
+                tempBattlefield.splice(index, 1);
+            } else {
+                canFuse = false;
+                break;
+            }
         }
-    }
-    
-    const berlinWallCards = activePlayerObject.battlefield.filter(c => c.id.startsWith('berlin_wall'));
-    if (berlinWallCards.length >= 2) {
-        log.push({ type: 'spell', turn, message: `Deux Murs de Berlin fusionnent !` });
-        
-        const idsToRemove = berlinWallCards.slice(0, 2).map(c => c.id);
-        activePlayerObject.battlefield = activePlayerObject.battlefield.filter(c => !idsToRemove.includes(c.id));
-        activePlayerObject.graveyard.push(...berlinWallCards.slice(0, 2).map(c => ({...c, health: c.initialHealth, buffs: []})));
 
-        const chinaWallTemplate = allCards.find(c => c.id === 'china_wall');
-        if (chinaWallTemplate) {
-            const newCard: Card = {
-                ...chinaWallTemplate,
-                id: `china_wall-${Math.random().toString(36).substring(7)}`,
-                health: chinaWallTemplate.initialHealth,
-                tapped: false,
-                isAttacking: false,
-                canAttack: false,
-                summoningSickness: true,
-                buffs: [],
-            };
-            activePlayerObject.battlefield.push(newCard);
-            log.push({ type: 'play', turn, message: `La Muraille de Chine est construite !` });
+        if (canFuse) {
+            log.push({ type: 'spell', turn, message: `${componentsToFuse.map(c => c.name).join(' et ')} fusionnent !` });
+
+            const idsToRemove = componentsToFuse.map(c => c.id);
+            activePlayerObject.battlefield = activePlayerObject.battlefield.filter(c => !idsToRemove.includes(c.id));
+            activePlayerObject.graveyard.push(...componentsToFuse.map(c => ({ ...c, health: c.initialHealth, buffs: [] })));
+
+            const fusionResultTemplate = allCards.find(c => c.id === fusion.result);
+            if (fusionResultTemplate) {
+                const newCard: Card = {
+                    ...fusionResultTemplate,
+                    id: `${fusionResultTemplate.id}-${Math.random().toString(36).substring(7)}`,
+                    health: fusionResultTemplate.initialHealth,
+                    tapped: false,
+                    isAttacking: false,
+                    canAttack: false,
+                    summoningSickness: true,
+                    buffs: [],
+                    isEntering: true,
+                };
+                activePlayerObject.battlefield.push(newCard);
+                log.push({ type: 'play', turn, message: `L'entité ${newCard.name} est invoquée !` });
+            }
         }
     }
     
@@ -1317,3 +1327,5 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return stateWithClearedFlags;
   }
 }
+
+    

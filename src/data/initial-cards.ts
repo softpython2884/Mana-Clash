@@ -85,7 +85,15 @@ export const allCards: Omit<Card, 'tapped' | 'isAttacking' | 'canAttack' | 'summ
   // Special Summon Creatures (Combos)
   createCard('berlin_wall', 'Mur de Berlin', 'SpecialSummon', 0, "Provocation. Solide comme le roc, mais en béton.", { attack: 2, health: 15, armor: 8, taunt: true, rarity: 'Epic', element: 'Neutral' }),
   createCard('china_wall', 'Muraille de Chine', 'SpecialSummon', 0, "Provocation. Visible depuis l'espace, infranchissable sur terre.", { attack: 4, health: 30, armor: 10, taunt: true, rarity: 'Legendary', element: 'Neutral' }),
-
+  createCard('iron_colossus', 'Colosse de Fer', 'SpecialSummon', 0, "Fusion de Golem et Minotaure. Une force inarrêtable.", { attack: 8, health: 12, armor: 6, taunt: true, rarity: 'Legendary', element: 'Earth' }),
+  createCard('ancient_dragon', 'Dragon Ancien', 'SpecialSummon', 0, "Fusion de Dragon et Phénix. La renaissance du feu.", { attack: 9, health: 9, armor: 5, criticalHitChance: 25, rarity: 'Legendary', element: 'Fire' }),
+  createCard('elemental_avatar', 'Avatar Élémentaire', 'SpecialSummon', 0, "Fusion des trois élémentaires. L'équilibre des puissances.", { attack: 7, health: 15, armor: 7, rarity: 'Legendary', element: 'Neutral' }),
+  createCard('supreme_shadow', 'Ombre Suprême', 'SpecialSummon', 0, "Fusion de Vampire et Spectre. Maître de la non-vie.", { attack: 8, health: 8, armor: 3, skill: { type: 'lifesteal', used: false }, rarity: 'Legendary', element: 'Shadow' }),
+  createCard('world_tree', 'Arbre-Monde', 'SpecialSummon', 0, "Fusion de Druide et Élémentaire de Terre. La vie incarnée.", { attack: 5, health: 20, armor: 10, rarity: 'Legendary', element: 'Earth' }),
+  createCard('judgment_angel', 'Ange du Jugement', 'SpecialSummon', 0, "Fusion de Clerc et Archimage. La justice divine.", { attack: 10, health: 10, armor: 8, skill: { type: 'heal', value: 5, target: 'player', used: false, cooldown: 3 }, rarity: 'Legendary', element: 'Light' }),
+  createCard('stone_titan', 'Titan de Pierre', 'SpecialSummon', 0, "Fusion de Golem et Mur de Berlin. La défense absolue.", { attack: 6, health: 25, armor: 12, taunt: true, rarity: 'Legendary', element: 'Neutral' }),
+  createCard('chimera', 'Chimère', 'SpecialSummon', 0, "Fusion de Griffon et Basilic. Une monstruosité parfaite.", { attack: 9, health: 11, armor: 6, criticalHitChance: 15, rarity: 'Legendary', element: 'Neutral' }),
+  
   // Lands
   createCard('forest_land', 'Forêt', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),
   createCard('mountain_land', 'Montagne', 'Land', 0, "Joue cette carte pour augmenter ton mana maximum de 1."),
@@ -224,3 +232,5 @@ export const createDeck = (): Card[] => {
 
   return deck.slice(0, 70); // 70 card deck
 };
+
+    

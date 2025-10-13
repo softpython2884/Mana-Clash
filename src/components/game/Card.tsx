@@ -23,7 +23,7 @@ interface GameCardProps {
   isBeingAttacked?: boolean;
 }
 
-const biomeIcon: Record<BiomeType, React.ElementType> = {
+const biomeIcon: Record<string, React.ElementType> = {
     Forest: Trees,
     Mountain: Mountain,
     Ice: Snowflake,
@@ -46,7 +46,7 @@ const skillIcon: Record<string, React.ElementType> = {
 };
 
 
-const biomeColor: Record<BiomeType, string> = {
+const biomeColor: Record<string, string> = {
     Forest: 'border-biome-forest',
     Mountain: 'border-gray-500',
     Ice: 'border-biome-ice',
@@ -110,7 +110,7 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
           isAttacking && 'ring-4 ring-red-500 ring-offset-2 ring-offset-background shadow-lg shadow-red-500/50', // Red border for selected attacker
           isTargetable && 'cursor-pointer ring-4 ring-yellow-400 animate-pulse', // Highlight for potential targets
           onClick && "cursor-pointer",
-          type === 'Biome' && `border-4 ${borderClass}`,
+          type === 'Biome' && borderClass && `border-4 ${borderClass}`,
           taunt && 'shadow-lg shadow-blue-500/50 ring-2 ring-blue-500'
         )}
       >
@@ -217,3 +217,5 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
     </div>
   );
 }
+
+    
