@@ -5,7 +5,7 @@
  *
  * - generateCardIdeas - A function that generates card ideas based on a theme.
  * - GenerateCardIdeasInput - The input type for the generateCardIdeas function.
- * - GenerateCardIdeasOutput - The return type for the generateCardIdeas function.
+ * - GenerateCardIdeasOutput - The return type for the generateCardideas function.
  */
 
 import {ai} from '@/ai/genkit';
