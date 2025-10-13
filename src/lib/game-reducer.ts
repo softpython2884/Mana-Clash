@@ -24,6 +24,7 @@ export type GameAction =
   | { type: 'CHANGE_PHASE', phase: GamePhase }
   | { type: 'ACTIVATE_SKILL', cardId: string, targetId?: string }
   | { type: 'END_COMBAT_ANIMATION' }
+  | { type: 'END_SPELL_ANIMATION' }
   | { type: 'CLEAN_BATTLEFIELD' }
   | { type: 'PAUSE_GAME' }
   | { type: 'ACTIVATE_FOCUS_DRAW' };
@@ -176,6 +177,7 @@ export const getInitialState = (): GameState => {
     selectedDefenderId: null,
     spellBeingCast: null,
     combatAnimation: null,
+    spellAnimation: null,
   };
   
   return initialState;
@@ -222,6 +224,7 @@ const shuffleAndDeal = (state: GameState): Omit<GameState, 'gameId'> => {
         selectedDefenderId: null,
         spellBeingCast: null,
         combatAnimation: null,
+        spellAnimation: null,
     }
 }
 
@@ -249,7 +252,7 @@ const resolveDamage = (attacker: Card, defender: Card | Player, log: GameState['
         newLog.push({ type: 'damage', turn, message: `${newDefender.id === 'player' ? 'Joueur' : 'Adversaire'} subit ${damageDealt} dégâts. PV restants: ${newDefender.hp}`, target: newDefender.id });
     } else { // It's a card
         const totalArmor = (newDefender.armor || 0) + (newDefender.buffs?.filter(b => b.type === 'armor').reduce((acc, b) => acc + b.value, 0) || 0);
-        const defenderOwnerKey = newDefender.id.includes('player') ? 'player' : 'opponent';
+        const defenderOwnerKey = newDefender.id.includes('player-') ? 'player' : 'opponent';
 
         if (isCritical) {
             newLog.push({ type: 'combat', turn, message: `L'armure de ${newDefender.name} est ignorée.` });
@@ -330,7 +333,7 @@ const opponentAI = (state: GameState): GameState => {
       }
     }
     
-    // 2. BOARD PRESENCE: Play creatures if board is empty
+    // 2. BOARD PRESENCE: Play creatures if board is empty or weak
     const opponentCreaturesOnBoard = opponent.battlefield.filter(c => c.type === 'Creature').length;
     if (opponentCreaturesOnBoard < 2) {
         const creaturesInHand = opponent.hand
@@ -794,6 +797,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             combatAnimation: null
         }
     }
+    
+    case 'END_SPELL_ANIMATION': {
+        return {
+            ...state,
+            spellAnimation: null
+        }
+    }
 
     case 'CLEAN_BATTLEFIELD': {
         const clean = (p: Player, ownerKey: 'player' | 'opponent'): { player: Player, log: LogEntry[] } => {
@@ -1003,6 +1013,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (card.type === 'Biome') {
           return gameReducer(state, { type: 'CHANGE_BIOME', cardId: card.id, player: activePlayerKey });
       }
+       if (card.type === 'Enchantment' && !player.battlefield.some(c => c.type === 'Creature')) {
+        return { ...state, log: [...state.log, { type: 'info', turn: state.turn, message: "Vous devez avoir une créature pour jouer un enchantement." }]};
+      }
       
       const newHand = player.hand.filter((c: Card) => c.id !== card.id);
       const newMana = player.mana - card.manaCost;
@@ -1018,7 +1031,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         newPlayerState.maxMana = newPlayerState.maxMana + 1;
         newPlayerState.mana = newPlayerState.mana; // Mana from land is available next turn, but let's give it now
       } else if (card.type === 'Creature' || card.type === 'Artifact' || card.type === 'Enchantment') {
-        newPlayerState.battlefield = [...newPlayerState.battlefield, newCardState];
+        newPlayerState.battlefield.push(newCardState);
         
         let updatedPlayerWithEffects = { ...newPlayerState };
 
@@ -1276,7 +1289,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         log,
         phase: 'main',
         spellBeingCast: null,
-        selectedCardId: null
+        selectedCardId: null,
+        spellAnimation: { targetId }
       };
     }
 

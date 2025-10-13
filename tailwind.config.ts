@@ -141,6 +141,10 @@ export default {
             '50%': { transform: 'scale(1.1)', opacity: '1', filter: 'brightness(2)' },
             '100%': { transform: 'scale(0.5)', opacity: '0', filter: 'brightness(1)' },
         },
+        'spell-flash': {
+            '0%, 100%': { filter: 'brightness(1)' },
+            '50%': { filter: 'brightness(2.5) drop-shadow(0 0 10px hsl(var(--accent)))', opacity: '0.9' },
+        }
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -153,6 +157,7 @@ export default {
         'drop-in': 'drop-in 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards',
         'shake-quick': 'shake-quick 0.5s cubic-bezier(.36,.07,.19,.97) both',
         'flash-out': 'flash-out 1s ease-out forwards',
+        'spell-flash': 'spell-flash 0.5s ease-in-out',
       },
     },
   },

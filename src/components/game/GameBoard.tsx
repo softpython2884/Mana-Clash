@@ -17,11 +17,23 @@ export default function GameBoard() {
   const [isClient, setIsClient] = useState(false);
   const [leavingCards, setLeavingCards] = useState<string[]>([]);
   const [attackingCards, setAttackingCards] = useState<{ attackerId: string, defenderId: string | 'opponent' } | null>(null);
+  const [spellcastTarget, setSpellcastTarget] = useState<string | null>(null);
 
   useEffect(() => {
     setIsClient(true);
     dispatch({ type: 'INITIALIZE_GAME' });
   }, []);
+
+  useEffect(() => {
+    if (state.spellAnimation) {
+        setSpellcastTarget(state.spellAnimation.targetId);
+        const timer = setTimeout(() => {
+            setSpellcastTarget(null);
+            dispatch({ type: 'END_SPELL_ANIMATION' });
+        }, 500); // Duration of the flash animation
+        return () => clearTimeout(timer);
+    }
+  }, [state.spellAnimation]);
 
   useEffect(() => {
     if (state.combatAnimation) {
@@ -158,8 +170,9 @@ export default function GameBoard() {
           isEntering={card.isEntering}
           isLeaving={leavingCards.includes(card.id)}
           isBeingAttacked={attackingCards?.defenderId === card.id}
+          isBeingSpellcast={spellcastTarget === card.id}
       />
-  )), [player.battlefield, phase, selectedAttackerId, selectedCardId, spellBeingCast, leavingCards, attackingCards]);
+  )), [player.battlefield, phase, selectedAttackerId, selectedCardId, spellBeingCast, leavingCards, attackingCards, spellcastTarget]);
 
   const opponentHasTaunt = opponent.battlefield.some(c => c.taunt && !c.tapped);
   const opponentHasCreatures = opponent.battlefield.filter(c => c.type === 'Creature').length > 0;
@@ -197,9 +210,10 @@ export default function GameBoard() {
           isEntering={card.isEntering}
           isLeaving={leavingCards.includes(card.id)}
           isBeingAttacked={attackingCards?.defenderId === card.id}
+          isBeingSpellcast={spellcastTarget === card.id}
         />
     )
-  }), [opponent.battlefield, phase, selectedAttackerId, selectedDefenderId, opponentHasTaunt, spellBeingCast, attackerCard, leavingCards, attackingCards]);
+  }), [opponent.battlefield, phase, selectedAttackerId, selectedDefenderId, opponentHasTaunt, spellBeingCast, attackerCard, leavingCards, attackingCards, spellcastTarget]);
 
   if (!isClient || state.gameId === 0) {
     // Basic loading skeleton

@@ -21,6 +21,7 @@ interface GameCardProps {
   isEntering?: boolean; // To animate card entry
   isLeaving?: boolean; // To animate card leaving
   isBeingAttacked?: boolean;
+  isBeingSpellcast?: boolean;
 }
 
 const biomeIcon: Record<string, React.ElementType> = {
@@ -57,7 +58,7 @@ const biomeColor: Record<string, string> = {
 };
 
 
-export default function GameCard({ card, isPlayable = false, onClick, onSkillClick, inHand = false, isActiveBiome = false, isAttacking = false, isTargeted = false, isTargetable = false, isLethal = false, showSkill = false, isEntering = false, isLeaving = false, isBeingAttacked = false }: GameCardProps) {
+export default function GameCard({ card, isPlayable = false, onClick, onSkillClick, inHand = false, isActiveBiome = false, isAttacking = false, isTargeted = false, isTargetable = false, isLethal = false, showSkill = false, isEntering = false, isLeaving = false, isBeingAttacked = false, isBeingSpellcast = false }: GameCardProps) {
   const { name, manaCost, description, attack, health, armor, type, tapped, canAttack, criticalHitChance, preferredBiome, biome, taunt, buffs, duration, skillJustUsed } = card;
 
   const [showSkillFeedback, setShowSkillFeedback] = useState(false);
@@ -98,7 +99,8 @@ export default function GameCard({ card, isPlayable = false, onClick, onSkillCli
         isActiveBiome && 'ring-4 ring-white',
         isEntering && 'animate-drop-in',
         isLeaving && 'animate-flash-out',
-        isBeingAttacked && 'animate-shake-quick'
+        isBeingAttacked && 'animate-shake-quick',
+        isBeingSpellcast && 'animate-spell-flash'
       )}
       onClick={onClick}
     >
