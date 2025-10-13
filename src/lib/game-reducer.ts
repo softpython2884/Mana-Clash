@@ -207,207 +207,220 @@ const resolveDamage = (attacker: Card, defender: Card | Player, log: GameState['
 
 const opponentAI = (state: GameState): GameState => {
   let tempState = { ...state };
+
+  // --- Main Phase ---
+  // Create a mutable copy of players for the duration of the AI's turn planning
   let opponent = { ...tempState.opponent };
   let player = { ...tempState.player };
   let log = [...tempState.log];
   const turn = tempState.turn;
 
-  // --- Main Phase ---
-
-  // Decide whether to redraw hand (only on turn 1)
-  if (turn === 1 && !opponent.hasRedrawn) {
-      const handValue = opponent.hand.reduce((sum, card) => sum + (card.manaCost || 0), 0);
-      const highCostCards = opponent.hand.filter(c => c.manaCost > 4).length;
-      if (handValue > 20 || highCostCards > 2) {
-          log.push({ type: 'info', turn, message: 'Adversaire choisit de piocher une nouvelle main.' });
-          // This action will trigger a PASS_TURN with the redraw flag, so we can stop here.
-          return gameReducer(tempState, { type: 'REDRAW_HAND' });
-      }
-  }
-  
-  // Decide whether to meditate
-  if (opponent.hand.length < 2 && opponent.graveyard.length > 2 && opponent.mana < 4) {
-    log.push({ type: 'info', turn, message: 'Adversaire choisit de méditer.' });
-    // This action will trigger a PASS_TURN with the meditate flag, so we can stop here.
-    return gameReducer(tempState, { type: 'MEDITATE' });
-  }
+  // Function to apply an action and update the temporary state
+  const applyAction = (action: GameAction): boolean => {
+    const newState = gameReducer({ ...tempState, opponent, player, log }, action);
+    if (newState.log.length > log.length) { // Check if the action was successful
+        opponent = newState.opponent;
+        player = newState.player;
+        log = newState.log;
+        tempState = { ...newState, opponent, player, log };
+        return true;
+    }
+    return false;
+  };
 
   // 1. Play Land if possible
-  const landPlayedThisTurn = opponent.battlefield.some((c: Card) => c.type === 'Land' && c.summoningSickness);
+  const landPlayedThisTurn = opponent.battlefield.some(c => c.type === 'Land' && c.summoningSickness);
   if (!landPlayedThisTurn) {
-      const landInHand = opponent.hand.find((c: Card) => c.type === 'Land');
-      if (landInHand) {
-          log.push({ type: 'play', turn: tempState.turn, message: `Adversaire joue ${landInHand.name}.` });
-          opponent.battlefield = [...opponent.battlefield, { ...landInHand, summoningSickness: true, buffs: [] }];
-          opponent.hand = opponent.hand.filter((c: Card) => c.id !== landInHand.id);
-          opponent.maxMana += 1;
-          opponent.mana = opponent.maxMana;
-          tempState.opponent = opponent;
-          log = [...tempState.log, log[log.length-1]];
-      }
+    const landInHand = opponent.hand.find(c => c.type === 'Land');
+    if (landInHand) {
+      applyAction({ type: 'PLAY_CARD', cardId: landInHand.id });
+    }
   }
 
-  // 1.5. Survival: Use healing if low on health
+  // 2. Survival & Healing
   if (opponent.hp <= 10) {
-      const healthPotion = opponent.hand.find(c => c.id.startsWith('health_potion') && c.manaCost <= opponent.mana);
-      if (healthPotion) {
-          const playAction = { type: 'PLAY_CARD' as const, cardId: healthPotion.id };
-          const newState = gameReducer(tempState, playAction);
-          tempState = newState;
-          opponent = newState.opponent;
-          log = newState.log;
-      }
+    const healthPotion = opponent.hand.find(c => c.id.startsWith('health_potion') && c.manaCost <= opponent.mana);
+    if (healthPotion) {
+      applyAction({ type: 'PLAY_CARD', cardId: healthPotion.id });
+    }
   }
-  
-  // Use Cleric to heal damaged creatures
+
+  // Use Cleric to heal the most damaged ally
   const clerics = opponent.battlefield.filter(c => c.id.startsWith('cleric') && c.skill && !c.skill.onCooldown && !c.tapped && !c.summoningSickness);
   const damagedAllies = opponent.battlefield.filter(c => c.type === 'Creature' && c.health < c.initialHealth);
-
   if (clerics.length > 0 && damagedAllies.length > 0) {
-      const cleric = clerics[0];
-      const target = damagedAllies.sort((a,b) => (a.health / a.initialHealth) - (b.health / b.initialHealth))[0]; // heal the most damaged
-      const skillAction = { type: 'ACTIVATE_SKILL' as const, cardId: cleric.id, targetId: target.id };
-      const newState = gameReducer(tempState, skillAction);
-      tempState = newState;
-      opponent = newState.opponent;
-      log = newState.log;
+    const cleric = clerics[0];
+    const target = damagedAllies.sort((a,b) => (a.health / a.initialHealth) - (b.health / b.initialHealth))[0]; // heal the most damaged
+    applyAction({ type: 'ACTIVATE_SKILL', cardId: cleric.id, targetId: target.id });
   }
 
+  // 3. Use Mana Potion if it allows playing a better card
+  const manaPotion = opponent.hand.find(c => c.id.startsWith('mana_potion') && c.manaCost <= opponent.mana);
+  if (manaPotion) {
+    const potentialMana = opponent.mana - manaPotion.manaCost + 2;
+    const powerfulCard = opponent.hand.find(c => c.manaCost > opponent.mana && c.manaCost <= potentialMana);
+    if (powerfulCard) {
+      applyAction({ type: 'PLAY_CARD', cardId: manaPotion.id });
+    }
+  }
 
-  // 2. Play Creatures to establish board presence
-  let playedCardInLoop = true;
-  while(playedCardInLoop) {
-      playedCardInLoop = false;
-      const currentCreatureCount = opponent.battlefield.filter((c: Card) => c.type === 'Creature').length;
-      
-      // Objective: have at least 2 creatures if possible
-      if (currentCreatureCount < 2 && opponent.hand.length > 0 && opponent.battlefield.length < MAX_BATTLEFIELD_SIZE) {
-          const playableCreatures = opponent.hand
-              .filter((c: Card) => c.type === 'Creature' && c.manaCost <= opponent.mana)
-              .sort((a: Card, b: Card) => a.manaCost - b.manaCost); // Prioritize cheaper creatures to fill the board
-
-          if (playableCreatures.length > 0) {
-              const cardToPlay = playableCreatures[0];
-              const playAction = { type: 'PLAY_CARD' as const, cardId: cardToPlay.id };
-              const newState = gameReducer(tempState, playAction);
-              tempState = newState;
-              opponent = newState.opponent;
-              log = newState.log;
-              playedCardInLoop = true; // A card was played, so we try again to meet the objective
-          }
-      }
+  // 4. Use spells and skills strategically
+  // Offensive spells
+  const lightningBolt = opponent.hand.find(c => c.id.startsWith('lightning_bolt') && c.manaCost <= opponent.mana);
+  if (lightningBolt) {
+    const killableTargets = player.battlefield.filter(t => t.type === 'Creature' && (t.health || 0) <= (lightningBolt.skill?.value || 0));
+    if (killableTargets.length > 0) {
+      const bestTarget = killableTargets.sort((a, b) => (b.attack || 0) - (a.attack || 0))[0];
+      applyAction({ type: 'PLAY_CARD', cardId: lightningBolt.id });
+      applyAction({ type: 'CAST_SPELL_ON_TARGET', targetId: bestTarget.id });
+    }
   }
   
-  // 3. Play other valuable cards (Artifacts, expensive creatures)
-  let playedValuableCard = true;
-  while(playedValuableCard) {
-      playedValuableCard = false;
-      if (opponent.battlefield.length >= MAX_BATTLEFIELD_SIZE) break;
-
-      const playableCards = opponent.hand
-          .filter((c: Card) => (c.type === 'Creature' || c.type === 'Artifact') && c.manaCost <= opponent.mana)
-          .sort((a: Card, b: Card) => b.manaCost - a.manaCost);
-
-      if (playableCards.length > 0) {
-          const cardToPlay = playableCards[0];
-          const playAction = { type: 'PLAY_CARD' as const, cardId: cardToPlay.id };
-          const newState = gameReducer(tempState, playAction);
-          tempState = newState;
-          opponent = newState.opponent;
-          log = newState.log;
-          playedValuableCard = true;
+  // Buff spells before combat
+  const berserkRage = opponent.hand.find(c => c.id.startsWith('berserk_rage') && c.manaCost <= opponent.mana);
+  if (berserkRage) {
+      const attackers = opponent.battlefield.filter(c => c.type === 'Creature' && !c.tapped && !c.summoningSickness);
+      if (attackers.length > 0) {
+          const bestTarget = attackers.sort((a,b) => (b.attack || 0) - (a.attack || 0))[0];
+          applyAction({ type: 'PLAY_CARD', cardId: berserkRage.id });
+          applyAction({ type: 'CAST_SPELL_ON_TARGET', targetId: bestTarget.id });
       }
   }
+
+  // Use creature skills
+  const activatableSkills = opponent.battlefield.filter(c => c.skill && !c.skill.onCooldown && !c.tapped && !c.summoningSickness);
+  for (const card of activatableSkills) {
+      if (card.skill?.type === 'draw') {
+          if (opponent.hand.length < MAX_HAND_SIZE) {
+              applyAction({ type: 'ACTIVATE_SKILL', cardId: card.id });
+          }
+      } else if (card.skill?.type === 'taunt') {
+          if (!card.taunt) {
+              applyAction({ type: 'ACTIVATE_SKILL', cardId: card.id });
+          }
+      } else if (card.skill?.type === 'sacrifice') {
+        const valuableAllies = opponent.battlefield.filter(c => c.id !== card.id && c.type === 'Creature' && c.health < c.initialHealth / 2 && (c.attack || 0) > 3);
+        if (valuableAllies.length > 0) {
+          const target = valuableAllies[0];
+          applyAction({type: 'ACTIVATE_SKILL', cardId: card.id, targetId: target.id});
+        }
+      }
+  }
+
+  // 5. Play creatures to establish board presence
+  let playedCreature = true;
+  while(playedCreature) {
+    playedCreature = false;
+    if (opponent.battlefield.length >= MAX_BATTLEFIELD_SIZE) break;
+
+    const playableCreatures = opponent.hand
+      .filter(c => c.type === 'Creature' && c.manaCost <= opponent.mana)
+      .sort((a, b) => b.manaCost - a.manaCost); // Prioritize more expensive creatures now
+
+    if (playableCreatures.length > 0) {
+      if(applyAction({ type: 'PLAY_CARD', cardId: playableCreatures[0].id })) {
+        playedCreature = true;
+      }
+    }
+  }
+  
+  // Update the main state with the results of all actions
+  tempState.opponent = opponent;
+  tempState.player = player;
+  tempState.log = log;
 
   // --- Combat Phase ---
-  let attackers = opponent.battlefield.filter((c: Card) => c.type === 'Creature' && c.canAttack && !c.tapped);
-  const playerTauntCreatures = player.battlefield.filter((c: Card) => c.taunt && !c.tapped);
-  
+  let combatState = { ...tempState };
+  let combatOpponent = { ...combatState.opponent };
+  let combatPlayer = { ...combatState.player };
+  let combatLog = [...combatState.log];
+
+  let attackers = combatOpponent.battlefield.filter((c: Card) => c.type === 'Creature' && c.canAttack && !c.tapped);
+  const playerTauntCreatures = combatPlayer.battlefield.filter((c: Card) => c.taunt && !c.tapped);
+
   if (attackers.length > 0) {
-    log.push({ type: 'phase', turn: tempState.turn, message: `Adversaire passe en phase de combat.` });
+    combatLog.push({ type: 'phase', turn: combatState.turn, message: `Adversaire passe en phase de combat.` });
   }
 
-  attackers.forEach((attacker: Card) => {
-      let targetId: string | 'player' | null = null;
-      let attackerCard = opponent.battlefield.find(c => c.id === attacker.id);
-      if (!attackerCard) return; // Should not happen
+  for (const attacker of attackers) {
+      let targetId: string | 'opponent' | null = null;
+      let attackerCard = combatOpponent.battlefield.find(c => c.id === attacker.id);
+      if (!attackerCard) continue;
 
       if(playerTauntCreatures.length > 0) {
           targetId = playerTauntCreatures.sort((a,b) => (a.health || 0) - (b.health || 0))[0].id;
       } else {
-        const potentialBlockers = player.battlefield.filter((c: Card) => c.type === 'Creature' && !c.tapped);
-        if (potentialBlockers.length > 0) {
-           const killableTarget = potentialBlockers.find(p => (p.health || 0) <= ((attackerCard?.attack || 0) - (p.armor || 0)) );
-           if(killableTarget) {
-               targetId = killableTarget.id;
-           } else {
-              targetId = 'player'; 
-           }
+        const potentialBlockers = combatPlayer.battlefield.filter(c => c.type === 'Creature' && !c.tapped);
+        const totalAttack = (attackerCard.attack || 0) + (attackerCard.buffs?.filter(b => b.type === 'attack').reduce((acc, b) => acc + b.value, 0) || 0);
+
+        // Can I kill something?
+        const killableTargets = potentialBlockers.filter(p => (p.health || 0) <= totalAttack - (p.armor || 0));
+        if (killableTargets.length > 0) {
+            // Target the killable creature with the highest attack
+            targetId = killableTargets.sort((a, b) => (b.attack || 0) - (a.attack || 0))[0].id;
+        } else if (potentialBlockers.length === 0) {
+            // No blockers, attack player
+            targetId = 'opponent';
         } else {
-          targetId = 'player';
+            // Can't kill anything, decide if it's worth attacking the player or a creature
+            if (combatPlayer.hp < totalAttack) { // Lethal
+                targetId = 'opponent';
+            } else {
+                // If AI creature would die and player creature would live, it's a bad trade, don't attack
+                const weakestBlocker = potentialBlockers.sort((a, b) => (a.attack || 0) - (b.attack || 0))[0];
+                const riposteDamage = (weakestBlocker.attack || 0) - (attackerCard.armor || 0);
+                if (riposteDamage < (attackerCard.health || 0)) {
+                    targetId = 'opponent'; // Attack player if the trade is bad or there are no blockers
+                }
+            }
         }
       }
 
       if (targetId) {
-          if (targetId === 'player' && player.battlefield.filter(c => c.type === 'Creature' && !c.tapped).length > 0) {
-              let defenderToAttack = player.battlefield.filter(c => c.type === 'Creature').sort((a,b) => (b.attack || 0) - (a.attack || 0))[0];
-              targetId = defenderToAttack.id;
-          }
-
-          let defenderCard = player.battlefield.find((c: Card) => c.id === targetId);
-          let newAttacker = { ...attackerCard }; // Work with a copy
+          combatState.combatAnimation = { attackerId: attackerCard.id, defenderId: targetId };
+          let defender: Card | Player | undefined = targetId === 'opponent' ? combatPlayer : combatPlayer.battlefield.find(c => c.id === targetId);
+          if (!defender) continue;
           
-          tempState.combatAnimation = { attackerId: newAttacker.id, defenderId: targetId };
-
-          if (targetId === 'player') {
-            const combatResult = resolveDamage(newAttacker, player, log, tempState.turn, opponent);
-            player = combatResult.defender as Player;
-            opponent = combatResult.attackerOwner;
-            log = combatResult.log;
-
-          } else if (defenderCard) {
-            let newDefender = { ...defenderCard }; // Work with a copy
-            log.push({ type: 'combat', turn: tempState.turn, message: `Adversaire: ${newAttacker.name} attaque ${newDefender.name}.` });
-            
-            const combatResult = resolveDamage(newAttacker, newDefender, log, tempState.turn, opponent);
-            
-            opponent.battlefield = opponent.battlefield.map(c => c.id === newAttacker.id ? combatResult.attacker : c);
-            player.battlefield = player.battlefield.map(c => c.id === newDefender.id ? combatResult.defender as Card : c);
-            opponent = combatResult.attackerOwner;
-            log = combatResult.log;
-
-            // Check for riposte only if defender survives
-            const finalDefenderState = player.battlefield.find(c => c.id === newDefender.id);
-            if (finalDefenderState && (finalDefenderState.health || 0) > 0) {
-               log.push({ type: 'combat', turn, message: `${finalDefenderState.name} riposte !` });
-               const riposteResult = resolveDamage(finalDefenderState, combatResult.attacker, log, tempState.turn, player);
-               
-               opponent.battlefield = opponent.battlefield.map(c => c.id === newAttacker.id ? riposteResult.defender as Card : c);
-               player.battlefield = player.battlefield.map(c => c.id === finalDefenderState.id ? riposteResult.attacker : c);
-               player = riposteResult.attackerOwner as Player;
-               log = riposteResult.log;
-            }
-          }
+          const combatResult = resolveDamage(attackerCard, defender, combatLog, combatState.turn, combatOpponent);
           
-          opponent.battlefield = opponent.battlefield.map(c => c.id === attacker.id ? {...c, tapped: true, canAttack: false} : c);
+          combatOpponent = combatResult.attackerOwner;
+
+          if (targetId === 'opponent') {
+              combatPlayer = combatResult.defender as Player;
+          } else {
+              combatPlayer.battlefield = combatPlayer.battlefield.map(c => c.id === targetId ? combatResult.defender as Card : c);
+
+              // Riposte
+              const finalDefenderState = combatPlayer.battlefield.find(c => c.id === targetId);
+              if (finalDefenderState && (finalDefenderState.health || 0) > 0 && !finalDefenderState.tapped) {
+                 combatLog.push({ type: 'combat', turn, message: `${finalDefenderState.name} riposte !` });
+                 const riposteResult = resolveDamage(finalDefenderState, combatResult.attacker, combatLog, combatState.turn, combatPlayer);
+                 combatOpponent.battlefield = combatOpponent.battlefield.map(c => c.id === attacker.id ? riposteResult.defender as Card : c);
+                 combatPlayer = riposteResult.attackerOwner as Player;
+                 combatLog = riposteResult.log;
+              }
+          }
+          combatOpponent.battlefield = combatOpponent.battlefield.map(c => c.id === attacker.id ? {...c, tapped: true, canAttack: false} : c);
+          combatLog = combatResult.log;
       }
-  });
+  }
+  
+  // Final state after combat
+  combatState.player = combatPlayer;
+  combatState.opponent = combatOpponent;
+  combatState.log = combatLog;
 
-    if (player.hp <= 0) {
-        tempState.winner = 'opponent';
-        tempState.phase = 'game-over';
-        log.push({ type: 'game_over', turn: tempState.turn, message: "Le joueur a été vaincu."})
-    } else if (opponent.hp <= 0) {
-        tempState.winner = 'player';
-        tempState.phase = 'game-over';
-        log.push({ type: 'game_over', turn: tempState.turn, message: "L'adversaire a été vaincu."})
-    }
+  if (combatPlayer.hp <= 0) {
+      combatState.winner = 'opponent';
+      combatState.phase = 'game-over';
+      combatLog.push({ type: 'game_over', turn: combatState.turn, message: "Le joueur a été vaincu."})
+  } else if (combatOpponent.hp <= 0) {
+      combatState.winner = 'player';
+      combatState.phase = 'game-over';
+      combatLog.push({ type: 'game_over', turn: combatState.turn, message: "L'adversaire a été vaincu."})
+  }
 
-  tempState.player = player;
-  tempState.opponent = opponent;
-  tempState.log = log;
-
-  return tempState;
+  return combatState;
 };
 
 const resolvePlayerCombat = (state: GameState): GameState => {
@@ -688,6 +701,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         
         // If skill requires a target, change phase to spell_targeting
         if (card.skill.target && card.skill.target !== 'self' && card.skill.target !== 'player') {
+            // For the player, just set the state to targeting. The GameBoard will handle the click.
             if (activePlayerKey === 'player') {
                 return {
                     ...stateWithClearedFlags,
@@ -695,13 +709,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
                     spellBeingCast: card, // Using this to hold the skill-caster
                     selectedCardId: action.cardId // Keep the caster selected
                 };
-            } else { // AI targeting logic
-                if (!action.targetId) return stateWithClearedFlags; // AI must provide a target
-                 return gameReducer(stateWithClearedFlags, { type: 'CAST_SPELL_ON_TARGET', targetId: action.targetId });
+            } else { // AI targeting logic comes from opponentAI, which calls CAST_SPELL_ON_TARGET
+                if (!action.targetId) return stateWithClearedFlags; 
+                return gameReducer(stateWithClearedFlags, { type: 'CAST_SPELL_ON_TARGET', targetId: action.targetId });
             }
         }
 
-        // --- Logic for skills that don't need a target ---
+        // --- Logic for skills that don't need a target (or target self/player) ---
         let player = { ...stateWithClearedFlags[activePlayerKey] };
         let log = [...stateWithClearedFlags.log];
         const cardIndex = player.battlefield.findIndex((c: Card) => c.id === action.cardId);
@@ -712,7 +726,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         switch(cardToUpdate.skill?.type) {
             case 'taunt':
                 cardToUpdate.taunt = true;
-                logEntry = { type: 'skill', turn: stateWithClearedFlags.turn, message: `Joueur active la compétence Provocation de ${cardToUpdate.name}!` };
+                logEntry = { type: 'skill', turn: stateWithClearedFlags.turn, message: `${activePlayerKey === 'player' ? 'Joueur' : 'Adversaire'} active la compétence Provocation de ${cardToUpdate.name}!` };
                 break;
             case 'draw':
                 const { player: drawnPlayer, drawnCard } = drawCardsWithBiomeAffinity(player, 1, stateWithClearedFlags.activeBiome);
@@ -826,7 +840,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (card.type === 'Land') {
         newPlayerState.battlefield = [...newPlayerState.battlefield, newCardState];
         newPlayerState.maxMana = newPlayerState.maxMana + 1;
-        newPlayerState.mana = newPlayerState.maxMana;
+        newPlayerState.mana = newPlayerState.mana; // Mana from land is available next turn, but let's give it now
       } else if (card.type === 'Creature' || card.type === 'Artifact') {
         newPlayerState.battlefield = [...newPlayerState.battlefield, newCardState];
         newPlayerState.battlefield = applyBiomeBuffs(newPlayerState.battlefield, tempNewState.activeBiome);
@@ -938,7 +952,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
 
       if (spellOrSkillCaster.skill?.target === 'opponent_creature') {
-        findTarget(opponent, 'opponent');
+        findTarget(activePlayerKey === 'player' ? opponent : player, activePlayerKey === 'player' ? 'opponent' : 'player');
       } else if (spellOrSkillCaster.skill?.target === 'friendly_creature') {
         findTarget(activePlayerKey === 'player' ? player : opponent, activePlayerKey);
       } else if (spellOrSkillCaster.skill?.target === 'any_creature') {
@@ -1193,7 +1207,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const { player: drawnPlayer } = drawCardsWithBiomeAffinity(nextPlayer, 1, state.activeBiome);
       nextPlayer = drawnPlayer;
       
-      nextPlayer.maxMana = Math.min(10, nextPlayer.maxMana + 1);
+      nextPlayer.maxMana = Math.min(10, (nextPlayer.maxMana || 0) + 1);
       nextPlayer.mana = nextPlayer.maxMana;
       
       let finalState = {
