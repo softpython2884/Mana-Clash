@@ -2,7 +2,7 @@
 
 Bienvenue sur Mana Clash, un jeu de cartes tactique en ligne inspiré par des classiques comme *Magic: The Gathering* et *Hearthstone*. Ce projet a été développé avec l'aide de l'IA de Firebase Studio et est conçu pour être à la fois un jeu amusant et une plateforme extensible et open source.
 
-![Aperçu du jeu](https://i.imgur.com/example.png) <!-- Image à remplacer par une vraie capture d'écran -->
+
 
 ## Comment Jouer ?
 
